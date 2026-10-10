@@ -168,6 +168,25 @@
         "stations_read": 23,
         "stations_inferred": 0
       }
+    },
+    {
+      "id": "markup",
+      "title": "12 EARTHWORK scan sets",
+      "reference": "Estimators' hand takeoffs on the sheets",
+      "metrics": {
+        "sections": 538,
+        "sections_scored": 453,
+        "median_error_pct": 25.8,
+        "p90_error_pct": 147.6,
+        "within_5pct": 6.6,
+        "within_10pct": 23.4,
+        "total_fill_ft2": 23075.8,
+        "ref_total_fill_ft2": 18083.8,
+        "total_cut_ft2": 19960.6,
+        "ref_total_cut_ft2": 18445.5,
+        "total_fill_error_pct": 27.6,
+        "total_cut_error_pct": 8.2
+      }
     }
   ]
 }
