@@ -1,9 +1,9 @@
 import { useRef, useState } from 'react';
 
 const FORMATS = [
-  { title: 'Scanned strips', body: '19-series: one cross-section per page' },
-  { title: 'Scanned sheets', body: '23-series: several sections per sheet' },
-  { title: 'CAD-exported PDF', body: 'Vector sheets, measured from the linework' },
+  { title: '19-series', body: 'Scanned strips, one cross-section per page', tone: 'blue' },
+  { title: '23-series', body: 'Scanned sheets, several sections per sheet', tone: 'green' },
+  { title: 'CAD-exported PDF', body: 'Measured exactly from the drawing linework', tone: 'yellow' },
 ];
 
 export default function UploadView({ server, onFile, busy, error }) {
@@ -28,9 +28,9 @@ export default function UploadView({ server, onFile, busy, error }) {
     : 'Server is missing OCR (tesseract) — scanned sheets cannot be read';
 
   return (
-    <main className="center-page">
-      <div className="upload-card">
-        <h1>Cut &amp; fill from cross-sections</h1>
+    <div className="page narrow">
+      <div className="card upload-card">
+        <h2>Cut &amp; fill from cross-sections</h2>
         <p className="lede">
           Upload a road plan set. Cross-section sheets are found automatically, each station is read,
           the existing ground and proposed design are traced, and cut/fill volumes are computed per road
@@ -58,7 +58,7 @@ export default function UploadView({ server, onFile, busy, error }) {
 
         <div className="formats">
           {FORMATS.map((f) => (
-            <div className="format" key={f.title}><b>{f.title}</b><span>{f.body}</span></div>
+            <div className={`format t-${f.tone}`} key={f.title}><b>{f.title}</b><span>{f.body}</span></div>
           ))}
         </div>
 
@@ -68,6 +68,6 @@ export default function UploadView({ server, onFile, busy, error }) {
         </div>
         {(localError || error) && <div className="error-box" role="alert">{localError || error}</div>}
       </div>
-    </main>
+    </div>
   );
 }

@@ -2,6 +2,7 @@
 HTTP API for the earthwork pipeline.
 
     GET  /api/health                         dependency check
+    GET  /api/accuracy                       measured accuracy per plan-set format
     POST /api/jobs                           upload a plan-set PDF -> {job_id}
     GET  /api/jobs/{id}                      status, progress, and (when done) the result
     GET  /api/jobs/{id}/sections/{n}.png     audit overlay for one cross-section
@@ -18,6 +19,7 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 import os
 import shutil
 import tempfile
@@ -173,6 +175,20 @@ def _job(job_id: str) -> Job:
 def health():
     deps = {"tesseract": shutil.which("tesseract") is not None}
     return {"ok": all(deps.values()), "version": __version__, "dependencies": deps}
+
+
+ACCURACY_FILE = os.environ.get(
+    "ACCURACY_FILE", os.path.join(os.path.dirname(os.path.abspath(__file__)), "accuracy.json"))
+
+
+@app.get("/api/accuracy")
+def accuracy():
+    """Measured accuracy per plan-set format (written by tools.accuracy_report)."""
+    try:
+        with open(ACCURACY_FILE, encoding="utf-8") as fh:
+            return json.load(fh)
+    except FileNotFoundError:
+        raise HTTPException(404, "No accuracy report has been generated.") from None
 
 
 @app.post("/api/jobs")

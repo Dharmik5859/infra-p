@@ -47,3 +47,13 @@ def test_rejects_non_pdf():
     assert r.status_code == 400
     r = client.post("/api/jobs", files={"file": ("fake.pdf", b"not a pdf", "application/pdf")})
     assert r.status_code == 400
+
+
+def test_accuracy_report(tmp_path, monkeypatch):
+    client = TestClient(main.app)
+    monkeypatch.setattr(main, "ACCURACY_FILE", str(tmp_path / "missing.json"))
+    assert client.get("/api/accuracy").status_code == 404
+    report = tmp_path / "accuracy.json"
+    report.write_text('{"formats": [{"id": "19"}]}')
+    monkeypatch.setattr(main, "ACCURACY_FILE", str(report))
+    assert client.get("/api/accuracy").json()["formats"][0]["id"] == "19"

@@ -12,6 +12,10 @@ export async function health() {
   return json(await fetch(`${BASE}/api/health`));
 }
 
+export async function getAccuracy() {
+  return json(await fetch(`${BASE}/api/accuracy`));
+}
+
 export async function createJob(file) {
   const form = new FormData();
   form.append('file', file);

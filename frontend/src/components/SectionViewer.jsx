@@ -26,13 +26,13 @@ export default function SectionViewer({ section: s, position, count, onPrev, onN
         </div>
         {s.overlay ? (
           <div className="viewer-img">
-            <img src={assetUrl(s.overlay)} alt={`Cross-section ${s.station || ''} on page ${s.page}: existing ground in blue, finished grade in black, subgrade in orange, fill shaded green, cut shaded red`} />
+            <img src={assetUrl(s.overlay)} alt={`Cross-section ${s.station || ''} on page ${s.page}: existing ground in blue, finished grade in black, subgrade in yellow, fill shaded green, cut shaded red`} />
           </div>
         ) : <div className="empty">No overlay image for this section.</div>}
         <div className="legend" style={{ padding: 0 }}>
-          <span><i style={{ background: '#2870b0' }} />existing ground</span>
+          <span><i style={{ background: '#1a73e8' }} />existing ground</span>
           <span><i style={{ background: '#1e1e1e' }} />finished grade</span>
-          <span><i style={{ background: '#e68c00' }} />subgrade (under pavement)</span>
+          <span><i style={{ background: '#f9ab00' }} />subgrade (under pavement)</span>
           <span><i style={{ background: 'var(--fill)' }} />fill</span>
           <span><i style={{ background: 'var(--cut)' }} />cut</span>
         </div>

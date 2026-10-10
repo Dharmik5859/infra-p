@@ -113,3 +113,10 @@ def test_ground_parallel_to_a_thin_raise_is_kept():
     dash = np.zeros_like(template)
     _dashes(dash, 0, 600, 108, 148)                             # one continuous ground line, 8 px down
     assert drop_layer_lines(dash, template).sum() == dash.sum()
+
+
+def test_repair_drops_digit_ocr_inserted_before_plus():
+    reads = [read("300+00"), read("300+50"), read("301+00"), read("3014+50"), read("3024+00"),
+             read("3024+50"), read("303+00"), read("303+50")]
+    assert [r.label for r in repair(reads)] == [
+        "300+00", "300+50", "301+00", "301+50", "302+00", "302+50", "303+00", "303+50"]

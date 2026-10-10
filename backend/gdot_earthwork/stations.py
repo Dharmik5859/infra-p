@@ -72,7 +72,24 @@ def _options(r: StationRead) -> list[tuple[float | None, str | None, float]]:
         ft = parse_station(c)
         if ft is not None and ft not in opts:
             opts[ft] = (ft, c, 0.3)
+    # OCR's commonest slip on these fonts is an extra digit in front of the
+    # plus sign ("301+50" read "3014+50"): offer the reading without it, at a
+    # low score, so a clean sequence can win it back
+    for c in [r.label, *r.candidates]:
+        fixed = _drop_digit_before_plus(c)
+        ft = parse_station(fixed) if fixed else None
+        if ft is not None and ft not in opts:
+            opts[ft] = (ft, fixed, 0.0)
     return list(opts.values()) + [(INFER, None, _INFER_COST)]
+
+
+def _drop_digit_before_plus(label: str | None) -> str | None:
+    if not label or "+" not in label:
+        return None
+    head, tail = label.split("+", 1)
+    if len(head) < 2 or not head[-1].isdigit():
+        return None
+    return f"{head[:-1]}+{tail}"
 
 
 def _transition(a: float, b: float, expected: float, step: float) -> float:

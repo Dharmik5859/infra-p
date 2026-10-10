@@ -39,11 +39,11 @@ class PipelineConfig:
                                        # top of pavement / finished grade
 
     # --- overlay colours (BGR) ---
-    fill_color_bgr: tuple[int, int, int] = (79, 158, 46)      # green
-    cut_color_bgr: tuple[int, int, int] = (59, 59, 209)       # red
-    ground_line_bgr: tuple[int, int, int] = (176, 112, 40)    # existing ground
+    fill_color_bgr: tuple[int, int, int] = (62, 142, 30)      # green  #1E8E3E
+    cut_color_bgr: tuple[int, int, int] = (37, 48, 217)       # red    #D93025
+    ground_line_bgr: tuple[int, int, int] = (232, 115, 26)    # existing ground, blue #1A73E8
     design_line_bgr: tuple[int, int, int] = (30, 30, 30)      # proposed finished grade
-    subgrade_line_bgr: tuple[int, int, int] = (0, 140, 230)   # proposed subgrade
+    subgrade_line_bgr: tuple[int, int, int] = (0, 171, 249)   # proposed subgrade, yellow #F9AB00
     overlay_alpha: float = 0.55
 
 
