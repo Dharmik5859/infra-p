@@ -98,10 +98,18 @@ def test_layer_line_under_template_is_not_ground():
     template = np.zeros((300, 600), np.uint8)
     cv2.line(template, (100, 100), (500, 140), 1, 2)           # 10 % cross slope
     dash = np.zeros_like(template)
-    _dashes(dash, 0, 100, 100, 100)                             # ground, left of the road
+    _dashes(dash, 0, 140, 100, 104)                             # ground, running onto the old road
     _dashes(dash, 150, 450, 123, 153)                           # pavement bottom: parallel, 18 px down
     _dashes(dash, 120, 480, 160, 200)                           # real ground: diverges from the grade
     kept = drop_layer_lines(dash, template)
-    assert kept[:, :100].any()                                  # ground outside the road stays
+    assert kept[:, :100].any()                                  # the ground itself stays
     assert not kept[115:135, 200:210].any()                     # the parallel layer line is gone
     assert kept[160:180, 200:210].any()                         # diverging ground under fill stays
+
+
+def test_ground_parallel_to_a_thin_raise_is_kept():
+    template = np.zeros((300, 600), np.uint8)
+    cv2.line(template, (100, 100), (500, 140), 1, 2)
+    dash = np.zeros_like(template)
+    _dashes(dash, 0, 600, 108, 148)                             # one continuous ground line, 8 px down
+    assert drop_layer_lines(dash, template).sum() == dash.sum()
