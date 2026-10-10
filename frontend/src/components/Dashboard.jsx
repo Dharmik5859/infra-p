@@ -22,6 +22,8 @@ export function Gauge({ value, tone, label, sub }) {
   );
 }
 
+const signedPct = (v) => (v == null ? '—' : `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(1)} %`);
+
 export function VerdictPill({ g }) {
   return <span className={`pill verdict t-${g.tone}`}><IconCheck width={16} height={16} />{g.label}</span>;
 }
@@ -51,9 +53,19 @@ function VerdictCard({ f }) {
         <div><dt>Sections checked</dt><dd className="num">{m.sections}</dd></div>
         <div><dt>Within 10 %</dt><dd className="num">{m.within_10pct == null ? '—' : `${Math.round(m.within_10pct)} %`}</dd></div>
         <div><dt>Typical error</dt><dd className="num">{m.median_error_pct == null ? '—' : `${m.median_error_pct.toFixed(1)} %`}</dd></div>
-        <div><dt>9 in 10 within</dt><dd className="num">{m.p90_error_pct == null ? '—' : `${m.p90_error_pct.toFixed(0)} %`}</dd></div>
+        <div><dt>9 in 10 sections within</dt><dd className="num">{m.p90_error_pct == null ? '—' : `${m.p90_error_pct.toFixed(0)} %`}</dd></div>
       </dl>
-      <footer className="vc-ref"><IconInfo width={16} height={16} />Checked against: {f.reference}</footer>
+      <footer className="vc-ref">
+        <IconInfo width={16} height={16} />
+        <span>
+          Checked against: {f.reference}.
+          {f.second && (
+            <> Against {f.second.reference}: total fill {signedPct(f.second.metrics.total_fill_error_pct)},
+              total cut {signedPct(f.second.metrics.total_cut_error_pct)} — estimators measure by their own
+              conventions, so this is a looser check.</>
+          )}
+        </span>
+      </footer>
     </article>
   );
 }

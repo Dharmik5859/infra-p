@@ -31,6 +31,7 @@ FORMATS = [
         "sample": "SR 332 mainline scans (23-series sheet layout)",
         "eval": "sr332_pair",
         "reference": "Exact CAD geometry of the same sheets (SR-332 EARTHWORK.pdf)",
+        "second": {"eval": "sr332_markup", "reference": "the estimator's hand takeoff on the same sheets"},
     },
 ]
 
@@ -38,6 +39,7 @@ FORMATS = [
 CHECKS = [
     ("s19_pair", "19-series scans", "Exact CAD geometry of the same sheets"),
     ("sr332_pair", "SR 332 scans (23-series layout)", "Exact CAD geometry of the same sheets"),
+    ("sr332_markup", "SR 332 scans (23-series layout)", "Estimator's hand takeoff on the sheets"),
     ("hp_vector", "highway_planning1 read as an image", "Its own CAD geometry"),
     ("florence_pair", "Florence Rd scans", "Exact CAD geometry of the same sheets"),
     ("markup", "12 EARTHWORK scan sets", "Estimators' hand takeoffs on the sheets"),
@@ -66,8 +68,14 @@ def build(eval_dir: str) -> dict:
     formats = []
     for f in FORMATS:
         m = _load(eval_dir, f["eval"])
-        if m:
-            formats.append({**f, "metrics": m})
+        if not m:
+            continue
+        card = {k: v for k, v in f.items() if k != "second"}
+        card["metrics"] = m
+        second = f.get("second")
+        if second and (m2 := _load(eval_dir, second["eval"])):
+            card["second"] = {"reference": second["reference"], "metrics": m2}
+        formats.append(card)
     checks = []
     for name, title, reference in CHECKS:
         m = _load(eval_dir, name)

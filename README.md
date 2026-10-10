@@ -68,7 +68,33 @@ Measured with `backend/tools/evaluate.py` against two independent references:
   from the CAD strokes; the scan path is scored against them (and the
   19-series scans against the vector sheets they were made from).
 
-_Measured error rates are being added; see the latest commit history._
+Totals are the sum of fill (or cut) area over all checked sections; "within 10 %"
+counts sections whose fill + cut is within 10 % of the reference (sections under
+10 ft² in total are left out of that share).
+
+| Plan set | Checked against | Sections | Total fill | Total cut | Within 10 % | Typical section error |
+|---|---|---|---|---|---|---|
+| **19-series** scans | CAD geometry of the same sheets (`highway_planning1.pdf`) | 80 (all stations read correctly) | +1.2 % | −3.9 % | 87 % | 1.5 % |
+| **23-series layout** (SR 332 scans) | CAD geometry of the same sheets | 99 | −5.0 % | +7.9 % | 39 % | 14.9 % |
+| SR 332 scans | estimator's hand takeoff | 96 | +37.8 % | +12.7 % | 10 % | 28 % |
+| `highway_planning1.pdf` read as an image | its own CAD geometry | 160 | +0.2 % | −29.9 %¹ | 85 % | 1.4 % |
+
+Verdicts shown in the app: **19-series – Excellent**, **23-series – Fair**
+(totals within 10 %, but individual sections scatter more).
+
+* CAD-exported PDFs such as `highway_planning1.pdf` are measured from the
+  drawing's own linework, so they are exact up to how the sheet is drawn.
+* ¹ Five sections near the bridge (30+50 – 32+50) carry a flat "remove below
+  elevation 640" line; the CAD reading counts it as cut, the image reading
+  treats it as a ruler. Without those stations the cut total is −0.9 %.
+* The 23-series sample itself carries no estimator takeoff; SR 332 is the same
+  sheet format and has both a CAD twin and a takeoff. Its remaining outliers are
+  sheet-specific: an ambiguous ground line at 82+50 (most of the fill gap against
+  the estimator), a template the scan does not show at 135+00, and grading
+  "by others" counted as cut at 67+50. The two references also disagree with
+  each other: estimators measure to their own conventions.
+
+Regenerate with the commands under **Testing**.
 
 ---
 
