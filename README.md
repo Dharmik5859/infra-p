@@ -72,6 +72,21 @@ _Measured error rates are being added; see the latest commit history._
 
 ---
 
+## The app
+
+A dashboard with a sidebar (Dashboard · New takeoff · Results · Accuracy) and a top bar.
+
+* **Dashboard** – a verdict card for the 19-series and the 23-series: fill and cut accuracy,
+  share of sections within 10 %, typical section error, and what it was checked against;
+  plus the latest takeoff's cut, fill and net volume.
+* **New takeoff** – drop a plan-set PDF; progress is shown page by page.
+* **Results** – roads (toggle which count toward the total), the cut/fill profile with
+  mass curve, every cross-section with its audit overlay (← / → to step), the volume table,
+  sections that need review, CSV export, and a switch between subgrade and finished grade.
+* **Accuracy** – every evaluation in one table, how it was measured, and known limits.
+
+---
+
 ## Running it
 
 ### Backend (Python 3.11+)
@@ -117,6 +132,7 @@ Writes `sections.csv`, `volumes.csv` and one overlay PNG per section.
 | Method | Path | |
 |---|---|---|
 | `GET` | `/api/health` | dependency check |
+| `GET` | `/api/accuracy` | measured accuracy per plan-set format (drives the dashboard) |
 | `POST` | `/api/jobs` | upload a PDF (`file`), returns `{job_id}`; jobs run one at a time and queue |
 | `GET` | `/api/jobs/{id}` | status, progress, and the result when done |
 | `GET` | `/api/jobs/{id}/sections/{n}.png` | audit overlay of one section |
@@ -124,7 +140,7 @@ Writes `sections.csv`, `volumes.csv` and one overlay PNG per section.
 | `GET` | `/api/jobs/{id}/sections.csv` | areas per section, both surfaces |
 
 Environment: `ALLOWED_ORIGINS` (CORS, comma separated), `MAX_CONCURRENT_JOBS` (default 1), `MAX_UPLOAD_MB`
-(default 600), `JOB_TTL_SECONDS` (default 6 h), `FRONTEND_DIST`.
+(default 600), `JOB_TTL_SECONDS` (default 6 h), `FRONTEND_DIST`, `ACCURACY_FILE`.
 
 ---
 
@@ -143,9 +159,10 @@ volumes and the HTTP API end to end.
 To re-measure accuracy on real plan sets:
 
 ```bash
-python -m tools.evaluate markup  SCAN_WITH_TAKEOFF.pdf [...]
-python -m tools.evaluate vector  VECTOR.pdf
-python -m tools.evaluate pair    SCAN.pdf VECTOR_OF_SAME_SHEETS.pdf
+python -m tools.evaluate markup  SCAN_WITH_TAKEOFF.pdf [...]          --json evals/markup.json
+python -m tools.evaluate vector  VECTOR.pdf                           --json evals/hp_vector.json
+python -m tools.evaluate pair    SCAN.pdf VECTOR_OF_SAME_SHEETS.pdf   --json evals/s19_pair.json
+python -m tools.accuracy_report  evals/        # rewrites accuracy.json for the dashboard
 ```
 
 ---
@@ -167,6 +184,8 @@ backend/
     plan_set.py           orchestration (parallel over pages)
     cli.py                command-line entry point
   tools/evaluate.py       accuracy measurement
+  tools/accuracy_report.py  evaluation results -> accuracy.json (dashboard)
+  accuracy.json           latest measured accuracy
   tests/                  synthetic-sheet tests
 frontend/                 React + Vite app
 ```
