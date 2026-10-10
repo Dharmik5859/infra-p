@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+earthwork_out/
+
+# Node
+node_modules/
+frontend/dist/
+
+# Local data -- plan sets are large and often confidential; keep them out of git
+*.pdf
+!backend/tests/**/*.pdf
