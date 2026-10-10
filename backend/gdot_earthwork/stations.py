@@ -10,10 +10,11 @@ order, so the sequence itself tells which reading is right.
 The labels are decoded jointly (Viterbi): every section offers its OCR
 readings plus an "infer it" option; a reading scores by its OCR votes, and
 each consecutive pair scores by whether it steps forward by the road's
-regular step. Going backwards or jumping far is allowed -- that is a road
-change -- but costs points, so a lone misread loses to the reading (or the
-inference) that keeps the sequence regular. Inferred labels are marked and
-reported, never silently trusted.
+regular step. Skipping ahead is allowed (sheets left out) at a small cost;
+going backwards (a new road) costs more, so a misread -- or a run of them
+that shares the same slip -- loses to the reading, one-character
+correction or inference that keeps the sequence regular. Inferred and
+corrected labels are marked and reported, never silently trusted.
 """
 from __future__ import annotations
 
@@ -58,7 +59,9 @@ def _typical_step(reads: list[StationRead]) -> float | None:
 
 INFER = None          # the "infer this label" option
 _INFER_COST = -1.5
-_REGULAR, _NEAR, _BREAK = 3.0, 1.5, -2.0
+_EDIT_SCORE = -1.5
+_ALT_SCORE = 0.3
+_REGULAR, _NEAR, _SKIP, _BREAK = 3.0, 1.5, -2.0, -6.0
 
 
 def _options(r: StationRead) -> list[tuple[float | None, str | None, float]]:
@@ -71,25 +74,32 @@ def _options(r: StationRead) -> list[tuple[float | None, str | None, float]]:
     for c in r.candidates:
         ft = parse_station(c)
         if ft is not None and ft not in opts:
-            opts[ft] = (ft, c, 0.3)
-    # OCR's commonest slip on these fonts is an extra digit in front of the
-    # plus sign ("301+50" read "3014+50"): offer the reading without it, at a
-    # low score, so a clean sequence can win it back
+            opts[ft] = (ft, c, _ALT_SCORE)
+    # OCR's typical slips on these fonts are single-character ones at the
+    # front of the label or right before the plus sign: a dropped or
+    # misread leading digit ("72+50" -> "12+50", "175+50" -> "75+50") or an
+    # extra digit ("301+50" -> "3014+50"). Those edits are offered at a low
+    # score, so a clean sequence can win the right reading back.
     for c in [r.label, *r.candidates]:
-        fixed = _drop_digit_before_plus(c)
-        ft = parse_station(fixed) if fixed else None
-        if ft is not None and ft not in opts:
-            opts[ft] = (ft, fixed, 0.0)
+        for fixed in _single_edits(c):
+            ft = parse_station(fixed)
+            if ft is not None and ft not in opts:
+                opts[ft] = (ft, fixed, _EDIT_SCORE)
     return list(opts.values()) + [(INFER, None, _INFER_COST)]
 
 
-def _drop_digit_before_plus(label: str | None) -> str | None:
+def _single_edits(label: str | None) -> list[str]:
     if not label or "+" not in label:
-        return None
+        return []
     head, tail = label.split("+", 1)
-    if len(head) < 2 or not head[-1].isdigit():
-        return None
-    return f"{head[:-1]}+{tail}"
+    if not head.isdigit():
+        return []
+    heads = {head[:-1]} if len(head) >= 2 else set()           # extra digit before "+"
+    heads |= {d + head for d in "123456789"}                   # dropped leading digit
+    if len(head) >= 2:
+        heads.add(head[1:])                                    # spurious leading digit
+    heads |= {d + head[1:] for d in "0123456789" if d != head[0] and (d != "0" or len(head) == 1)}
+    return [f"{h}+{tail}" for h in sorted(heads) if h]
 
 
 def _transition(a: float, b: float, expected: float, step: float) -> float:
@@ -98,7 +108,9 @@ def _transition(a: float, b: float, expected: float, step: float) -> float:
         return _REGULAR
     if 0 < d <= expected + step + 0.5:
         return _NEAR                 # an inserted station (26+40) or a missing section
-    return _BREAK                    # road change, or a misread
+    if d > 0:
+        return _SKIP                 # sheets left out further ahead on the same road
+    return _BREAK                    # a new road (or a misread) going backwards
 
 
 def repair(reads: list[StationRead]) -> list[StationRead]:
@@ -146,8 +158,12 @@ def repair(reads: list[StationRead]) -> list[StationRead]:
             out.append(StationRead(None, None, 0.0, None, None, r.candidates))
         elif label == r.label:
             out.append(r)
-        else:                                    # an alternative OCR reading fitted better
+        elif label in r.candidates:              # an alternative OCR reading fitted better
             out.append(StationRead(label, ft, 0.9, "ocr", None, r.candidates))
+        else:                                    # a one-character correction: flag it for review
+            out.append(StationRead(label, ft, 0.5, "inferred",
+                                   f"station read as {r.label or 'unreadable'!r}; corrected to {label} "
+                                   f"to fit the {step:g} ft station sequence", r.candidates))
     _fill_inferred(out, reads, step, decimals)
     return out
 

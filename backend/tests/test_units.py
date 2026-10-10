@@ -120,3 +120,16 @@ def test_repair_drops_digit_ocr_inserted_before_plus():
              read("3024+50"), read("303+00"), read("303+50")]
     assert [r.label for r in repair(reads)] == [
         "300+00", "300+50", "301+00", "301+50", "302+00", "302+50", "303+00", "303+50"]
+
+
+def test_repair_fixes_a_run_of_dropped_leading_digits():
+    # OCR loses the "7" on a whole sheet series; the run is self-consistent
+    # but breaks the road's sequence at both ends
+    seq = ["68+00", "68+50", "69+00", "69+50", "0+00", "0+50", "11+00", "11+50", "12+00",
+           "12+50", "13+00", "13+50", "74+00", "74+50"]
+    # as on the real sheets, some renderings did read the 7
+    alt = {"0+50": ("70+50",), "11+00": ("71+00",), "12+00": ("72+00",), "13+00": ("73+00",)}
+    out = repair([read(x, cands=(x, *alt.get(x, ()))) for x in seq])
+    assert [r.label for r in out] == [f"{68 + i // 2}+{'50' if i % 2 else '00'}" for i in range(len(seq))]
+    assert all(r.source in ("inferred", "ocr") for r in out[4:12])
+    assert out[4].source == "inferred"                          # a correction nobody read is flagged
