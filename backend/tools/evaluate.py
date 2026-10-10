@@ -112,7 +112,7 @@ def _print(title: str, stats: dict, rows: list[dict], worst: int = 8) -> None:
     big.sort(key=lambda r: -(abs(r["fill"] - r["ref_fill"]) + abs(r["cut"] - r["ref_cut"]))
              / (r["ref_fill"] + r["ref_cut"]))
     if big:
-        print(f"  worst sections:")
+        print("  worst sections:")
         for r in big[:worst]:
             print(f"    p{r['page']:<4} {str(r['station']):>10}  fill {r['fill']:8.1f} vs {r['ref_fill']:8.1f}"
                   f"   cut {r['cut']:8.1f} vs {r['ref_cut']:8.1f}")

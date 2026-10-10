@@ -521,6 +521,45 @@ def template_strokes(solid: np.ndarray, link_px: int, min_px: int) -> np.ndarray
     return np.where(keep[lab], solid, 0).astype(solid.dtype)
 
 
+def drop_layer_lines(dash: np.ndarray, template: np.ndarray, link: int = 29, min_w: int = 72,
+                     min_off: int = 6, max_off: int = 43, max_std: float = 3.0) -> np.ndarray:
+    """Remove dashed runs that are existing pavement layers, not ground.
+
+    An existing road is drawn as a dashed surface plus a dashed line for the
+    bottom of its pavement. Where the new template sits on the old road the
+    upper (ground) line hides under the template's solid ink and only the
+    layer line still shows as dashes -- so the tracer would dive onto it. The
+    tell: it runs entirely beneath the template, parallel to it at a
+    constant offset. Existing ground under a fill never tracks the new grade
+    that closely; such runs are dropped so ground follows the template.
+    Defaults are canonical pixels (14.4 px/ft): link 2 ft, min width 5 ft,
+    offset 0.4--3 ft, offset scatter <= 0.2 ft."""
+    if not dash.any() or not template.any():
+        return dash
+    joined = cv2.dilate(dash, cv2.getStructuringElement(cv2.MORPH_RECT, (link, 3)))
+    n, lab, st, _ = cv2.connectedComponentsWithStats(joined, 8)
+    out = dash.copy()
+    for i in range(1, n):
+        x0, w = st[i, cv2.CC_STAT_LEFT], st[i, cv2.CC_STAT_WIDTH]
+        if w < min_w:
+            continue
+        offs, cols = [], 0
+        for x in range(x0, x0 + w):
+            ys = np.where((lab[:, x] == i) & (dash[:, x] > 0))[0]
+            if len(ys) == 0:
+                continue
+            cols += 1
+            y = int(ys.mean())
+            above = np.where(template[max(0, y - max_off):max(0, y - min_off + 1), x])[0]
+            if len(above):
+                offs.append(y - (max(0, y - max_off) + above.max()))
+        if cols == 0 or len(offs) < 0.9 * cols:
+            continue
+        if np.std(offs) <= max_std:
+            out[(lab == i) & (dash > 0)] = 0
+    return out
+
+
 def ground_candidates(dash: np.ndarray, template: np.ndarray, hidden_weight: float):
     """Candidate points for tracing existing ground: its own dashes, plus the
     template's strokes at a fraction of the reward. Dashed ground that slips
@@ -528,7 +567,7 @@ def ground_candidates(dash: np.ndarray, template: np.ndarray, hidden_weight: flo
     existing pavement) leaves no dashes of its own; following the template
     there beats bridging blind in a straight line, while anywhere real dashes
     exist they win."""
-    cd, ct = candidates(dash), candidates(template)
+    cd, ct = candidates(drop_layer_lines(dash, template)), candidates(template)
     cands = [a + b for a, b in zip(cd, ct)]
     weights = [[1.0] * len(a) + [hidden_weight] * len(b) for a, b in zip(cd, ct)]
     return cands, weights

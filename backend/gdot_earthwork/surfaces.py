@@ -282,7 +282,10 @@ def vector_strokes(frame: Frame, img: PageImage, cfg: PipelineConfig):
         for (ax, ay), (bx, by) in _path_segments(d):
             ax, ay = img.to_view(ax * k, ay * k)
             bx, by = img.to_view(bx * k, by * k)
-            horiz, vert = abs(ay - by) < 0.2, abs(ax - bx) < 0.2
+            # near-flat, not exactly flat: CAD exports often store grid lines
+            # with a pixel of drift over their full length
+            horiz = abs(ay - by) < max(0.2, 0.002 * abs(ax - bx))
+            vert = abs(ax - bx) < max(0.2, 0.002 * abs(ay - by))
             # grid & frame lines span most of the frame; the frame's own top
             # and bottom (offset axis) lines are often drawn in short pieces
             # (grid lines are always solid -- a long flat stretch of dashed
