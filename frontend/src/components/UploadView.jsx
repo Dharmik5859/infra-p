@@ -62,6 +62,16 @@ export default function UploadView({ server, onFile, busy, error }) {
           ))}
         </div>
 
+        <div className="deliverables">
+          <span className="eyebrow">What you get</span>
+          <ul>
+            <li><b>Cut &amp; fill volumes</b> per road, by the average-end-area method</li>
+            <li><b>Every cross-section</b> traced, with its area and an audit drawing</li>
+            <li><b>Your plan set back as a PDF</b>, cut and fill drawn on every section</li>
+            <li><b>Review &amp; edit</b> any area; volumes and the PDF follow your edits</li>
+          </ul>
+        </div>
+
         <div className="server">
           <span className={`dot ${server == null ? '' : server.ok ? 'ok' : 'bad'}`} />
           {status}

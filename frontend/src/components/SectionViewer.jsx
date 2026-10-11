@@ -29,6 +29,12 @@ export default function SectionViewer({ section: s, position, count, onPrev, onN
               onChange={(v) => onEdit({ fill_ft2: s.fill_ft2, cut_ft2: v })} /></label>
           <div className="stat"><span>Net</span><b className="num">{ft2(s.net_ft2)} ft²</b></div>
         </div>
+        {s.zero && (
+          <div className="zero-note" role="note">
+            <b>No earthwork here: {s.zero.short.toLowerCase()}.</b> {s.zero.text} If the drawing does show work at this
+            station, type the areas above.
+          </div>
+        )}
         {s.edited && (
           <div className="edit-note">
             <span className={`tag ${s.dirty ? 'warn' : 'edited'}`}>{s.dirty ? 'unsaved edit' : 'edited'}</span>

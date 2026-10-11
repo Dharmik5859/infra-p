@@ -107,6 +107,7 @@ export default function ProfileChart({ sections, selectedId, onSelect }) {
               <rect className="bar-fill" x={x - bw / 2} y={zeroY - s.fill_ft2 * ay} width={bw} height={s.fill_ft2 * ay} rx="1.5" />
               <rect className="bar-cut" x={x - bw / 2} y={zeroY} width={bw} height={s.cut_ft2 * ay} rx="1.5" />
               {s.edited && <circle className={`edit-dot ${s.dirty ? 'dirty' : ''}`} cx={x} cy={M.top + 5} r="3.5" />}
+              {s.zero && <rect className="zero-mark" x={x - 3} y={zeroY - 3} width="6" height="6" transform={`rotate(45 ${x} ${zeroY})`} />}
               <rect className="bar-hit" x={x - Math.max(bw, 8) / 2} y={M.top} width={Math.max(bw, 8)} height={ph}
                 onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} onClick={() => onSelect(s.id)} />
             </g>
@@ -124,6 +125,7 @@ export default function ProfileChart({ sections, selectedId, onSelect }) {
           <b className="mono">{hov.station}</b> <span className="muted">page {hov.page}</span>
           <div className="num fill-text">fill {ft2(hov.fill_ft2)} ft²</div>
           <div className="num cut-text">cut {ft2(hov.cut_ft2)} ft²</div>
+          {hov.zero && <div className="muted" style={{ marginTop: 4 }}>no earthwork · {hov.zero.short.toLowerCase()}</div>}
           {hov.edited && (
             <div className="muted" style={{ marginTop: 4 }}>
               {hov.dirty ? 'unsaved edit' : 'edited'} · measured {ft2(hov.measured.fill_ft2)} / {ft2(hov.measured.cut_ft2)}
@@ -136,6 +138,7 @@ export default function ProfileChart({ sections, selectedId, onSelect }) {
         <span><i style={{ background: 'var(--cut)' }} />cut area</span>
         <span><i style={{ background: 'var(--mass)', height: 2, verticalAlign: 3 }} />mass curve (cumulative cut − fill, cy)</span>
         {sections.some((s) => s.edited) && <span><i style={{ background: 'var(--yellow)', borderRadius: '50%' }} />edited by hand</span>}
+        {sections.some((s) => s.zero) && <span><i style={{ background: 'var(--text-3)', transform: 'rotate(45deg) scale(0.75)' }} />no earthwork (bridge, nothing proposed, resurfacing)</span>}
       </div>
     </div>
   );

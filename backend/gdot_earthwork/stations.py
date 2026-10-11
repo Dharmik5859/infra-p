@@ -61,6 +61,7 @@ INFER = None          # the "infer this label" option
 _INFER_COST = -1.5
 _EDIT_SCORE = -1.5
 _ALT_SCORE = 0.3
+_MAX_INFER_STATES = 40      # distinct "last real station" histories kept through unreadable labels
 _REGULAR, _NEAR, _SKIP, _BREAK = 3.0, 1.5, -2.0, -6.0
 
 
@@ -123,32 +124,37 @@ def repair(reads: list[StationRead]) -> list[StationRead]:
     # Viterbi over the options of each section. An "infer" option carries no
     # value of its own, so the next real reading is scored against the last
     # real one, expecting one step per section in between -- an inferred gap
-    # can't hide a backwards jump around it.
-    score = [o[2] for o in opts[0]]
-    last = [(o[0], 0) for o in opts[0]]          # (last real station, sections since)
-    back: list[list[int]] = [[-1] * len(opts[0])]
+    # can't hide a backwards jump around it. Because of that, an inferred
+    # section's state is really (infer, last real station): one is kept per
+    # distinct last station, or a run of unreadable labels would commit to a
+    # history before the next real reading could decide between them.
+    # state: (score, option index, last real station, sections since, back pointer)
+    states = [(o[2], j, o[0], 0, -1) for j, o in enumerate(opts[0])]
+    trail: list[list[tuple]] = [states]
     for i in range(1, len(reads)):
-        row, row_last, ptr = [], [], []
-        for ft, _, em in opts[i]:
-            best, arg, best_last = float("-inf"), 0, (None, 0)
-            for k in range(len(opts[i - 1])):
-                ref, since = last[k]
-                s = score[k]
-                if ft is not None and ref is not None:
-                    s += _transition(ref, ft, step * (since + 1), step)
-                if s > best:
-                    best, arg = s, k
-                    best_last = (ft, 0) if ft is not None else (ref, since + 1)
-            row.append(best + em)
-            row_last.append(best_last)
-            ptr.append(arg)
-        score, last = row, row_last
-        back.append(ptr)
-    k = max(range(len(score)), key=lambda j: score[j])
+        row = []
+        infer: dict = {}
+        for j, (ft, _, em) in enumerate(opts[i]):
+            if ft is None:
+                for k, (sc, _, ref, since, _) in enumerate(states):
+                    cand = (sc + em, j, ref, since + 1, k)
+                    if ref not in infer or cand[0] > infer[ref][0]:
+                        infer[ref] = cand
+                continue
+            best = None
+            for k, (sc, _, ref, since, _) in enumerate(states):
+                v = sc + (_transition(ref, ft, step * (since + 1), step) if ref is not None else 0.0)
+                if best is None or v > best[0]:
+                    best = (v, k)
+            row.append((best[0] + em, j, ft, 0, best[1]))
+        row += sorted(infer.values(), key=lambda t: -t[0])[:_MAX_INFER_STATES]
+        states = row
+        trail.append(states)
+    k = max(range(len(states)), key=lambda q: states[q][0])
     choice = [0] * len(reads)
     for i in range(len(reads) - 1, -1, -1):
-        choice[i] = k
-        k = back[i][k]
+        choice[i] = trail[i][k][1]
+        k = trail[i][k][4]
 
     decimals = 2 if any(r.label and "." in r.label for r in reads) else 0
     out: list[StationRead] = []

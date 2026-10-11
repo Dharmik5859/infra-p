@@ -47,6 +47,12 @@ export function volumesCsvUrl(jobId, excludedRoadIds, surface) {
   return `${BASE}/api/jobs/${jobId}/volumes.csv${q.length ? `?${q.join('&')}` : ''}`;
 }
 
+export function annotatedPdfUrl(jobId, excludedRoadIds, surface) {
+  const q = excludedRoadIds.map((id) => `exclude=${encodeURIComponent(id)}`);
+  if (surface) q.push(`surface=${encodeURIComponent(surface)}`);
+  return `${BASE}/api/jobs/${jobId}/annotated.pdf${q.length ? `?${q.join('&')}` : ''}`;
+}
+
 export function sectionsCsvUrl(jobId) {
   return `${BASE}/api/jobs/${jobId}/sections.csv`;
 }

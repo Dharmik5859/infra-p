@@ -1,5 +1,26 @@
 {
-  "generated": "2026-10-10",
+  "generated": "2026-10-11",
+  "headline": {
+    "basis": "19-series and 23-series-layout scans, every section compared with the exact CAD drawing of the same sheet",
+    "sections_checked": 179,
+    "sections_found_and_stationed": 179,
+    "volume_error_pct": 1.67,
+    "fill_error_pct": 0.72,
+    "cut_error_pct": 5.62,
+    "sections_scored": 157,
+    "within_10pct": 58.0,
+    "within_25pct": 76.4,
+    "median_error_pct": 6.7
+  },
+  "scale": {
+    "plan_sets": 36,
+    "plan_sets_processed": 36,
+    "pages": 858,
+    "cross_section_pages": 697,
+    "sections": 2101,
+    "seconds": 3401,
+    "pages_per_minute": 15
+  },
   "formats": [
     {
       "id": "19",
@@ -72,6 +93,7 @@
       "id": "s19_pair",
       "title": "19-series scans",
       "reference": "Exact CAD geometry of the same sheets",
+      "note": "",
       "metrics": {
         "sections": 80,
         "sections_scored": 62,
@@ -93,6 +115,7 @@
       "id": "sr332_pair",
       "title": "SR 332 scans (23-series layout)",
       "reference": "Exact CAD geometry of the same sheets",
+      "note": "Most of the scatter is three sheet-specific outliers (82+50, 135+00, 67+50).",
       "metrics": {
         "sections": 99,
         "sections_scored": 95,
@@ -114,6 +137,7 @@
       "id": "sr332_markup",
       "title": "SR 332 scans (23-series layout)",
       "reference": "Estimator's hand takeoff on the sheets",
+      "note": "Estimators measure to their own conventions; a looser check than CAD geometry.",
       "metrics": {
         "sections": 96,
         "sections_scored": 95,
@@ -133,6 +157,7 @@
       "id": "hp_vector",
       "title": "highway_planning1 read as an image",
       "reference": "Its own CAD geometry",
+      "note": "The cut gap is a bridge 'remove below 640' line; without those stations cut is within 1 %.",
       "metrics": {
         "sections": 160,
         "sections_scored": 131,
@@ -152,19 +177,20 @@
       "id": "florence_pair",
       "title": "Florence Rd scans",
       "reference": "Exact CAD geometry of the same sheets",
+      "note": "Resurfacing project with tiny totals (about 70 ft\u00b2 of fill), so percentages swing widely.",
       "metrics": {
         "sections": 23,
-        "sections_scored": 12,
-        "median_error_pct": 15.8,
-        "p90_error_pct": 143.9,
+        "sections_scored": 13,
+        "median_error_pct": 15.9,
+        "p90_error_pct": 144.6,
         "within_5pct": 0.0,
-        "within_10pct": 25.0,
+        "within_10pct": 23.1,
         "total_fill_ft2": 132.7,
-        "ref_total_fill_ft2": 70.7,
+        "ref_total_fill_ft2": 96.0,
         "total_cut_ft2": 332.8,
-        "ref_total_cut_ft2": 242.0,
-        "total_fill_error_pct": 87.7,
-        "total_cut_error_pct": 37.5,
+        "ref_total_cut_ft2": 271.4,
+        "total_fill_error_pct": 38.2,
+        "total_cut_error_pct": 22.6,
         "stations_read": 23,
         "stations_inferred": 0
       }
@@ -173,19 +199,20 @@
       "id": "markup",
       "title": "12 EARTHWORK scan sets",
       "reference": "Estimators' hand takeoffs on the sheets",
+      "note": "Estimators measure to their own conventions; a looser check than CAD geometry.",
       "metrics": {
         "sections": 538,
         "sections_scored": 453,
-        "median_error_pct": 25.8,
-        "p90_error_pct": 147.6,
+        "median_error_pct": 25.6,
+        "p90_error_pct": 157.0,
         "within_5pct": 6.6,
-        "within_10pct": 23.4,
-        "total_fill_ft2": 23075.8,
+        "within_10pct": 23.6,
+        "total_fill_ft2": 24155.0,
         "ref_total_fill_ft2": 18083.8,
-        "total_cut_ft2": 19960.6,
+        "total_cut_ft2": 20082.8,
         "ref_total_cut_ft2": 18445.5,
-        "total_fill_error_pct": 27.6,
-        "total_cut_error_pct": 8.2
+        "total_fill_error_pct": 33.6,
+        "total_cut_error_pct": 8.9
       }
     }
   ]

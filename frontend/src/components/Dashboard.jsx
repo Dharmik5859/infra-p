@@ -1,6 +1,8 @@
+import { annotatedPdfUrl } from '../api';
 import { cy, signed } from '../format';
 import { GRADES, accuracy, grade, sentence } from '../verdict';
 import { IconAccuracy, IconArrow, IconCheck, IconInfo, IconUpload } from './Icons';
+import Headline from './Headline';
 
 /** Ring gauge: value 0-100 drawn as an arc in the given colour token. */
 export function Gauge({ value, tone, label, sub }) {
@@ -28,7 +30,7 @@ export function VerdictPill({ g }) {
   return <span className={`pill verdict t-${g.tone}`}><IconCheck width={16} height={16} />{g.label}</span>;
 }
 
-function VerdictCard({ f }) {
+export function VerdictCard({ f }) {
   const m = f.metrics;
   const g = grade(m);
   const errText = (e) => (e == null ? '' : `${e > 0 ? '+' : e < 0 ? '−' : ''}${Math.abs(e).toFixed(1)} % vs reference`);
@@ -53,7 +55,7 @@ function VerdictCard({ f }) {
         <div><dt>Sections checked</dt><dd className="num">{m.sections}</dd></div>
         <div><dt>Within 10 %</dt><dd className="num">{m.within_10pct == null ? '—' : `${Math.round(m.within_10pct)} %`}</dd></div>
         <div><dt>Typical error</dt><dd className="num">{m.median_error_pct == null ? '—' : `${m.median_error_pct.toFixed(1)} %`}</dd></div>
-        <div><dt>9 in 10 sections within</dt><dd className="num">{m.p90_error_pct == null ? '—' : `${m.p90_error_pct.toFixed(0)} %`}</dd></div>
+        <div><dt>90% within</dt><dd className="num">{m.p90_error_pct == null ? '—' : `${m.p90_error_pct.toFixed(0)} %`}</dd></div>
       </dl>
       <footer className="vc-ref">
         <IconInfo width={16} height={16} />
@@ -109,7 +111,10 @@ function LatestTakeoff({ job, onOpen, onNew }) {
           <span className="eyebrow">Latest takeoff</span>
           <h3>{job.filename}</h3>
         </div>
-        <button className="btn" onClick={onOpen}>Open results <IconArrow width={18} height={18} /></button>
+        <div className="card-actions">
+          <a className="btn" href={annotatedPdfUrl(job.job_id, roads.filter((r) => r.repeat_of).map((r) => r.id), surf)}>Download PDF</a>
+          <button className="btn primary" onClick={onOpen}>Open results <IconArrow width={18} height={18} /></button>
+        </div>
       </div>
       <div className="stat-tiles">
         <div className="tile t-red"><span>Cut</span><b className="num">{cy(cut)}</b><small>cubic yards</small></div>
@@ -126,14 +131,17 @@ export default function Dashboard({ report, job, onOpen, onNew, onAccuracy }) {
     <div className="page">
       <section className="hero">
         <div>
-          <h2>How accurate are the takeoffs?</h2>
+          <span className="eyebrow">Automated earthwork takeoff</span>
+          <h2>Cut &amp; fill from cross-section plan sets, measured and verified</h2>
           <p className="muted">
-            Each plan-set format was measured end to end and compared with an independent reference.
-            Accuracy is 100 % minus the difference in total fill or cut volume.
+            Every result below was measured end to end and checked against an independent reference:
+            the exact CAD drawing of the same sheets.
           </p>
         </div>
         <button className="btn" onClick={onAccuracy}><IconAccuracy width={18} height={18} />Full accuracy report</button>
       </section>
+
+      {report && <Headline report={report} compact />}
 
       {report === undefined && <div className="card skeleton" aria-busy="true">Loading accuracy…</div>}
       {report === null && (

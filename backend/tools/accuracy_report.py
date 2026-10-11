@@ -2,7 +2,7 @@
 Build accuracy.json (served at /api/accuracy, shown on the dashboard) from
 the JSON files written by `tools.evaluate ... --json`.
 
-    python -m tools.accuracy_report EVAL_DIR [--out accuracy.json]
+    python -m tools.accuracy_report EVAL_DIR [--survey SURVEY_DIR] [--out accuracy.json]
 
 EVAL_DIR holds one <name>.json per evaluation run; FORMATS and CHECKS below
 say which run backs which dashboard card. Runs that are missing are skipped.
@@ -37,13 +37,80 @@ FORMATS = [
 
 # Every evaluation, for the detailed table.
 CHECKS = [
-    ("s19_pair", "19-series scans", "Exact CAD geometry of the same sheets"),
-    ("sr332_pair", "SR 332 scans (23-series layout)", "Exact CAD geometry of the same sheets"),
-    ("sr332_markup", "SR 332 scans (23-series layout)", "Estimator's hand takeoff on the sheets"),
-    ("hp_vector", "highway_planning1 read as an image", "Its own CAD geometry"),
-    ("florence_pair", "Florence Rd scans", "Exact CAD geometry of the same sheets"),
-    ("markup", "12 EARTHWORK scan sets", "Estimators' hand takeoffs on the sheets"),
+    ("s19_pair", "19-series scans", "Exact CAD geometry of the same sheets", ""),
+    ("sr332_pair", "SR 332 scans (23-series layout)", "Exact CAD geometry of the same sheets",
+     "Most of the scatter is three sheet-specific outliers (82+50, 135+00, 67+50)."),
+    ("sr332_markup", "SR 332 scans (23-series layout)", "Estimator's hand takeoff on the sheets",
+     "Estimators measure to their own conventions; a looser check than CAD geometry."),
+    ("hp_vector", "highway_planning1 read as an image", "Its own CAD geometry",
+     "The cut gap is a bridge 'remove below 640' line; without those stations cut is within 1 %."),
+    ("florence_pair", "Florence Rd scans", "Exact CAD geometry of the same sheets",
+     "Resurfacing project with tiny totals (about 70 ft² of fill), so percentages swing widely."),
+    ("markup", "12 EARTHWORK scan sets", "Estimators' hand takeoffs on the sheets",
+     "Estimators measure to their own conventions; a looser check than CAD geometry."),
 ]
+
+# Scanned series checked section-by-section against the exact CAD drawing
+# of the same sheets: the basis of the headline figures.
+HEADLINE_EVALS = ["s19_pair", "sr332_pair"]
+MIN_AREA = 10.0     # ft²: sections smaller than this are left out of per-section shares (as in evaluate)
+
+
+def _headline(eval_dir: str) -> dict | None:
+    rows, sections = [], 0
+    for name in HEADLINE_EVALS:
+        path = os.path.join(eval_dir, f"{name}.json")
+        if not os.path.exists(path):
+            return None
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+        rows += data["rows"]
+        sections += data["stats"]["sections"]
+    f, rf = sum(r["fill"] for r in rows), sum(r["ref_fill"] for r in rows)
+    c, rc = sum(r["cut"] for r in rows), sum(r["ref_cut"] for r in rows)
+    big = [r for r in rows if r["ref_fill"] + r["ref_cut"] >= MIN_AREA]
+    err = sorted((abs(r["fill"] - r["ref_fill"]) + abs(r["cut"] - r["ref_cut"])) / (r["ref_fill"] + r["ref_cut"])
+                 for r in big)
+    share = lambda t: round(100 * sum(e <= t for e in err) / len(err), 1)
+    pct = lambda a, b: round(100 * (a - b) / b, 2)
+    return {
+        "basis": "19-series and 23-series-layout scans, every section compared with the exact CAD drawing of the same sheet",
+        "sections_checked": sections,
+        "sections_found_and_stationed": len(rows),
+        "volume_error_pct": pct(f + c, rf + rc),
+        "fill_error_pct": pct(f, rf),
+        "cut_error_pct": pct(c, rc),
+        "sections_scored": len(big),
+        "within_10pct": share(0.10),
+        "within_25pct": share(0.25),
+        "median_error_pct": round(100 * err[len(err) // 2], 1),
+    }
+
+
+def _scale(survey_dir: str | None) -> dict | None:
+    """Throughput over every plan set in the dataset (tools: survey run)."""
+    if not survey_dir or not os.path.isdir(survey_dir):
+        return None
+    recs = []
+    for name in sorted(os.listdir(survey_dir)):
+        if name.endswith(".json"):
+            with open(os.path.join(survey_dir, name), encoding="utf-8") as fh:
+                recs.append(json.load(fh))
+    ok = [r for r in recs if "error" not in r]
+    if not ok:
+        return None
+    pages = sum(r["pages"] for r in ok)
+    secs = sum(r["seconds"] for r in ok)
+    return {
+        "plan_sets": len(recs),
+        "plan_sets_processed": len(ok),
+        "pages": pages,
+        "cross_section_pages": sum(r["xs_pages"] for r in ok),
+        "sections": sum(r["sections"] for r in ok),
+        "seconds": round(secs),
+        "pages_per_minute": round(60 * pages / secs) if secs else None,
+    }
+
 
 KEEP = ("sections", "sections_scored", "median_error_pct", "p90_error_pct", "within_5pct",
         "within_10pct", "total_fill_ft2", "ref_total_fill_ft2", "total_cut_ft2",
@@ -64,7 +131,7 @@ def _load(eval_dir: str, name: str) -> dict | None:
     return stats
 
 
-def build(eval_dir: str) -> dict:
+def build(eval_dir: str, survey_dir: str | None = None) -> dict:
     formats = []
     for f in FORMATS:
         m = _load(eval_dir, f["eval"])
@@ -77,19 +144,21 @@ def build(eval_dir: str) -> dict:
             card["second"] = {"reference": second["reference"], "metrics": m2}
         formats.append(card)
     checks = []
-    for name, title, reference in CHECKS:
+    for name, title, reference, note in CHECKS:
         m = _load(eval_dir, name)
         if m:
-            checks.append({"id": name, "title": title, "reference": reference, "metrics": m})
-    return {"generated": dt.date.today().isoformat(), "formats": formats, "checks": checks}
+            checks.append({"id": name, "title": title, "reference": reference, "note": note, "metrics": m})
+    return {"generated": dt.date.today().isoformat(), "headline": _headline(eval_dir),
+            "scale": _scale(survey_dir), "formats": formats, "checks": checks}
 
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("eval_dir")
+    ap.add_argument("--survey", help="directory of survey results (one JSON per plan set)")
     ap.add_argument("--out", default=os.path.join(os.path.dirname(__file__), "..", "accuracy.json"))
     a = ap.parse_args(argv)
-    report = build(a.eval_dir)
+    report = build(a.eval_dir, a.survey)
     with open(a.out, "w", encoding="utf-8") as fh:
         json.dump(report, fh, indent=2)
         fh.write("\n")

@@ -259,7 +259,9 @@ code { font-family: var(--mono); font-size: 0.92em; background: var(--surface-2)
 .prose ul { padding-left: 18px; margin: 12px 0 0; display: grid; gap: 8px; }
 .prose p { margin: 12px 0 0; }
 .acc-table td { white-space: nowrap; }
-.acc-table td:nth-child(2) { white-space: normal; min-width: 200px; }
+.acc-table td:nth-child(1) { white-space: normal; min-width: 240px; }
+.acc-table td:nth-child(2) { white-space: normal; min-width: 180px; }
+.row-note { font-size: 12px; color: var(--text-3); font-weight: 400; margin-top: 2px; max-width: 42ch; }
 .table-wrap.tall { max-height: none; }
 
 /* upload */
@@ -381,7 +383,6 @@ table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th, td { padding: 9px 14px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
 th { position: sticky; top: 0; background: var(--surface); color: var(--text-3); font-weight: 500; font-size: 12px; z-index: 1; }
 th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
-.acc-table th:nth-child(3), .acc-table td:nth-child(3) { text-align: left; }
 tbody tr.seg-row, tbody .review-item { cursor: pointer; }
 tbody tr:hover { background: var(--surface-2); }
 tr.total td { font-weight: 500; background: var(--surface-2); }
@@ -483,3 +484,49 @@ tr.total td { font-weight: 500; background: var(--surface-2); }
   .save-bar { top: calc(var(--nav-h) + 4px); }
   .area-input { width: 80px; }
 }
+
+.export-list { display: grid; gap: 8px; padding: 14px 16px 16px; }
+.export-note { font-size: 12.5px; color: var(--text-3); margin: -2px 2px 6px; }
+.warn-text { color: var(--yellow-ink); }
+
+/* ================================================================ headline */
+.headline { display: grid; gap: 12px; }
+.headline-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.hl-tile {
+  position: relative; overflow: hidden;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 20px 20px 18px;
+}
+.hl-tile::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 4px; background: var(--blue); }
+.hl-tile.t-green::before { background: var(--green); }
+.hl-tile.t-yellow::before { background: var(--yellow); }
+.hl-tile.t-red::before { background: var(--red); }
+.hl-value { font-size: 40px; line-height: 1.1; font-weight: 500; letter-spacing: -0.02em; color: var(--text); }
+.hl-tile.t-blue .hl-value { color: var(--blue-ink); }
+.hl-tile.t-green .hl-value { color: var(--green-ink); }
+.hl-tile.t-yellow .hl-value { color: var(--yellow-ink); }
+.hl-tile.t-red .hl-value { color: var(--red-ink); }
+.hl-label { margin-top: 6px; font-weight: 500; font-size: 14.5px; }
+.hl-sub { margin-top: 4px; font-size: 12.5px; color: var(--text-3); }
+.headline.compact .hl-value { font-size: 32px; }
+.headline.compact .hl-tile { padding: 16px 18px 14px; }
+.headline-basis { margin: 0; font-size: 12.5px; color: var(--text-3); max-width: 100ch; }
+@media (max-width: 1180px) { .headline-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .hl-value { font-size: 30px; } .headline.compact .hl-value { font-size: 26px; } }
+
+.zero-note { padding: 10px 12px; border-radius: var(--radius-sm); background: var(--blue-soft); color: var(--text-2); font-size: 13px; }
+.zero-note b { color: var(--blue-ink); font-weight: 500; }
+.chart .zero-mark { fill: var(--surface); stroke: var(--text-3); stroke-width: 1.5; }
+
+.card-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.surface-bar .spacer { flex: 1; }
+
+.deliverables { margin-top: 22px; }
+.deliverables ul { list-style: none; margin: 8px 0 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 20px; }
+.deliverables li { position: relative; padding-left: 18px; font-size: 13.5px; color: var(--text-2); }
+.deliverables li::before { content: ''; position: absolute; left: 0; top: 7px; width: 8px; height: 8px; border-radius: 50%; background: var(--blue); }
+.deliverables li:nth-child(2)::before { background: var(--red); }
+.deliverables li:nth-child(3)::before { background: var(--yellow); }
+.deliverables li:nth-child(4)::before { background: var(--green); }
+.deliverables b { font-weight: 500; color: var(--text); }
+@media (max-width: 640px) { .deliverables ul { grid-template-columns: minmax(0, 1fr); } }
