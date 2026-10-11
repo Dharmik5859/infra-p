@@ -147,3 +147,14 @@ def test_annotated_pdf_keeps_original_pages_and_shows_edits(tmp_path):
     assert "STA 11+00" in text and "STA 12+00" in text             # every section labelled
     assert "432.1" in text and "EDITED" in text                    # the edit is on the sheet
     assert "Earthwork takeoff" in out[-1].get_text()
+
+
+def test_upload_limit_is_reported_and_enforced(tmp_path, monkeypatch):
+    client = TestClient(main.app)
+    assert client.get("/api/health").json()["max_upload_mb"] == main.MAX_UPLOAD_MB
+    pdf = tmp_path / "big.pdf"
+    pdf.write_bytes(b"%PDF-1.7\n" + b"0" * (2 << 20))           # a 2 MB "plan set"
+    monkeypatch.setattr(main, "MAX_UPLOAD_MB", 1)
+    r = client.post("/api/jobs", files={"file": ("big.pdf", pdf.read_bytes(), "application/pdf")})
+    assert r.status_code == 413
+    assert "MAX_UPLOAD_MB" in r.json()["detail"]

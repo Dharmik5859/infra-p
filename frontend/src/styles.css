@@ -530,3 +530,6 @@ tr.total td { font-weight: 500; background: var(--surface-2); }
 .deliverables li:nth-child(4)::before { background: var(--green); }
 .deliverables b { font-weight: 500; color: var(--text); }
 @media (max-width: 640px) { .deliverables ul { grid-template-columns: minmax(0, 1fr); } }
+
+.upload-progress { width: min(420px, 100%); display: grid; gap: 6px; justify-items: center; margin-top: 6px; }
+.upload-progress .bar { width: 100%; margin: 0; }

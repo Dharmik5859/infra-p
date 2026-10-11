@@ -167,6 +167,24 @@ docker build -t earthwork .
 docker run -p 8000:8000 earthwork        # http://localhost:8000
 ```
 
+### Large plan sets
+
+Scanned plan sets are big (100 MB+ is common). The backend accepts PDFs up to
+`MAX_UPLOAD_MB` (default 2048 MB) and the upload page shows that limit and an
+upload progress bar. Anything placed **in front of** the app needs a matching
+limit, or it rejects big files with *413 Request Entity Too Large* before they
+reach the backend:
+
+```nginx
+# nginx (default is only 1 MB)
+client_max_body_size 2g;
+proxy_request_buffering off;   # stream the upload straight through
+proxy_read_timeout 600s;
+```
+
+Hosting platforms and load balancers have their own request-size caps; set
+them the same way. `uvicorn` and the Vite dev server have no upload limit.
+
 ### Command line
 
 ```bash
@@ -193,7 +211,7 @@ Writes `sections.csv`, `volumes.csv` and one overlay PNG per section.
 | `PUT` | `/api/jobs/{id}/edits` | save hand-edited areas `{"surface": "subgrade", "edits": {"12": {"fill_ft2": 40, "cut_ft2": 3}, "13": null}}` (`null` = back to measured); volumes are recomputed and the updated result returned |
 
 Environment: `ALLOWED_ORIGINS` (CORS, comma separated), `MAX_CONCURRENT_JOBS` (default 1), `MAX_UPLOAD_MB`
-(default 600), `JOB_TTL_SECONDS` (default 6 h), `FRONTEND_DIST`, `ACCURACY_FILE`.
+(default 2048), `JOB_TTL_SECONDS` (default 6 h), `FRONTEND_DIST`, `ACCURACY_FILE`.
 
 ---
 

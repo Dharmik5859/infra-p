@@ -6,7 +6,9 @@ const FORMATS = [
   { title: 'CAD-exported PDF', body: 'Measured exactly from the drawing linework', tone: 'yellow' },
 ];
 
-export default function UploadView({ server, onFile, busy, error }) {
+const mb = (bytes) => `${(bytes / 1048576).toLocaleString(undefined, { maximumFractionDigits: bytes < 10485760 ? 1 : 0 })} MB`;
+
+export default function UploadView({ server, onFile, busy, progress, error }) {
   const input = useRef(null);
   const [over, setOver] = useState(false);
   const [localError, setLocalError] = useState(null);
@@ -19,12 +21,19 @@ export default function UploadView({ server, onFile, busy, error }) {
       return;
     }
     setLocalError(null);
+    const limit = server?.max_upload_mb;
+    if (limit && f.size > limit * 1048576) {
+      setLocalError(`This PDF is ${mb(f.size)}, larger than the server's ${limit.toLocaleString()} MB upload limit. `
+        + 'Raise MAX_UPLOAD_MB on the backend to process it.');
+      return;
+    }
     onFile(f);
   }
 
   const status = server == null ? 'Checking the processing server…'
     : server.unreachable ? 'Processing server is not reachable'
     : server.ok ? `Processing server ready · v${server.version}`
+      + (server.max_upload_mb ? ` · PDFs up to ${server.max_upload_mb >= 1024 ? `${server.max_upload_mb / 1024} GB` : `${server.max_upload_mb} MB`}` : '')
     : 'Server is missing OCR (tesseract) — scanned sheets cannot be read';
 
   return (
@@ -53,7 +62,16 @@ export default function UploadView({ server, onFile, busy, error }) {
             <path d="M12 16V4M7 9l5-5 5 5" /><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" />
           </svg>
           <span className="big">{busy ? 'Uploading…' : 'Drop the plan set PDF here'}</span>
-          <span className="muted">or click to browse · cover, plan and profile sheets are skipped on their own</span>
+          {busy && progress?.total > 0 && (
+            <div className="upload-progress" aria-live="polite">
+              <div className="bar"><div style={{ width: `${(100 * progress.sent) / progress.total}%` }} /></div>
+              <span className="muted num">
+                {mb(progress.sent)} of {mb(progress.total)}
+                {progress.sent >= progress.total ? ' · reading the PDF…' : ` · ${Math.round((100 * progress.sent) / progress.total)}%`}
+              </span>
+            </div>
+          )}
+          {!busy && <span className="muted">or click to browse · cover, plan and profile sheets are skipped on their own</span>}
         </div>
 
         <div className="formats">

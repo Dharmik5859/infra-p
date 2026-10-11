@@ -46,7 +46,10 @@ JOB_TTL_SECONDS = int(os.environ.get("JOB_TTL_SECONDS", 6 * 3600))
 # each job already runs its pages in parallel on all cores; more jobs at once
 # would only slow every one of them down, so further uploads wait their turn
 MAX_CONCURRENT_JOBS = int(os.environ.get("MAX_CONCURRENT_JOBS", 1))
-MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", 600))
+# Scanned plan sets are big (the dataset's largest is ~120 MB); the cap only
+# guards the disk. Anything in front of the app (nginx, a load balancer, a
+# hosting platform) must allow at least this much too -- see README.
+MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", 2048))
 ALLOWED_ORIGINS = [o for o in os.environ.get("ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",") if o]
 
 app = FastAPI(title="Earthwork Takeoff API", version=__version__)
@@ -190,7 +193,8 @@ def _job(job_id: str) -> Job:
 @app.get("/api/health")
 def health():
     deps = {"tesseract": shutil.which("tesseract") is not None}
-    return {"ok": all(deps.values()), "version": __version__, "dependencies": deps}
+    return {"ok": all(deps.values()), "version": __version__, "dependencies": deps,
+            "max_upload_mb": MAX_UPLOAD_MB}
 
 
 ACCURACY_FILE = os.environ.get(
@@ -221,7 +225,8 @@ async def create_job(file: UploadFile = File(...)):
             size += len(chunk)
             if size > MAX_UPLOAD_MB << 20:
                 shutil.rmtree(tmp, ignore_errors=True)
-                raise HTTPException(413, f"File is larger than {MAX_UPLOAD_MB} MB.")
+                raise HTTPException(413, f"This PDF is larger than the server's {MAX_UPLOAD_MB} MB upload limit. "
+                                         f"Raise it with the MAX_UPLOAD_MB setting on the backend.")
             out.write(chunk)
     with open(path, "rb") as fh:
         if fh.read(5) != b"%PDF-":

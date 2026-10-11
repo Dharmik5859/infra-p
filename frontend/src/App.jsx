@@ -33,7 +33,7 @@ export default function App() {
   const [report, setReport] = useState(undefined);  // undefined = loading, null = unavailable
   const [job, setJob] = useState(null);             // latest job status from the API
   const [error, setError] = useState(null);
-  const [uploading, setUploading] = useState(false);
+  const [uploading, setUploading] = useState(null);     // null, or {sent, total} bytes while uploading
   const [navOpen, setNavOpen] = useState(false);
   const timer = useRef(null);
 
@@ -78,16 +78,16 @@ export default function App() {
 
   async function upload(file) {
     setError(null);
-    setUploading(true);
+    setUploading({ sent: 0, total: file.size });
     try {
-      const { job_id } = await createJob(file);
+      const { job_id } = await createJob(file, (sent, total) => setUploading({ sent, total }));
       setJob({ job_id, filename: file.name, status: 'queued', progress: { done: 0, total: 0 } });
       go('results', job_id);
       poll(job_id);
     } catch (e) {
       setError(e.message);
     } finally {
-      setUploading(false);
+      setUploading(null);
     }
   }
 
@@ -107,7 +107,7 @@ export default function App() {
         </div>
       );
   } else if (view === 'new') {
-    page = <UploadView server={server} onFile={upload} busy={uploading} error={error} />;
+    page = <UploadView server={server} onFile={upload} busy={Boolean(uploading)} progress={uploading} error={error} />;
   } else if (view === 'accuracy') {
     page = <AccuracyView report={report} />;
   } else {
