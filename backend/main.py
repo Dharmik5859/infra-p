@@ -4,6 +4,9 @@ HTTP API for the earthwork pipeline.
     GET  /api/health                         dependency check
     GET  /api/accuracy                       measured accuracy per plan-set format
     POST /api/jobs                           upload a plan-set PDF -> {job_id}
+    POST /api/uploads                        start a chunked upload -> {upload_id, chunk_size}
+    PUT  /api/uploads/{id}/{n}               chunk n (raw bytes, in order)
+    POST /api/uploads/{id}/complete          assemble the PDF and start the job -> {job_id}
     GET  /api/jobs/{id}                      status, progress, and (when done) the result
     GET  /api/jobs/{id}/sections/{n}.png     audit overlay for one cross-section
     GET  /api/jobs/{id}/volumes.csv          volume table (respects ?exclude=road ids)
@@ -32,7 +35,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 
-from fastapi import Body, FastAPI, File, HTTPException, Query, UploadFile
+from fastapi import Body, FastAPI, File, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -228,15 +231,112 @@ async def create_job(file: UploadFile = File(...)):
                 raise HTTPException(413, f"This PDF is larger than the server's {MAX_UPLOAD_MB} MB upload limit. "
                                          f"Raise it with the MAX_UPLOAD_MB setting on the backend.")
             out.write(chunk)
+    return {"job_id": _start_job(name, path)}
+
+
+def _start_job(name: str, path: str) -> str:
+    """Check the uploaded file is a PDF and start processing it."""
     with open(path, "rb") as fh:
         if fh.read(5) != b"%PDF-":
-            shutil.rmtree(tmp, ignore_errors=True)
+            shutil.rmtree(os.path.dirname(path), ignore_errors=True)
             raise HTTPException(400, "That file is not a PDF.")
     job = Job(id=uuid.uuid4().hex[:12], filename=name)
     with LOCK:
         JOBS[job.id] = job
     threading.Thread(target=_run, args=(job, path), daemon=True).start()
-    return {"job_id": job.id}
+    return job.id
+
+
+# ---------------------------------------------------------------- chunked upload
+# Big scans in one request trip the request-size limits of whatever sits in
+# front of the app (nginx's default is 1 MB; dev tunnels such as Codespaces
+# port forwarding and hosting platforms have their own). Sent in chunks, each
+# request stays small whatever the file size.
+UPLOAD_CHUNK_MB = int(os.environ.get("UPLOAD_CHUNK_MB", 8))
+UPLOAD_TTL_SECONDS = 3600
+
+
+@dataclass
+class Upload:
+    id: str
+    filename: str
+    size: int                   # declared total size, bytes
+    path: str
+    received: int = 0           # bytes written so far
+    next_chunk: int = 0         # index of the next chunk expected
+    touched: float = field(default_factory=time.time)
+
+
+UPLOADS: dict[str, Upload] = {}
+
+
+def _expire_uploads() -> None:
+    cutoff = time.time() - UPLOAD_TTL_SECONDS
+    with LOCK:
+        for k in [k for k, u in UPLOADS.items() if u.touched < cutoff]:
+            shutil.rmtree(os.path.dirname(UPLOADS.pop(k).path), ignore_errors=True)
+
+
+@app.post("/api/uploads")
+def start_upload(body: dict = Body(...)):
+    _expire_uploads()
+    name = os.path.basename(str(body.get("filename") or "plan-set.pdf"))
+    size = body.get("size")
+    if not name.lower().endswith(".pdf"):
+        raise HTTPException(400, "Please upload a PDF plan set.")
+    if isinstance(size, bool) or not isinstance(size, int) or size <= 0:
+        raise HTTPException(400, "size must be the file size in bytes.")
+    if size > MAX_UPLOAD_MB << 20:
+        raise HTTPException(413, f"This PDF is larger than the server's {MAX_UPLOAD_MB} MB upload limit. "
+                                 f"Raise it with the MAX_UPLOAD_MB setting on the backend.")
+    tmp = tempfile.mkdtemp(prefix="earthwork_")
+    up = Upload(id=uuid.uuid4().hex, filename=name, size=size, path=os.path.join(tmp, "upload.pdf"))
+    open(up.path, "wb").close()
+    with LOCK:
+        UPLOADS[up.id] = up
+    return {"upload_id": up.id, "chunk_size": UPLOAD_CHUNK_MB << 20}
+
+
+def _upload(upload_id: str) -> Upload:
+    up = UPLOADS.get(upload_id)
+    if up is None:
+        raise HTTPException(404, "Unknown or expired upload; start again.")
+    return up
+
+
+@app.put("/api/uploads/{upload_id}/{index}")
+async def upload_chunk(upload_id: str, index: int, request: Request):
+    """Chunks arrive in order. Re-sending the last chunk (a retry after a
+    lost response) is acknowledged without writing it twice."""
+    up = _upload(upload_id)
+    if index < up.next_chunk:
+        return {"received": up.received}
+    if index != up.next_chunk:
+        raise HTTPException(409, f"Expected chunk {up.next_chunk}, got {index}.")
+    data = bytearray()
+    async for part in request.stream():
+        data += part
+        if len(data) > max(UPLOAD_CHUNK_MB, 1) << 20 or up.received + len(data) > up.size:
+            raise HTTPException(413, "Chunk too large for this upload.")
+    if not data:
+        raise HTTPException(400, "Empty chunk.")
+    with open(up.path, "ab") as fh:
+        fh.write(data)
+    up.received += len(data)
+    up.next_chunk += 1
+    up.touched = time.time()
+    return {"received": up.received}
+
+
+@app.post("/api/uploads/{upload_id}/complete")
+def complete_upload(upload_id: str):
+    up = _upload(upload_id)
+    if up.received != up.size:
+        raise HTTPException(400, f"Upload incomplete: {up.received} of {up.size} bytes received.")
+    with LOCK:
+        UPLOADS.pop(upload_id, None)
+    _expire()
+    return {"job_id": _start_job(up.filename, up.path)}
 
 
 @app.get("/api/jobs/{job_id}")
