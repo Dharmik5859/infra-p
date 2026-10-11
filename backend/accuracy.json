@@ -1,16 +1,24 @@
 {
   "generated": "2026-10-11",
   "headline": {
-    "basis": "19-series and 23-series-layout scans, every section compared with the exact CAD drawing of the same sheet",
-    "sections_checked": 179,
-    "sections_found_and_stationed": 179,
-    "volume_error_pct": 1.67,
-    "fill_error_pct": 0.72,
-    "cut_error_pct": 5.62,
-    "sections_scored": 157,
-    "within_10pct": 58.0,
-    "within_25pct": 76.4,
-    "median_error_pct": 6.7
+    "basis": "6 scanned plan sets, every section compared with the exact CAD drawing of the same sheet",
+    "plan_sets": [
+      "19series",
+      "SR 332  - MAINLINE",
+      "Florence RD",
+      "PERRY CREEK RD- TAKEOFF EARTHWORK",
+      "SR 70 - CROSS SECTION",
+      "WEEB CREEK - EARTHWORK"
+    ],
+    "sections_checked": 361,
+    "sections_found_and_stationed": 351,
+    "volume_error_pct": 1.13,
+    "fill_error_pct": 0.28,
+    "cut_error_pct": 4.08,
+    "sections_scored": 284,
+    "within_10pct": 51.8,
+    "within_25pct": 76.1,
+    "median_error_pct": 9.5
   },
   "scale": {
     "plan_sets": 36,
@@ -70,20 +78,20 @@
         "stations_inferred": 20
       },
       "second": {
-        "reference": "the estimator's hand takeoff on the same sheets",
+        "reference": "the estimator's hand takeoff on the 23-series sample itself",
         "metrics": {
-          "sections": 96,
-          "sections_scored": 95,
-          "median_error_pct": 28.1,
-          "p90_error_pct": 79.8,
-          "within_5pct": 1.1,
-          "within_10pct": 9.5,
-          "total_fill_ft2": 2403.6,
-          "ref_total_fill_ft2": 1744.9,
-          "total_cut_ft2": 7992.4,
-          "ref_total_cut_ft2": 7088.8,
-          "total_fill_error_pct": 37.8,
-          "total_cut_error_pct": 12.7
+          "sections": 87,
+          "sections_scored": 75,
+          "median_error_pct": 14.5,
+          "p90_error_pct": 34.9,
+          "within_5pct": 14.7,
+          "within_10pct": 38.7,
+          "total_fill_ft2": 4813.0,
+          "ref_total_fill_ft2": 4432.4,
+          "total_cut_ft2": 4987.3,
+          "ref_total_cut_ft2": 5846.5,
+          "total_fill_error_pct": 8.6,
+          "total_cut_error_pct": -14.7
         }
       }
     }
@@ -174,6 +182,92 @@
       }
     },
     {
+      "id": "perry_pair",
+      "title": "Perry Creek scans",
+      "reference": "Exact CAD geometry of the same sheets",
+      "note": "",
+      "metrics": {
+        "sections": 44,
+        "sections_scored": 39,
+        "median_error_pct": 9.5,
+        "p90_error_pct": 29.3,
+        "within_5pct": 33.3,
+        "within_10pct": 51.3,
+        "total_fill_ft2": 4213.5,
+        "ref_total_fill_ft2": 4397.0,
+        "total_cut_ft2": 1685.5,
+        "ref_total_cut_ft2": 1458.2,
+        "total_fill_error_pct": -4.2,
+        "total_cut_error_pct": 15.6,
+        "stations_read": 34,
+        "stations_inferred": 10
+      }
+    },
+    {
+      "id": "sr70_pair",
+      "title": "SR 70 scans",
+      "reference": "Exact CAD geometry of the same sheets",
+      "note": "",
+      "metrics": {
+        "sections": 93,
+        "sections_scored": 66,
+        "median_error_pct": 10.1,
+        "p90_error_pct": 59.0,
+        "within_5pct": 27.3,
+        "within_10pct": 50.0,
+        "total_fill_ft2": 2085.9,
+        "ref_total_fill_ft2": 2218.1,
+        "total_cut_ft2": 1685.3,
+        "ref_total_cut_ft2": 1810.8,
+        "total_fill_error_pct": -6.0,
+        "total_cut_error_pct": -6.9,
+        "stations_read": 84,
+        "stations_inferred": 9
+      }
+    },
+    {
+      "id": "webb_pair",
+      "title": "Webb Creek scans",
+      "reference": "Exact CAD geometry of the same sheets",
+      "note": "Six sections could not be matched to the drawing by station; small plan set.",
+      "metrics": {
+        "sections": 12,
+        "sections_scored": 9,
+        "median_error_pct": 21.5,
+        "p90_error_pct": 84.1,
+        "within_5pct": 0.0,
+        "within_10pct": 0.0,
+        "total_fill_ft2": 729.1,
+        "ref_total_fill_ft2": 599.1,
+        "total_cut_ft2": 193.1,
+        "ref_total_cut_ft2": 339.1,
+        "total_fill_error_pct": 21.7,
+        "total_cut_error_pct": -43.1,
+        "stations_read": 12,
+        "stations_inferred": 0
+      }
+    },
+    {
+      "id": "mib_markup",
+      "title": "23-series sample (Mountain Ind Blvd mainline)",
+      "reference": "Estimator's hand takeoff on the sheets",
+      "note": "The 23-series sample's own sheets; estimators measure to their own conventions.",
+      "metrics": {
+        "sections": 87,
+        "sections_scored": 75,
+        "median_error_pct": 14.5,
+        "p90_error_pct": 34.9,
+        "within_5pct": 14.7,
+        "within_10pct": 38.7,
+        "total_fill_ft2": 4813.0,
+        "ref_total_fill_ft2": 4432.4,
+        "total_cut_ft2": 4987.3,
+        "ref_total_cut_ft2": 5846.5,
+        "total_fill_error_pct": 8.6,
+        "total_cut_error_pct": -14.7
+      }
+    },
+    {
       "id": "florence_pair",
       "title": "Florence Rd scans",
       "reference": "Exact CAD geometry of the same sheets",
@@ -214,6 +308,558 @@
         "total_fill_error_pct": 33.6,
         "total_cut_error_pct": 8.9
       }
+    }
+  ],
+  "plan_sets": [
+    {
+      "file": "19series.pdf",
+      "folder": null,
+      "kind": "Scan",
+      "pages": 80,
+      "sections": 80,
+      "stations_read": 79,
+      "stations_inferred": 1,
+      "no_earthwork": 17,
+      "seconds": 51.4,
+      "reference": "cad",
+      "check": {
+        "sections_checked": 80,
+        "sections_scored": 62,
+        "fill_error_pct": 1.2,
+        "cut_error_pct": -3.9,
+        "volume_error_pct": 1.0,
+        "within_10pct": 87.1,
+        "within_25pct": 91.9,
+        "median_error_pct": 1.5
+      }
+    },
+    {
+      "file": "Florence RD.pdf",
+      "folder": "EARTHWORK/FLORENCE",
+      "kind": "Scan",
+      "pages": 4,
+      "sections": 24,
+      "stations_read": 23,
+      "stations_inferred": 1,
+      "no_earthwork": 6,
+      "seconds": 42.8,
+      "reference": "cad",
+      "check": {
+        "sections_checked": 23,
+        "sections_scored": 13,
+        "fill_error_pct": 38.2,
+        "cut_error_pct": 22.6,
+        "volume_error_pct": 26.7,
+        "within_10pct": 23.1,
+        "within_25pct": 61.5,
+        "median_error_pct": 15.9
+      }
+    },
+    {
+      "file": "PERRY CREEK RD- TAKEOFF EARTHWORK.pdf",
+      "folder": "EARTHWORK/PERRY CREEK",
+      "kind": "Scan",
+      "pages": 12,
+      "sections": 46,
+      "stations_read": 35,
+      "stations_inferred": 8,
+      "no_earthwork": 1,
+      "seconds": 32.0,
+      "reference": "cad",
+      "check": {
+        "sections_checked": 44,
+        "sections_scored": 39,
+        "fill_error_pct": -4.2,
+        "cut_error_pct": 15.6,
+        "volume_error_pct": 0.7,
+        "within_10pct": 51.3,
+        "within_25pct": 84.6,
+        "median_error_pct": 9.5
+      }
+    },
+    {
+      "file": "SR 332  - MAINLINE.pdf",
+      "folder": "EARTHWORK/SR 332",
+      "kind": "Scan",
+      "pages": 27,
+      "sections": 99,
+      "stations_read": 79,
+      "stations_inferred": 20,
+      "no_earthwork": 3,
+      "seconds": 193.7,
+      "reference": "cad",
+      "check": {
+        "sections_checked": 99,
+        "sections_scored": 95,
+        "fill_error_pct": -5.0,
+        "cut_error_pct": 7.9,
+        "volume_error_pct": 4.2,
+        "within_10pct": 38.9,
+        "within_25pct": 66.3,
+        "median_error_pct": 14.9
+      }
+    },
+    {
+      "file": "SR 70 - CROSS SECTION.pdf",
+      "folder": "EARTHWORK/SR 70",
+      "kind": "Scan",
+      "pages": 29,
+      "sections": 94,
+      "stations_read": 84,
+      "stations_inferred": 10,
+      "no_earthwork": 17,
+      "seconds": 181.6,
+      "reference": "cad",
+      "check": {
+        "sections_checked": 93,
+        "sections_scored": 66,
+        "fill_error_pct": -6.0,
+        "cut_error_pct": -6.9,
+        "volume_error_pct": -6.4,
+        "within_10pct": 50.0,
+        "within_25pct": 72.7,
+        "median_error_pct": 10.3
+      }
+    },
+    {
+      "file": "WEEB CREEK - EARTHWORK.pdf",
+      "folder": "EARTHWORK/WEBB CREEK",
+      "kind": "Scan",
+      "pages": 5,
+      "sections": 18,
+      "stations_read": 17,
+      "stations_inferred": 1,
+      "no_earthwork": 4,
+      "seconds": 20.1,
+      "reference": "cad",
+      "check": {
+        "sections_checked": 12,
+        "sections_scored": 9,
+        "fill_error_pct": 21.7,
+        "cut_error_pct": -43.1,
+        "volume_error_pct": -1.7,
+        "within_10pct": 0.0,
+        "within_25pct": 77.8,
+        "median_error_pct": 21.5
+      }
+    },
+    {
+      "file": "HAMILTON ROAD - CROSS SECTION MAINLINE.pdf",
+      "folder": "EARTHWORK/HAMILTON",
+      "kind": "Scan",
+      "pages": 4,
+      "sections": 15,
+      "stations_read": 15,
+      "stations_inferred": 0,
+      "no_earthwork": 4,
+      "seconds": 23.0,
+      "reference": "estimator",
+      "check": {
+        "sections_checked": 13,
+        "sections_scored": 4,
+        "fill_error_pct": 444.0,
+        "cut_error_pct": 21.8,
+        "volume_error_pct": 131.8,
+        "within_10pct": 25.0,
+        "within_25pct": 25.0,
+        "median_error_pct": 100.0
+      }
+    },
+    {
+      "file": "LAKESIDE DRIVE - EARTHWORK-MAINLINE.pdf",
+      "folder": "EARTHWORK/LAKESIDE DRIVE",
+      "kind": "Scan",
+      "pages": 3,
+      "sections": 7,
+      "stations_read": 7,
+      "stations_inferred": 0,
+      "no_earthwork": 0,
+      "seconds": 10.9,
+      "reference": "estimator",
+      "check": {
+        "sections_checked": 6,
+        "sections_scored": 4,
+        "fill_error_pct": 6.7,
+        "cut_error_pct": -15.0,
+        "volume_error_pct": 6.2,
+        "within_10pct": 50.0,
+        "within_25pct": 100.0,
+        "median_error_pct": 10.9
+      }
+    },
+    {
+      "file": "MOUNTAIN IND BLVD - MAINLINE EARTHWORK.pdf",
+      "folder": "EARTHWORK/MOUNTAIN IND BLVD",
+      "kind": "Scan",
+      "pages": 43,
+      "sections": 125,
+      "stations_read": 98,
+      "stations_inferred": 27,
+      "no_earthwork": 6,
+      "seconds": 356.3,
+      "reference": "estimator",
+      "check": {
+        "sections_checked": 87,
+        "sections_scored": 75,
+        "fill_error_pct": 8.6,
+        "cut_error_pct": -14.7,
+        "volume_error_pct": -4.7,
+        "within_10pct": 38.7,
+        "within_25pct": 76.0,
+        "median_error_pct": 14.5
+      }
+    },
+    {
+      "file": "MOUNTAIN IND BLVD -EARTHWORK -STAGE 1.pdf",
+      "folder": "EARTHWORK/MOUNTAIN IND BLVD",
+      "kind": "Scan",
+      "pages": 12,
+      "sections": 41,
+      "stations_read": 27,
+      "stations_inferred": 14,
+      "no_earthwork": 2,
+      "seconds": 60.1,
+      "reference": "estimator",
+      "check": {
+        "sections_checked": 40,
+        "sections_scored": 40,
+        "fill_error_pct": 41.3,
+        "cut_error_pct": -17.8,
+        "volume_error_pct": 3.9,
+        "within_10pct": 40.0,
+        "within_25pct": 47.5,
+        "median_error_pct": 25.9
+      }
+    },
+    {
+      "file": "MOUNTAIN IND BLVD -EARTHWORK-STAGE 2.pdf",
+      "folder": "EARTHWORK/MOUNTAIN IND BLVD",
+      "kind": "Scan",
+      "pages": 6,
+      "sections": 18,
+      "stations_read": 15,
+      "stations_inferred": 3,
+      "no_earthwork": 7,
+      "seconds": 27.0,
+      "reference": "estimator",
+      "check": {
+        "sections_checked": 16,
+        "sections_scored": 6,
+        "fill_error_pct": 170.8,
+        "cut_error_pct": -76.2,
+        "volume_error_pct": -61.6,
+        "within_10pct": 0.0,
+        "within_25pct": 0.0,
+        "median_error_pct": 100.0
+      }
+    },
+    {
+      "file": "RIVER SIDE ROAD - EARTHWORK -STAGE 3.pdf",
+      "folder": "EARTHWORK/RIVER SIDE ROAD",
+      "kind": "Scan",
+      "pages": 26,
+      "sections": 88,
+      "stations_read": 77,
+      "stations_inferred": 11,
+      "no_earthwork": 17,
+      "seconds": 231.3,
+      "reference": "estimator",
+      "check": {
+        "sections_checked": 86,
+        "sections_scored": 64,
+        "fill_error_pct": 363.5,
+        "cut_error_pct": 187.5,
+        "volume_error_pct": 282.1,
+        "within_10pct": 6.2,
+        "within_25pct": 18.8,
+        "median_error_pct": 154.4
+      }
+    },
+    {
+      "file": "RIVER SIDE ROAD - EARTHWORK MAINLINE.pdf",
+      "folder": "EARTHWORK/RIVER SIDE ROAD",
+      "kind": "Scan",
+      "pages": 27,
+      "sections": 93,
+      "stations_read": 82,
+      "stations_inferred": 11,
+      "no_earthwork": 2,
+      "seconds": 404.9,
+      "reference": "estimator",
+      "check": {
+        "sections_checked": 91,
+        "sections_scored": 85,
+        "fill_error_pct": 10.1,
+        "cut_error_pct": 8.9,
+        "volume_error_pct": 9.7,
+        "within_10pct": 27.1,
+        "within_25pct": 67.1,
+        "median_error_pct": 16.8
+      }
+    },
+    {
+      "file": "SR 136 AT LOOKOUT CREEK - EARTHWORK -STAGE 1.pdf",
+      "folder": "EARTHWORK/SR 136 LOOKOUT CREEK",
+      "kind": "Scan",
+      "pages": 15,
+      "sections": 44,
+      "stations_read": 36,
+      "stations_inferred": 8,
+      "no_earthwork": 17,
+      "seconds": 131.4,
+      "reference": "estimator",
+      "check": {
+        "sections_checked": 38,
+        "sections_scored": 33,
+        "fill_error_pct": -6.4,
+        "cut_error_pct": -27.0,
+        "volume_error_pct": -14.8,
+        "within_10pct": 39.4,
+        "within_25pct": 42.4,
+        "median_error_pct": 36.0
+      }
+    },
+    {
+      "file": "23_series_sample.pdf",
+      "folder": null,
+      "kind": "Scan",
+      "pages": 43,
+      "sections": 125,
+      "stations_read": 98,
+      "stations_inferred": 27,
+      "no_earthwork": 6,
+      "seconds": 95.0
+    },
+    {
+      "file": "HAMILTON ROAD - MAINLINE.pdf",
+      "folder": "EARTHWORK/HAMILTON",
+      "kind": "Scan",
+      "pages": 4,
+      "sections": 15,
+      "stations_read": 15,
+      "stations_inferred": 0,
+      "no_earthwork": 4,
+      "seconds": 20.6
+    },
+    {
+      "file": "LAKESIDE.pdf",
+      "folder": "EARTHWORK/LAKESIDE DRIVE",
+      "kind": "Scan",
+      "pages": 3,
+      "sections": 7,
+      "stations_read": 7,
+      "stations_inferred": 0,
+      "no_earthwork": 0,
+      "seconds": 10.1
+    },
+    {
+      "file": "MOUNTAIN IND BLVD - MAINLINE.pdf",
+      "folder": "EARTHWORK/MOUNTAIN IND BLVD",
+      "kind": "Scan",
+      "pages": 43,
+      "sections": 125,
+      "stations_read": 98,
+      "stations_inferred": 27,
+      "no_earthwork": 6,
+      "seconds": 113.6
+    },
+    {
+      "file": "MOUNTAIN IND BLVD - STAGE 1.pdf",
+      "folder": "EARTHWORK/MOUNTAIN IND BLVD",
+      "kind": "Scan",
+      "pages": 6,
+      "sections": 18,
+      "stations_read": 15,
+      "stations_inferred": 3,
+      "no_earthwork": 7,
+      "seconds": 16.4
+    },
+    {
+      "file": "MOUNTAIN IND BLVD - STAGE 2.pdf",
+      "folder": "EARTHWORK/MOUNTAIN IND BLVD",
+      "kind": "Scan",
+      "pages": 12,
+      "sections": 41,
+      "stations_read": 27,
+      "stations_inferred": 14,
+      "no_earthwork": 2,
+      "seconds": 35.5
+    },
+    {
+      "file": "RIVER SIDE ROAD  - STAGE 3.pdf",
+      "folder": "EARTHWORK/RIVER SIDE ROAD",
+      "kind": "Scan",
+      "pages": 6,
+      "sections": 13,
+      "stations_read": 9,
+      "stations_inferred": 4,
+      "no_earthwork": 5,
+      "seconds": 21.2
+    },
+    {
+      "file": "RIVER SIDE ROAD - EARTHWORK -STAGE  2.pdf",
+      "folder": "EARTHWORK/RIVER SIDE ROAD",
+      "kind": "Scan",
+      "pages": 26,
+      "sections": 88,
+      "stations_read": 75,
+      "stations_inferred": 13,
+      "no_earthwork": 29,
+      "seconds": 204.7
+    },
+    {
+      "file": "RIVER SIDE ROAD - MAINLINE.pdf",
+      "folder": "EARTHWORK/RIVER SIDE ROAD",
+      "kind": "Scan",
+      "pages": 27,
+      "sections": 93,
+      "stations_read": 82,
+      "stations_inferred": 11,
+      "no_earthwork": 2,
+      "seconds": 197.9
+    },
+    {
+      "file": "RIVER SIDE ROAD - STAGE 2.pdf",
+      "folder": "EARTHWORK/RIVER SIDE ROAD",
+      "kind": "Scan",
+      "pages": 26,
+      "sections": 88,
+      "stations_read": 75,
+      "stations_inferred": 13,
+      "no_earthwork": 29,
+      "seconds": 170.5
+    },
+    {
+      "file": "SR 136 AT LOOKOUT CREEK - EARTHWORK MAINLINE.pdf",
+      "folder": "EARTHWORK/SR 136 LOOKOUT CREEK",
+      "kind": "Scan",
+      "pages": 17,
+      "sections": 49,
+      "stations_read": 44,
+      "stations_inferred": 5,
+      "no_earthwork": 13,
+      "seconds": 145.2
+    },
+    {
+      "file": "SR 136 AT LOOKOUT CREEK - STAGE 1.pdf",
+      "folder": "EARTHWORK/SR 136 LOOKOUT CREEK",
+      "kind": "Scan",
+      "pages": 15,
+      "sections": 44,
+      "stations_read": 36,
+      "stations_inferred": 8,
+      "no_earthwork": 17,
+      "seconds": 86.2
+    },
+    {
+      "file": "SR 136 AT LOOKOUT CREEK - STAGE 2.pdf",
+      "folder": "EARTHWORK/SR 136 LOOKOUT CREEK",
+      "kind": "Scan",
+      "pages": 15,
+      "sections": 44,
+      "stations_read": 30,
+      "stations_inferred": 14,
+      "no_earthwork": 10,
+      "seconds": 108.1
+    },
+    {
+      "file": "SR 136 AT LOOKOUT CREEK- EARTHWORK -STAGE 2.pdf",
+      "folder": "EARTHWORK/SR 136 LOOKOUT CREEK",
+      "kind": "Scan",
+      "pages": 15,
+      "sections": 44,
+      "stations_read": 30,
+      "stations_inferred": 14,
+      "no_earthwork": 10,
+      "seconds": 118.5
+    },
+    {
+      "file": "SR 136 AT LOOKOUT CREEK- MAINLINE.pdf",
+      "folder": "EARTHWORK/SR 136 LOOKOUT CREEK",
+      "kind": "Scan",
+      "pages": 17,
+      "sections": 49,
+      "stations_read": 44,
+      "stations_inferred": 5,
+      "no_earthwork": 13,
+      "seconds": 60.2
+    },
+    {
+      "file": "FLORANCE RD- EARTHWORK.pdf",
+      "folder": "EARTHWORK/FLORENCE",
+      "kind": "CAD drawing",
+      "pages": 4,
+      "sections": 23,
+      "stations_read": 23,
+      "stations_inferred": 0,
+      "no_earthwork": 6,
+      "seconds": 10.1
+    },
+    {
+      "file": "highway_planning1.pdf",
+      "folder": null,
+      "kind": "CAD drawing",
+      "pages": 204,
+      "sections": 160,
+      "stations_read": 160,
+      "stations_inferred": 0,
+      "no_earthwork": 28,
+      "seconds": 126.2
+    },
+    {
+      "file": "PERRY CREEK- EARTHWORK.pdf",
+      "folder": "EARTHWORK/PERRY CREEK",
+      "kind": "CAD drawing",
+      "pages": 12,
+      "sections": 46,
+      "stations_read": 46,
+      "stations_inferred": 0,
+      "no_earthwork": 2,
+      "seconds": 12.9
+    },
+    {
+      "file": "SR 70- EARTHWORK.pdf",
+      "folder": "EARTHWORK/SR 70",
+      "kind": "CAD drawing",
+      "pages": 29,
+      "sections": 94,
+      "stations_read": 94,
+      "stations_inferred": 0,
+      "no_earthwork": 15,
+      "seconds": 25.9
+    },
+    {
+      "file": "SR-332 EARTHWORK.pdf",
+      "folder": "EARTHWORK/SR 332",
+      "kind": "CAD drawing",
+      "pages": 27,
+      "sections": 99,
+      "stations_read": 99,
+      "stations_inferred": 0,
+      "no_earthwork": 2,
+      "seconds": 38.1
+    },
+    {
+      "file": "temp_page_range.pdf",
+      "folder": "webapp_backend",
+      "kind": "CAD drawing",
+      "pages": 9,
+      "sections": 26,
+      "stations_read": 26,
+      "stations_inferred": 0,
+      "no_earthwork": 0,
+      "seconds": 13.1
+    },
+    {
+      "file": "WEBB CREEK- EARTHWORK.pdf",
+      "folder": "EARTHWORK/WEBB CREEK",
+      "kind": "CAD drawing",
+      "pages": 5,
+      "sections": 18,
+      "stations_read": 18,
+      "stations_inferred": 0,
+      "no_earthwork": 4,
+      "seconds": 4.8
     }
   ]
 }

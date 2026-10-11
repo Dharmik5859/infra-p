@@ -59,15 +59,20 @@ Details worth knowing:
 
 ## Accuracy
 
-**At a glance** (scanned 19-series and 23-series plan sets, every cross-section
-compared with the exact CAD drawing of the same sheet):
+**At a glance** (6 scanned plan sets -- 19-series, SR 332 in the 23-series layout,
+Perry Creek, SR 70, Webb Creek, Florence -- every cross-section compared with the
+exact CAD drawing of the same sheet):
 
 | | |
 |---|---|
-| Cross-sections found and correctly stationed | **100 %** (179 of 179) |
-| Total earthwork volume accuracy (cut + fill) | **98.3 %** (fill 99.3 %, cut 94.4 %) |
-| Sections within 25 % / within 10 % | **76 %** / 58 % (typical section error 6.7 %) |
+| Sections found with the right station | **97 %** (351 of 361) |
+| Total earthwork volume accuracy (cut + fill) | **98.9 %** (fill 99.7 %, cut 95.9 %) |
+| Sections within 25 % / within 10 % | **76 %** / 52 % (typical section error 9.5 %) |
 | Plan sets processed without failure | **36 of 36** (858 pages, 2,101 sections) |
+
+The app's **Accuracy** page also lists every PDF with what was found in it and,
+where a reference exists (the CAD drawing of the same sheets, or an estimator's
+hand takeoff), its volume, fill and cut accuracy -- 14 plan sets in all.
 
 Measured with `backend/tools/evaluate.py` against two independent references:
 

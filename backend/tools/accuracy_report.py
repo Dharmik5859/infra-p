@@ -31,7 +31,7 @@ FORMATS = [
         "sample": "SR 332 mainline scans (23-series sheet layout)",
         "eval": "sr332_pair",
         "reference": "Exact CAD geometry of the same sheets (SR-332 EARTHWORK.pdf)",
-        "second": {"eval": "sr332_markup", "reference": "the estimator's hand takeoff on the same sheets"},
+        "second": {"eval": "mib_markup", "reference": "the estimator's hand takeoff on the 23-series sample itself"},
     },
 ]
 
@@ -44,28 +44,38 @@ CHECKS = [
      "Estimators measure to their own conventions; a looser check than CAD geometry."),
     ("hp_vector", "highway_planning1 read as an image", "Its own CAD geometry",
      "The cut gap is a bridge 'remove below 640' line; without those stations cut is within 1 %."),
+    ("perry_pair", "Perry Creek scans", "Exact CAD geometry of the same sheets", ""),
+    ("sr70_pair", "SR 70 scans", "Exact CAD geometry of the same sheets", ""),
+    ("webb_pair", "Webb Creek scans", "Exact CAD geometry of the same sheets",
+     "Six sections could not be matched to the drawing by station; small plan set."),
+    ("mib_markup", "23-series sample (Mountain Ind Blvd mainline)", "Estimator's hand takeoff on the sheets",
+     "The 23-series sample's own sheets; estimators measure to their own conventions."),
     ("florence_pair", "Florence Rd scans", "Exact CAD geometry of the same sheets",
      "Resurfacing project with tiny totals (about 70 ft² of fill), so percentages swing widely."),
     ("markup", "12 EARTHWORK scan sets", "Estimators' hand takeoffs on the sheets",
      "Estimators measure to their own conventions; a looser check than CAD geometry."),
 ]
 
-# Scanned series checked section-by-section against the exact CAD drawing
-# of the same sheets: the basis of the headline figures.
-HEADLINE_EVALS = ["s19_pair", "sr332_pair"]
 MIN_AREA = 10.0     # ft²: sections smaller than this are left out of per-section shares (as in evaluate)
 
 
-def _headline(eval_dir: str) -> dict | None:
-    rows, sections = [], 0
-    for name in HEADLINE_EVALS:
+def _headline(eval_dir: str, survey_dir: str | None) -> dict | None:
+    """Pooled over every scanned plan set that also exists as a CAD drawing of
+    the same sheets (PAIR_EVALS). Sections the scan has but that could not be
+    matched to the drawing by station count against the stationing figure."""
+    rows, used, total = [], [], 0
+    found = _survey_sections(survey_dir)
+    for fname, name in PAIR_EVALS.items():
         path = os.path.join(eval_dir, f"{name}.json")
         if not os.path.exists(path):
-            return None
+            continue
         with open(path, encoding="utf-8") as fh:
             data = json.load(fh)
         rows += data["rows"]
-        sections += data["stats"]["sections"]
+        used.append(fname)
+        total += found.get(fname, data["stats"]["sections"])
+    if not rows:
+        return None
     f, rf = sum(r["fill"] for r in rows), sum(r["ref_fill"] for r in rows)
     c, rc = sum(r["cut"] for r in rows), sum(r["ref_cut"] for r in rows)
     big = [r for r in rows if r["ref_fill"] + r["ref_cut"] >= MIN_AREA]
@@ -74,8 +84,9 @@ def _headline(eval_dir: str) -> dict | None:
     share = lambda t: round(100 * sum(e <= t for e in err) / len(err), 1)
     pct = lambda a, b: round(100 * (a - b) / b, 2)
     return {
-        "basis": "19-series and 23-series-layout scans, every section compared with the exact CAD drawing of the same sheet",
-        "sections_checked": sections,
+        "basis": f"{len(used)} scanned plan sets, every section compared with the exact CAD drawing of the same sheet",
+        "plan_sets": [os.path.splitext(u)[0] for u in used],
+        "sections_checked": total,
         "sections_found_and_stationed": len(rows),
         "volume_error_pct": pct(f + c, rf + rc),
         "fill_error_pct": pct(f, rf),
@@ -85,6 +96,18 @@ def _headline(eval_dir: str) -> dict | None:
         "within_25pct": share(0.25),
         "median_error_pct": round(100 * err[len(err) // 2], 1),
     }
+
+
+def _survey_sections(survey_dir: str | None) -> dict[str, int]:
+    out = {}
+    if survey_dir and os.path.isdir(survey_dir):
+        for name in os.listdir(survey_dir):
+            if name.endswith(".json"):
+                with open(os.path.join(survey_dir, name), encoding="utf-8") as fh:
+                    r = json.load(fh)
+                if "error" not in r:
+                    out[os.path.basename(r["file"])] = r["sections"]
+    return out
 
 
 def _scale(survey_dir: str | None) -> dict | None:
@@ -224,7 +247,7 @@ def build(eval_dir: str, survey_dir: str | None = None) -> dict:
         m = _load(eval_dir, name)
         if m:
             checks.append({"id": name, "title": title, "reference": reference, "note": note, "metrics": m})
-    return {"generated": dt.date.today().isoformat(), "headline": _headline(eval_dir),
+    return {"generated": dt.date.today().isoformat(), "headline": _headline(eval_dir, survey_dir),
             "scale": _scale(survey_dir), "formats": formats, "checks": checks,
             "plan_sets": _plan_sets(eval_dir, survey_dir)}
 

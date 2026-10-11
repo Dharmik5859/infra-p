@@ -4,8 +4,8 @@ import { useState } from 'react';
 // it, and -- where a reference exists -- how close the takeoff came.
 
 const REF_LABEL = {
-  cad: 'CAD drawing of the same sheets',
-  estimator: "Estimator's hand takeoff",
+  cad: 'CAD drawing',
+  estimator: 'Estimator',
 };
 
 function tone(acc) {
@@ -55,15 +55,17 @@ export default function PlanSetTable({ planSets }) {
       </div>
       <p className="muted table-intro">
         Every PDF was run through the pipeline untouched. Where the same sheets also exist as a CAD drawing, or carry an
-        estimator's takeoff, the result was compared section by section. <b>Volume accuracy</b> is 100% minus the
-        difference in total cut + fill; <b>within 25%</b> counts individual sections.
+        estimator's hand takeoff, the result was compared section by section (<b>CAD drawing</b> = the exact drawing
+        of the same sheets; <b>Estimator</b> = a person's takeoff). <b>Volume accuracy</b> is 100% minus the difference
+        in total cut + fill; <b>within 25%</b> counts individual sections; <b>stations read</b> is the share of station
+        labels read off the sheet, the rest placed from the station sequence.
       </p>
       <div className="table-wrap tall">
         <table className="plan-table">
           <thead>
             <tr>
-              <th>Plan set</th><th>Pages</th><th>Sections found</th><th>Stations read</th>
-              <th>Checked against</th><th>Sections checked</th><th>Volume accuracy</th>
+              <th>Plan set</th><th>Sections</th><th>Stations read</th>
+              <th>Checked against</th><th>Volume accuracy</th>
               <th>Fill</th><th>Cut</th><th>Within 25%</th><th>Typical error</th>
             </tr>
           </thead>
@@ -76,18 +78,17 @@ export default function PlanSetTable({ planSets }) {
                   <td>
                     <b>{p.file.replace(/\.pdf$/i, '')}</b>
                     <div className="row-note">
-                      {p.kind}{p.folder ? ` · ${p.folder.replace(/^EARTHWORK\//, '')}` : ''}
+                      {p.kind}{p.error ? '' : ` · ${p.pages} pages`}
                       {p.no_earthwork ? ` · ${p.no_earthwork} with no earthwork` : ''}
                     </div>
                   </td>
-                  <td className="num">{p.error ? '—' : p.pages}</td>
                   <td className="num">{p.error ? <span className="g-text-red">failed</span> : p.sections}</td>
-                  <td className="num">{read == null ? '—' : `${Math.round(read)}%`}
-                    {p.stations_inferred > 0 && <small className="muted"> +{p.stations_inferred} inferred</small>}</td>
+                  <td className="num" title={p.stations_inferred ? `${p.stations_inferred} more placed from the station sequence` : undefined}>
+                    {read == null ? '—' : `${Math.round(read)}%`}</td>
                   <td className={c ? '' : 'muted'}>
-                    {c ? REF_LABEL[p.reference] : p.kind === 'CAD drawing' ? 'Measured from the drawing itself' : 'No reference available'}
+                    {c ? <>{REF_LABEL[p.reference]}<div className="row-note">{c.sections_checked} sections</div></>
+                      : p.kind === 'CAD drawing' ? 'Is the drawing' : 'None available'}
                   </td>
-                  <td className="num">{c ? c.sections_checked : '—'}</td>
                   {c ? <AccCell err={c.volume_error_pct} /> : <td className="num muted">—</td>}
                   {c ? <AccCell err={c.fill_error_pct} /> : <td className="num muted">—</td>}
                   {c ? <AccCell err={c.cut_error_pct} /> : <td className="num muted">—</td>}
