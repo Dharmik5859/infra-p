@@ -61,6 +61,25 @@ def cut_section(station: str, ground_elev: float, depth: float) -> SectionSpec:
     return SectionSpec(station, g, d)
 
 
+def rolling_section(station: str, elev: float, amp: float = 2.0, phase: float = 0.0) -> SectionSpec:
+    """Rolling ground that crosses a flat template several times, so one
+    section has several separate cut zones and fill zones."""
+    xs = np.arange(-140, 141, 10.0)
+    g = [(float(x), float(elev + amp * np.sin((x + phase) / 9.0))) for x in xs]
+    d = [(-62, elev - 1.5), (-56, elev), (0, elev + 1.12), (56, elev), (62, elev - 1.5)]   # 2 % crown
+    return SectionSpec(station, g, d)
+
+
+def zones(spec: SectionSpec) -> tuple[int, int]:
+    """Number of separate fill zones and cut zones in a section."""
+    x0 = max(spec.ground[0][0], spec.design[0][0])
+    x1 = min(spec.ground[-1][0], spec.design[-1][0])
+    x = np.linspace(x0, x1, 20001)
+    sign = np.sign(_interp(spec.design, x) - _interp(spec.ground, x))
+    runs = [v for i, v in enumerate(sign) if v != 0 and (i == 0 or sign[i - 1] != v)]
+    return runs.count(1.0), runs.count(-1.0)
+
+
 def _draw_section(page: fitz.Page, spec: SectionSpec, y_axis: float, x_c: float,
                   elev0: float, n_squares: int) -> None:
     sx = lambda off: x_c + off * PT_PER_FT

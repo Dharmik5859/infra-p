@@ -68,7 +68,54 @@ Measured with `backend/tools/evaluate.py` against two independent references:
   from the CAD strokes; the scan path is scored against them (and the
   19-series scans against the vector sheets they were made from).
 
-_Measured error rates are being added; see the latest commit history._
+Totals are the sum of fill (or cut) area over all checked sections; "within 10 %"
+counts sections whose fill + cut is within 10 % of the reference (sections under
+10 ft² in total are left out of that share).
+
+| Plan set | Checked against | Sections | Total fill | Total cut | Within 10 % | Typical section error |
+|---|---|---|---|---|---|---|
+| **19-series** scans | CAD geometry of the same sheets (`highway_planning1.pdf`) | 80 (all stations read correctly) | +1.2 % | −3.9 % | 87 % | 1.5 % |
+| **23-series layout** (SR 332 scans) | CAD geometry of the same sheets | 99 | −5.0 % | +7.9 % | 39 % | 14.9 % |
+| SR 332 scans | estimator's hand takeoff | 96 | +37.8 % | +12.7 % | 10 % | 28 % |
+| 12 EARTHWORK scan sets (538 sections) | estimators' hand takeoffs | 538 | +27.6 % | +8.2 % | 23 % | 26 % |
+| `highway_planning1.pdf` read as an image | its own CAD geometry | 160 | +0.2 % | −29.9 %¹ | 85 % | 1.4 % |
+
+Verdicts shown in the app: **19-series – Excellent**, **23-series – Fair**
+(totals within 10 %, but individual sections scatter more).
+
+* CAD-exported PDFs such as `highway_planning1.pdf` are measured from the
+  drawing's own linework, so they are exact up to how the sheet is drawn.
+* ¹ Five sections near the bridge (30+50 – 32+50) carry a flat "remove below
+  elevation 640" line; the CAD reading counts it as cut, the image reading
+  treats it as a ruler. Without those stations the cut total is −0.9 %.
+* The 23-series sample itself carries no estimator takeoff; SR 332 is the same
+  sheet format and has both a CAD twin and a takeoff. Its remaining outliers are
+  sheet-specific: an ambiguous ground line at 82+50 (most of the fill gap against
+  the estimator), a template the scan does not show at 135+00, and grading
+  "by others" counted as cut at 67+50. The two references also disagree with
+  each other: estimators measure to their own conventions.
+
+Regenerate with the commands under **Testing**.
+
+---
+
+## The app
+
+A dashboard with a sidebar (Dashboard · New takeoff · Results · Accuracy) and a top bar.
+
+* **Dashboard** – a verdict card for the 19-series and the 23-series: fill and cut accuracy,
+  share of sections within 10 %, typical section error, and what it was checked against;
+  plus the latest takeoff's cut, fill and net volume.
+* **New takeoff** – drop a plan-set PDF; progress is shown page by page.
+* **Results** – roads (toggle which count toward the total), the cut/fill profile with
+  mass curve, every cross-section with its audit overlay (← / → to step), the volume table,
+  sections that need review, CSV export, and a switch between subgrade and finished grade.
+* **Editing areas** – any section's fill and cut can be corrected, in the section viewer or
+  in the *Edit areas* table. The chart, mass curve, volumes and totals update as you type;
+  **Save changes** stores the edits on the server (volumes recomputed by average end area,
+  CSV exports use them, and the measured values are kept so any edit can be reset).
+  Edited sections are marked in the chart and tables. Edits live as long as the job does.
+* **Accuracy** – every evaluation in one table, how it was measured, and known limits.
 
 ---
 
@@ -117,14 +164,16 @@ Writes `sections.csv`, `volumes.csv` and one overlay PNG per section.
 | Method | Path | |
 |---|---|---|
 | `GET` | `/api/health` | dependency check |
+| `GET` | `/api/accuracy` | measured accuracy per plan-set format (drives the dashboard) |
 | `POST` | `/api/jobs` | upload a PDF (`file`), returns `{job_id}`; jobs run one at a time and queue |
 | `GET` | `/api/jobs/{id}` | status, progress, and the result when done |
 | `GET` | `/api/jobs/{id}/sections/{n}.png` | audit overlay of one section |
 | `GET` | `/api/jobs/{id}/volumes.csv?surface=subgrade&exclude=r2` | volumes per road |
-| `GET` | `/api/jobs/{id}/sections.csv` | areas per section, both surfaces |
+| `GET` | `/api/jobs/{id}/sections.csv` | areas per section, both surfaces (notes hand edits) |
+| `PUT` | `/api/jobs/{id}/edits` | save hand-edited areas `{"surface": "subgrade", "edits": {"12": {"fill_ft2": 40, "cut_ft2": 3}, "13": null}}` (`null` = back to measured); volumes are recomputed and the updated result returned |
 
 Environment: `ALLOWED_ORIGINS` (CORS, comma separated), `MAX_CONCURRENT_JOBS` (default 1), `MAX_UPLOAD_MB`
-(default 600), `JOB_TTL_SECONDS` (default 6 h), `FRONTEND_DIST`.
+(default 600), `JOB_TTL_SECONDS` (default 6 h), `FRONTEND_DIST`, `ACCURACY_FILE`.
 
 ---
 
@@ -143,9 +192,10 @@ volumes and the HTTP API end to end.
 To re-measure accuracy on real plan sets:
 
 ```bash
-python -m tools.evaluate markup  SCAN_WITH_TAKEOFF.pdf [...]
-python -m tools.evaluate vector  VECTOR.pdf
-python -m tools.evaluate pair    SCAN.pdf VECTOR_OF_SAME_SHEETS.pdf
+python -m tools.evaluate markup  SCAN_WITH_TAKEOFF.pdf [...]          --json evals/markup.json
+python -m tools.evaluate vector  VECTOR.pdf                           --json evals/hp_vector.json
+python -m tools.evaluate pair    SCAN.pdf VECTOR_OF_SAME_SHEETS.pdf   --json evals/s19_pair.json
+python -m tools.accuracy_report  evals/        # rewrites accuracy.json for the dashboard
 ```
 
 ---
@@ -167,6 +217,8 @@ backend/
     plan_set.py           orchestration (parallel over pages)
     cli.py                command-line entry point
   tools/evaluate.py       accuracy measurement
+  tools/accuracy_report.py  evaluation results -> accuracy.json (dashboard)
+  accuracy.json           latest measured accuracy
   tests/                  synthetic-sheet tests
 frontend/                 React + Vite app
 ```

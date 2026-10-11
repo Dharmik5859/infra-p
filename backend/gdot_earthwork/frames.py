@@ -401,9 +401,10 @@ def _ocr_word(clean: np.ndarray, box, pitch: float) -> list[str]:
 
     CAD lettering is usually italic: shearing it upright is what makes
     tesseract usable on it -- but the same shear spoils an upright font. So
-    the sheared word is read, then the plain one; a third, thickened read
-    breaks a disagreement. Returns every parseable reading (duplicates kept,
-    so agreement is visible to the caller)."""
+    the word is read sheared and plain, at two glyph heights, plus a
+    thickened read, stopping as soon as two readings agree. Returns every
+    parseable reading (duplicates kept, so agreement is visible to the
+    caller)."""
     x, y, w, h = box
     pad = int(0.1 * pitch)
     word = _glyph_only(clean, box, pitch, pad)

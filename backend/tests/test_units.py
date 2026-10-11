@@ -1,8 +1,12 @@
-"""Unit tests for station repair, road grouping and the volume formula."""
+"""Unit tests for station repair, road grouping, the volume formula and
+tracing helpers."""
+import cv2
+import numpy as np
 import pytest
 
 from gdot_earthwork.pages import parse_station
 from gdot_earthwork.roads import StationEntry, group_into_roads
+from gdot_earthwork.tracing import drop_layer_lines
 from gdot_earthwork.stations import StationRead, format_station, repair
 from gdot_earthwork.volume import average_end_area_volume
 
@@ -79,3 +83,53 @@ def test_repair_never_touches_text_labels_or_new_roads():
     seq = [read("49+00"), read("49+54"), read("60+00"), read("60+50"), read("61+00"), t, read("5+50")]
     assert [r.label for r in repair(seq)] == ["49+00", "49+54", "60+00", "60+50", "61+00", "5+00", "5+50"]
 
+
+
+def _dashes(m, x0, x1, y0, y1):
+    """Dashed line from (x0, y0) to (x1, y1): 12 px on, 8 px off."""
+    for x in range(x0, x1, 20):
+        xe = min(x + 12, x1)
+        ya = y0 + (y1 - y0) * (x - x0) / (x1 - x0)
+        yb = y0 + (y1 - y0) * (xe - x0) / (x1 - x0)
+        cv2.line(m, (x, int(round(ya))), (xe, int(round(yb))), 1, 2)
+
+
+def test_layer_line_under_template_is_not_ground():
+    template = np.zeros((300, 600), np.uint8)
+    cv2.line(template, (100, 100), (500, 140), 1, 2)           # 10 % cross slope
+    dash = np.zeros_like(template)
+    _dashes(dash, 0, 140, 100, 104)                             # ground, running onto the old road
+    _dashes(dash, 150, 450, 123, 153)                           # pavement bottom: parallel, 18 px down
+    _dashes(dash, 120, 480, 160, 200)                           # real ground: diverges from the grade
+    kept = drop_layer_lines(dash, template)
+    assert kept[:, :100].any()                                  # the ground itself stays
+    assert not kept[115:135, 200:210].any()                     # the parallel layer line is gone
+    assert kept[160:180, 200:210].any()                         # diverging ground under fill stays
+
+
+def test_ground_parallel_to_a_thin_raise_is_kept():
+    template = np.zeros((300, 600), np.uint8)
+    cv2.line(template, (100, 100), (500, 140), 1, 2)
+    dash = np.zeros_like(template)
+    _dashes(dash, 0, 600, 108, 148)                             # one continuous ground line, 8 px down
+    assert drop_layer_lines(dash, template).sum() == dash.sum()
+
+
+def test_repair_drops_digit_ocr_inserted_before_plus():
+    reads = [read("300+00"), read("300+50"), read("301+00"), read("3014+50"), read("3024+00"),
+             read("3024+50"), read("303+00"), read("303+50")]
+    assert [r.label for r in repair(reads)] == [
+        "300+00", "300+50", "301+00", "301+50", "302+00", "302+50", "303+00", "303+50"]
+
+
+def test_repair_fixes_a_run_of_dropped_leading_digits():
+    # OCR loses the "7" on a whole sheet series; the run is self-consistent
+    # but breaks the road's sequence at both ends
+    seq = ["68+00", "68+50", "69+00", "69+50", "0+00", "0+50", "11+00", "11+50", "12+00",
+           "12+50", "13+00", "13+50", "74+00", "74+50"]
+    # as on the real sheets, some renderings did read the 7
+    alt = {"0+50": ("70+50",), "11+00": ("71+00",), "12+00": ("72+00",), "13+00": ("73+00",)}
+    out = repair([read(x, cands=(x, *alt.get(x, ()))) for x in seq])
+    assert [r.label for r in out] == [f"{68 + i // 2}+{'50' if i % 2 else '00'}" for i in range(len(seq))]
+    assert all(r.source in ("inferred", "ocr") for r in out[4:12])
+    assert out[4].source == "inferred"                          # a correction nobody read is flagged

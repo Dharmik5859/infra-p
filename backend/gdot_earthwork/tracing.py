@@ -521,6 +521,71 @@ def template_strokes(solid: np.ndarray, link_px: int, min_px: int) -> np.ndarray
     return np.where(keep[lab], solid, 0).astype(solid.dtype)
 
 
+def drop_layer_lines(dash: np.ndarray, template: np.ndarray, link: int = 29, min_w: int = 72,
+                     min_off: int = 6, max_off: int = 43, max_std: float = 3.0,
+                     max_slope: float = 0.10) -> np.ndarray:
+    """Remove dashed runs that are existing pavement layers, not ground.
+
+    An existing road is drawn as a dashed surface plus a dashed line for the
+    bottom of its pavement. Where the new template sits on the old road the
+    upper (ground) line hides under the template's solid ink and only the
+    layer line still shows as dashes -- so the tracer would dive onto it. The
+    tell: it runs entirely beneath the template, parallel to it at a
+    constant offset, and it starts or ends with a step down from ground that
+    carries on above it. (Ground genuinely parallel to the new grade, e.g.
+    under a thin raise, joins the ground beside it without a step and stays.)
+    Defaults are canonical pixels (14.4 px/ft): link 2 ft, min width 5 ft,
+    offset 0.4--3 ft, offset scatter <= 0.2 ft; pavement cross slope <= 10 %."""
+    if not dash.any() or not template.any():
+        return dash
+    joined = cv2.dilate(dash, cv2.getStructuringElement(cv2.MORPH_RECT, (link, 3)))
+    n, lab, st, _ = cv2.connectedComponentsWithStats(joined, 8)
+    out = dash.copy()
+    for i in range(1, n):
+        x0, w = st[i, cv2.CC_STAT_LEFT], st[i, cv2.CC_STAT_WIDTH]
+        if w < min_w:
+            continue
+        offs, cols, pts = [], 0, []
+        for x in range(x0, x0 + w):
+            ys = np.where((lab[:, x] == i) & (dash[:, x] > 0))[0]
+            if len(ys) == 0:
+                continue
+            cols += 1
+            y = int(ys.mean())
+            pts.append((x, y))
+            above = np.where(template[max(0, y - max_off):max(0, y - min_off + 1), x])[0]
+            if len(above):
+                offs.append(y - (max(0, y - max_off) + above.max()))
+        if cols == 0 or len(offs) < 0.9 * cols:
+            continue
+        px, py = np.array(pts, float).T
+        if abs(np.polyfit(px, py, 1)[0]) > max_slope:     # a side slope, not a pavement layer
+            continue
+        if np.std(offs) <= max_std and _steps_off_ground(dash, lab, i, x0, w, min_off, max_off, link):
+            out[(lab == i) & (dash > 0)] = 0
+    return out
+
+
+def _steps_off_ground(dash, lab, i, x0, w, min_step, max_rise, reach) -> bool:
+    """Does dashed run `i` begin or end with a vertical step down from other
+    dashes just beyond it -- ground carrying on ABOVE it (by min_step to
+    max_rise)? Real ground is continuous; a layer line branches off below it."""
+    own = (lab[:, x0:x0 + w] == i) & (dash[:, x0:x0 + w] > 0)
+    cols = np.where(own.any(axis=0))[0]
+    if len(cols) == 0:
+        return False
+    first, last = x0 + cols[0], x0 + cols[-1]        # real dash ends, not the link padding
+    for end, outside in ((first, range(max(0, first - reach), first)),
+                         (last, range(last + 1, min(dash.shape[1], last + 1 + reach)))):
+        y = np.where(own[:, end - x0])[0].mean()
+        for x in outside:
+            other = np.where((dash[:, x] > 0) & (lab[:, x] != i))[0]
+            rise = y - other
+            if ((rise >= min_step) & (rise <= max_rise)).any():
+                return True
+    return False
+
+
 def ground_candidates(dash: np.ndarray, template: np.ndarray, hidden_weight: float):
     """Candidate points for tracing existing ground: its own dashes, plus the
     template's strokes at a fraction of the reward. Dashed ground that slips
@@ -528,7 +593,7 @@ def ground_candidates(dash: np.ndarray, template: np.ndarray, hidden_weight: flo
     existing pavement) leaves no dashes of its own; following the template
     there beats bridging blind in a straight line, while anywhere real dashes
     exist they win."""
-    cd, ct = candidates(dash), candidates(template)
+    cd, ct = candidates(drop_layer_lines(dash, template)), candidates(template)
     cands = [a + b for a, b in zip(cd, ct)]
     weights = [[1.0] * len(a) + [hidden_weight] * len(b) for a, b in zip(cd, ct)]
     return cands, weights

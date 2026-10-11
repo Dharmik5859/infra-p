@@ -260,14 +260,16 @@ def _is_dashed(d: dict) -> bool:
 
 def vector_strokes(frame: Frame, img: PageImage, cfg: PipelineConfig):
     """Dashed and solid data strokes inside the frame, in canonical frame-local
-    pixels. Grid lines, tick marks and text glyphs are filtered out."""
+    pixels. Grid lines, tick marks and text glyphs are filtered out; filled
+    pavement bands count as solid strokes (their outline)."""
     k = img.scale
     sx, sy, W, H = _canon_size(frame, cfg)
     fw, fh = frame.right - frame.left, frame.bottom - frame.top
     edge = 0.08 * frame.pitch_y
     dashed, solid = [], []
     for d in img.page.get_drawings():
-        if "s" not in (d.get("type") or ""):
+        kind = d.get("type") or ""
+        if "s" not in kind and not _is_pavement_fill(d, k, frame):
             continue
         r = d["rect"]
         # page points -> (possibly rotated) page-image pixels
@@ -282,7 +284,10 @@ def vector_strokes(frame: Frame, img: PageImage, cfg: PipelineConfig):
         for (ax, ay), (bx, by) in _path_segments(d):
             ax, ay = img.to_view(ax * k, ay * k)
             bx, by = img.to_view(bx * k, by * k)
-            horiz, vert = abs(ay - by) < 0.2, abs(ax - bx) < 0.2
+            # near-flat, not exactly flat: CAD exports often store grid lines
+            # with a pixel of drift over their full length
+            horiz = abs(ay - by) < max(0.2, 0.002 * abs(ax - bx))
+            vert = abs(ax - bx) < max(0.2, 0.002 * abs(ay - by))
             # grid & frame lines span most of the frame; the frame's own top
             # and bottom (offset axis) lines are often drawn in short pieces
             # (grid lines are always solid -- a long flat stretch of dashed
@@ -300,6 +305,18 @@ def vector_strokes(frame: Frame, img: PageImage, cfg: PipelineConfig):
                    (bx - frame.left) * sx, (by - frame.y0) * sy)
             (dashed if is_dash else solid).append(seg)
     return dashed, solid, W, H
+
+
+def _is_pavement_fill(d: dict, k: float, frame: Frame) -> bool:
+    """Some CAD exports draw the pavement as a filled dark band with no
+    outline stroke. Its outline is the finished grade on top and the
+    subgrade below, so it is read as solid linework: a dark fill that is
+    thin (under 3 ft) and at least half a grid square long."""
+    fill = d.get("fill")
+    if "f" not in (d.get("type") or "") or not fill or max(fill) > 0.35:
+        return False
+    r = d["rect"]
+    return r.height * k < 0.3 * frame.pitch_y and r.width * k >= 0.5 * frame.pitch_x
 
 
 def _edge_dist(frame: Frame, x: float, y: float) -> float:

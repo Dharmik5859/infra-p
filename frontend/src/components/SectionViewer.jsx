@@ -1,7 +1,8 @@
 import { assetUrl } from '../api';
 import { SOURCE_TEXT, ft2 } from '../format';
+import { AreaInput } from './AreaEditor';
 
-export default function SectionViewer({ section: s, position, count, onPrev, onNext, shadingNote }) {
+export default function SectionViewer({ section: s, position, count, onPrev, onNext, onEdit, onReset, shadingNote }) {
   const sourceTag = s.label_source === 'inferred' ? 'warn' : 'neutral';
   return (
     <section className="panel">
@@ -20,19 +21,30 @@ export default function SectionViewer({ section: s, position, count, onPrev, onN
           <span className="tag neutral">page {s.page}</span>
           <span className="tag info">{s.method === 'vector' ? 'traced from CAD linework' : 'traced from scan'}</span>
           <span className="spacer" style={{ flex: 1 }} />
-          <div className="stat"><span>Fill</span><b className="num fill-text">{ft2(s.fill_ft2)} ft²</b></div>
-          <div className="stat"><span>Cut</span><b className="num cut-text">{ft2(s.cut_ft2)} ft²</b></div>
+          <label className="stat edit-stat"><span>Fill ft²</span>
+            <AreaInput key={`f${s.id}`} value={s.fill_ft2} tone="fill" label="Fill area, square feet"
+              onChange={(v) => onEdit({ fill_ft2: v, cut_ft2: s.cut_ft2 })} /></label>
+          <label className="stat edit-stat"><span>Cut ft²</span>
+            <AreaInput key={`c${s.id}`} value={s.cut_ft2} tone="cut" label="Cut area, square feet"
+              onChange={(v) => onEdit({ fill_ft2: s.fill_ft2, cut_ft2: v })} /></label>
           <div className="stat"><span>Net</span><b className="num">{ft2(s.net_ft2)} ft²</b></div>
         </div>
+        {s.edited && (
+          <div className="edit-note">
+            <span className={`tag ${s.dirty ? 'warn' : 'edited'}`}>{s.dirty ? 'unsaved edit' : 'edited'}</span>
+            <span className="muted">Measured from the drawing: fill {ft2(s.measured.fill_ft2)} ft², cut {ft2(s.measured.cut_ft2)} ft²</span>
+            <button className="btn ghost small" onClick={onReset}>Reset to measured</button>
+          </div>
+        )}
         {s.overlay ? (
           <div className="viewer-img">
-            <img src={assetUrl(s.overlay)} alt={`Cross-section ${s.station || ''} on page ${s.page}: existing ground in blue, finished grade in black, subgrade in orange, fill shaded green, cut shaded red`} />
+            <img src={assetUrl(s.overlay)} alt={`Cross-section ${s.station || ''} on page ${s.page}: existing ground in blue, finished grade in black, subgrade in yellow, fill shaded green, cut shaded red`} />
           </div>
         ) : <div className="empty">No overlay image for this section.</div>}
         <div className="legend" style={{ padding: 0 }}>
-          <span><i style={{ background: '#2870b0' }} />existing ground</span>
+          <span><i style={{ background: '#1a73e8' }} />existing ground</span>
           <span><i style={{ background: '#1e1e1e' }} />finished grade</span>
-          <span><i style={{ background: '#e68c00' }} />subgrade (under pavement)</span>
+          <span><i style={{ background: '#f9ab00' }} />subgrade (under pavement)</span>
           <span><i style={{ background: 'var(--fill)' }} />fill</span>
           <span><i style={{ background: 'var(--cut)' }} />cut</span>
         </div>

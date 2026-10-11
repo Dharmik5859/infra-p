@@ -12,8 +12,8 @@ export default function ProgressView({ job }) {
   const secs = Math.round((now - start) / 1000);
 
   return (
-    <main className="center-page">
-      <div className="progress-card" aria-live="polite">
+    <div className="page narrow">
+      <div className="card progress-card" aria-live="polite">
         <h2>Reading {job.filename}</h2>
         <div className="muted">
           {job.status === 'queued'
@@ -30,6 +30,6 @@ export default function ProgressView({ job }) {
           <li>Measuring cut / fill and grouping stations into roads</li>
         </ul>
       </div>
-    </main>
+    </div>
   );
 }

@@ -1,0 +1,192 @@
+{
+  "generated": "2026-10-10",
+  "formats": [
+    {
+      "id": "19",
+      "title": "19-series",
+      "format": "Scanned strips, one cross-section per page",
+      "sample": "19series.pdf",
+      "eval": "s19_pair",
+      "reference": "Exact CAD geometry of the same 80 sheets (highway_planning1.pdf)",
+      "metrics": {
+        "sections": 80,
+        "sections_scored": 62,
+        "median_error_pct": 1.5,
+        "p90_error_pct": 12.2,
+        "within_5pct": 77.4,
+        "within_10pct": 87.1,
+        "total_fill_ft2": 35638.6,
+        "ref_total_fill_ft2": 35211.1,
+        "total_cut_ft2": 1705.5,
+        "ref_total_cut_ft2": 1774.8,
+        "total_fill_error_pct": 1.2,
+        "total_cut_error_pct": -3.9,
+        "stations_read": 79,
+        "stations_inferred": 1
+      }
+    },
+    {
+      "id": "23",
+      "title": "23-series",
+      "format": "Scanned sheets, several cross-sections per sheet",
+      "sample": "SR 332 mainline scans (23-series sheet layout)",
+      "eval": "sr332_pair",
+      "reference": "Exact CAD geometry of the same sheets (SR-332 EARTHWORK.pdf)",
+      "metrics": {
+        "sections": 99,
+        "sections_scored": 95,
+        "median_error_pct": 14.9,
+        "p90_error_pct": 65.4,
+        "within_5pct": 20.0,
+        "within_10pct": 38.9,
+        "total_fill_ft2": 2884.0,
+        "ref_total_fill_ft2": 3034.8,
+        "total_cut_ft2": 7992.5,
+        "ref_total_cut_ft2": 7407.2,
+        "total_fill_error_pct": -5.0,
+        "total_cut_error_pct": 7.9,
+        "stations_read": 79,
+        "stations_inferred": 20
+      },
+      "second": {
+        "reference": "the estimator's hand takeoff on the same sheets",
+        "metrics": {
+          "sections": 96,
+          "sections_scored": 95,
+          "median_error_pct": 28.1,
+          "p90_error_pct": 79.8,
+          "within_5pct": 1.1,
+          "within_10pct": 9.5,
+          "total_fill_ft2": 2403.6,
+          "ref_total_fill_ft2": 1744.9,
+          "total_cut_ft2": 7992.4,
+          "ref_total_cut_ft2": 7088.8,
+          "total_fill_error_pct": 37.8,
+          "total_cut_error_pct": 12.7
+        }
+      }
+    }
+  ],
+  "checks": [
+    {
+      "id": "s19_pair",
+      "title": "19-series scans",
+      "reference": "Exact CAD geometry of the same sheets",
+      "metrics": {
+        "sections": 80,
+        "sections_scored": 62,
+        "median_error_pct": 1.5,
+        "p90_error_pct": 12.2,
+        "within_5pct": 77.4,
+        "within_10pct": 87.1,
+        "total_fill_ft2": 35638.6,
+        "ref_total_fill_ft2": 35211.1,
+        "total_cut_ft2": 1705.5,
+        "ref_total_cut_ft2": 1774.8,
+        "total_fill_error_pct": 1.2,
+        "total_cut_error_pct": -3.9,
+        "stations_read": 79,
+        "stations_inferred": 1
+      }
+    },
+    {
+      "id": "sr332_pair",
+      "title": "SR 332 scans (23-series layout)",
+      "reference": "Exact CAD geometry of the same sheets",
+      "metrics": {
+        "sections": 99,
+        "sections_scored": 95,
+        "median_error_pct": 14.9,
+        "p90_error_pct": 65.4,
+        "within_5pct": 20.0,
+        "within_10pct": 38.9,
+        "total_fill_ft2": 2884.0,
+        "ref_total_fill_ft2": 3034.8,
+        "total_cut_ft2": 7992.5,
+        "ref_total_cut_ft2": 7407.2,
+        "total_fill_error_pct": -5.0,
+        "total_cut_error_pct": 7.9,
+        "stations_read": 79,
+        "stations_inferred": 20
+      }
+    },
+    {
+      "id": "sr332_markup",
+      "title": "SR 332 scans (23-series layout)",
+      "reference": "Estimator's hand takeoff on the sheets",
+      "metrics": {
+        "sections": 96,
+        "sections_scored": 95,
+        "median_error_pct": 28.1,
+        "p90_error_pct": 79.8,
+        "within_5pct": 1.1,
+        "within_10pct": 9.5,
+        "total_fill_ft2": 2403.6,
+        "ref_total_fill_ft2": 1744.9,
+        "total_cut_ft2": 7992.4,
+        "ref_total_cut_ft2": 7088.8,
+        "total_fill_error_pct": 37.8,
+        "total_cut_error_pct": 12.7
+      }
+    },
+    {
+      "id": "hp_vector",
+      "title": "highway_planning1 read as an image",
+      "reference": "Its own CAD geometry",
+      "metrics": {
+        "sections": 160,
+        "sections_scored": 131,
+        "median_error_pct": 1.4,
+        "p90_error_pct": 16.7,
+        "within_5pct": 75.6,
+        "within_10pct": 84.7,
+        "total_fill_ft2": 76276.7,
+        "ref_total_fill_ft2": 76127.3,
+        "total_cut_ft2": 7542.1,
+        "ref_total_cut_ft2": 10753.0,
+        "total_fill_error_pct": 0.2,
+        "total_cut_error_pct": -29.9
+      }
+    },
+    {
+      "id": "florence_pair",
+      "title": "Florence Rd scans",
+      "reference": "Exact CAD geometry of the same sheets",
+      "metrics": {
+        "sections": 23,
+        "sections_scored": 12,
+        "median_error_pct": 15.8,
+        "p90_error_pct": 143.9,
+        "within_5pct": 0.0,
+        "within_10pct": 25.0,
+        "total_fill_ft2": 132.7,
+        "ref_total_fill_ft2": 70.7,
+        "total_cut_ft2": 332.8,
+        "ref_total_cut_ft2": 242.0,
+        "total_fill_error_pct": 87.7,
+        "total_cut_error_pct": 37.5,
+        "stations_read": 23,
+        "stations_inferred": 0
+      }
+    },
+    {
+      "id": "markup",
+      "title": "12 EARTHWORK scan sets",
+      "reference": "Estimators' hand takeoffs on the sheets",
+      "metrics": {
+        "sections": 538,
+        "sections_scored": 453,
+        "median_error_pct": 25.8,
+        "p90_error_pct": 147.6,
+        "within_5pct": 6.6,
+        "within_10pct": 23.4,
+        "total_fill_ft2": 23075.8,
+        "ref_total_fill_ft2": 18083.8,
+        "total_cut_ft2": 19960.6,
+        "ref_total_cut_ft2": 18445.5,
+        "total_fill_error_pct": 27.6,
+        "total_cut_error_pct": 8.2
+      }
+    }
+  ]
+}

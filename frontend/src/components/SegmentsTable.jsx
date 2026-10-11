@@ -20,7 +20,8 @@ export default function SegmentsTable({ road, sections, onSelect }) {
               onKeyDown={(e) => { if (e.key === 'Enter' && byLabel.has(s.to)) onSelect(byLabel.get(s.to)); }}
               title={s.warning || ''}>
               <td className="mono">{s.from}</td>
-              <td className="mono">{s.to}{s.warning && <span className="tag warn" style={{ marginLeft: 6 }}>!</span>}</td>
+              <td className="mono">{s.to}{s.warning && <span className="tag warn" style={{ marginLeft: 6 }}>!</span>}
+                {s.edited && <span className="tag edited" style={{ marginLeft: 6 }} title="uses a hand-edited area">edited</span>}</td>
               <td className="num">{s.length_ft}</td>
               <td className="num cut-text">{cy(s.cut_cy)}</td>
               <td className="num fill-text">{cy(s.fill_cy)}</td>
