@@ -39,7 +39,7 @@ from fastapi.staticfiles import StaticFiles
 
 from gdot_earthwork import __version__
 from gdot_earthwork.export import annotated_pdf
-from gdot_earthwork.plan_set import PlanSetResult, process_plan_set
+from gdot_earthwork.plan_set import ZERO_REASONS, PlanSetResult, process_plan_set
 from gdot_earthwork.volume import average_end_area_volume
 
 JOB_TTL_SECONDS = int(os.environ.get("JOB_TTL_SECONDS", 6 * 3600))
@@ -134,6 +134,7 @@ def serialize(job: Job, res: PlanSetResult) -> dict:
         "label_source": s.label_source,
         "areas": areas(s),               # what volumes use: measured, or the user's edit
         "measured": areas(s),            # as traced from the drawing, never changed
+        "zero_reason": s.zero_reason,
         "method": s.method,
         "page_kind": s.page_kind,
         "road": road_of.get(i),
@@ -152,7 +153,9 @@ def serialize(job: Job, res: PlanSetResult) -> dict:
             "page_kinds": sorted({s.page_kind for s in res.sections}),
             "design_surface": res.design_surface,
             "surfaces": [res.design_surface, alt_surface],
+            "no_earthwork": sum(s.zero_reason is not None for s in res.sections),
         },
+        "zero_reasons": ZERO_REASONS,
         "roads": roads,
         "sections": sections,
         "warnings": res.warnings,

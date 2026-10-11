@@ -31,3 +31,19 @@ def test_every_cut_and_fill_zone_is_counted(tmp_path, scanned, tol_rel, tol_abs)
         fill, cut = true_areas(BY_STATION[s.station_label])
         assert s.fill_ft2 == pytest.approx(fill, rel=tol_rel, abs=tol_abs), (s.station_label, "fill")
         assert s.cut_ft2 == pytest.approx(cut, rel=tol_rel, abs=tol_abs), (s.station_label, "cut")
+
+
+@pytest.mark.parametrize("scanned", [False, True])
+def test_resurfacing_section_reports_why_it_has_no_earthwork(tmp_path, scanned):
+    from .synth import SectionSpec
+    ground = [(-140.0, 700.0), (-30.0, 700.6), (0.0, 701.2), (30.0, 700.6), (140.0, 700.0)]
+    on_ground = [(-30.0, 700.6), (0.0, 701.2), (30.0, 700.6)]          # new surface = existing
+    specs = [[SectionSpec("30+50", ground, on_ground), rolling_section("30+00", 701.0)]]
+    path = tmp_path / "resurface.pdf"
+    make_pdf(str(path), specs, scanned=scanned)
+    result = process_plan_set(str(path), workers=1, overlays=False)
+    # identify by position on the sheet (top first), independent of OCR
+    flat, rolling = sorted(result.sections, key=lambda s: s.index)
+    assert flat.fill_ft2 + flat.cut_ft2 < 0.5
+    assert flat.zero_reason in ("matches_existing", "no_design")
+    assert rolling.zero_reason is None and rolling.fill_ft2 > 20

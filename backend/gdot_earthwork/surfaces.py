@@ -179,10 +179,41 @@ def raster_surfaces(frame: Frame, img: PageImage, cfg: PipelineConfig) -> Surfac
     solid = template_strokes(solid, LINK_PX, MIN_TEMPLATE_PX)
     gc, gw = ground_candidates(dash, solid, HIDDEN_GROUND_WEIGHT)
     ground_px = best_path(gc, win=TRACE_WINDOW, weights=gw)
-    design_px = snap_top(solid, best_path(candidates(solid)))
     grid_rows = [((a + b) / 2 - y0) * sy for a, b in frame.hlines]
-    design_px = fill_along_gridlines(design_px, grid_rows, int(1.0 * CANON_PPF))
-    return _finish(ground_px, design_px, solid, roi, W, H, cfg, "raster", refine=True)
+
+    def trace(mask):
+        d = snap_top(mask, best_path(candidates(mask)))
+        return fill_along_gridlines(d, grid_rows, int(1.0 * CANON_PPF))
+
+    return _finish_with_retry(ground_px, trace, solid, roi, W, H, cfg, "raster", refine=True)
+
+
+def _erase_chain(mask: np.ndarray, chain: dict, half: int = 4) -> np.ndarray:
+    """`mask` without the strokes a traced chain ran along."""
+    band = np.zeros_like(mask)
+    for x, y in chain.items():
+        band[max(0, int(y) - half):int(y) + half + 1, max(0, x - 1):x + 2] = 1
+    band = cv2.dilate(band, np.ones((3, 3), np.uint8))
+    return mask & (1 - band)
+
+
+def _finish_with_retry(ground_px, trace, solid, roi, W, H, cfg, source, refine) -> Surfaces:
+    """Trace the design and finish. When the strongest solid line turns out
+    to be a buried pipe or utility (rejected whole, leaving no design over
+    the ground), erase it and trace again: the template is usually the next
+    line down the list. The rejected run is still reported."""
+    design_px = trace(solid)
+    s = _finish(ground_px, design_px, solid, roi, W, H, cfg, source, refine)
+    if s.overlap.any() or not s.trimmed or not design_px:
+        return s
+    rest = _erase_chain(solid, design_px)
+    if not rest.any():
+        return s
+    again = _finish(ground_px, trace(rest), rest, roi, W, H, cfg, source, refine)
+    if not again.overlap.any():
+        return s
+    again.trimmed = s.trimmed + again.trimmed
+    return again
 
 
 def _partial_grid_lines(ink: np.ndarray, bands: list[tuple[int, int]], pitch: float,
@@ -341,5 +372,5 @@ def vector_surfaces(frame: Frame, img: PageImage, cfg: PipelineConfig) -> Surfac
     smask = template_strokes(smask, LINK_PX, MIN_TEMPLATE_PX)
     gc, gw = ground_candidates(dmask, smask, HIDDEN_GROUND_WEIGHT)
     ground_px = best_path(gc, win=TRACE_WINDOW, weights=gw)
-    design_px = snap_top(smask, best_path(candidates(smask)))
-    return _finish(ground_px, design_px, smask, dmask | smask, W, H, cfg, "vector", refine=False)
+    return _finish_with_retry(ground_px, lambda m: snap_top(m, best_path(candidates(m))),
+                              smask, dmask | smask, W, H, cfg, "vector", refine=False)

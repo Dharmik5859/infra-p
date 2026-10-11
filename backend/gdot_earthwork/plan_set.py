@@ -57,6 +57,7 @@ class SectionResult:
     warnings: list[str] = field(default_factory=list)
     overlay_png: bytes | None = None
     geometry: dict | None = None       # page-space outline + traced lines, for the annotated PDF
+    zero_reason: str | None = None     # why a section has no earthwork (see ZERO_REASONS)
 
     @property
     def net_ft2(self) -> float:
@@ -74,6 +75,26 @@ class PlanSetResult:
     warnings: list[str]
     timing: dict
     design_surface: str = "subgrade"
+
+
+# Why a section measures (almost) no cut or fill -- usually the drawing,
+# not a failure: shown to the user instead of a bare 0 / 0.
+ZERO_REASONS = {
+    "structure": "Bridge or structure: the proposed line spans over the ground, so there is no earthwork here.",
+    "no_design": "No proposed surface is drawn on this section (existing ground only: outside the "
+                 "construction limits, a match line, or a section that only shows utilities).",
+    "matches_existing": "The proposed surface follows existing ground (resurfacing / match existing), "
+                        "so there is no cut or fill.",
+}
+ZERO_FT2 = 0.5
+
+
+def _zero_reason(surf: Surfaces, area) -> str | None:
+    if area.fill_ft2 + area.cut_ft2 >= ZERO_FT2:
+        return None
+    if not surf.overlap.any():
+        return "structure" if surf.structures else "no_design"
+    return "matches_existing"
 
 
 GEOMETRY_STEP = 4      # canonical columns between stored points (~0.3 ft)
@@ -130,8 +151,6 @@ def _measure_page(pdf_path: str, index: int, cfg: PipelineConfig, overlays: bool
                 surf, method = raster_surfaces(f, img, cfg), "raster"
             area = measure(surf, cfg.design_surface)
             alt = measure(surf, "finished" if cfg.design_surface == "subgrade" else "subgrade")
-            if not surf.overlap.any():
-                warnings.append("no proposed design found over existing ground -- area is zero")
             if max(surf.max_gap_ground_ft, surf.max_gap_design_ft) > cfg.gap_warn_ft:
                 warnings.append(
                     f"a surface was bridged across a {max(surf.max_gap_ground_ft, surf.max_gap_design_ft):.0f} ft "
@@ -154,6 +173,7 @@ def _measure_page(pdf_path: str, index: int, cfg: PipelineConfig, overlays: bool
                 bbox=(f.top, f.bottom, f.left, f.right), page_kind=img.kind,
                 px_per_ft=(f.pitch_x / cfg.grid_ft, f.pitch_y / cfg.grid_ft), rotation=img.rot,
                 warnings=warnings, overlay_png=png, geometry=_geometry(surf, f, img, cfg),
+                zero_reason=_zero_reason(surf, area),
             ))
         return out
     finally:
