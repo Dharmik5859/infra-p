@@ -517,3 +517,6 @@ tr.total td { font-weight: 500; background: var(--surface-2); }
 .zero-note { padding: 10px 12px; border-radius: var(--radius-sm); background: var(--blue-soft); color: var(--text-2); font-size: 13px; }
 .zero-note b { color: var(--blue-ink); font-weight: 500; }
 .chart .zero-mark { fill: var(--surface); stroke: var(--text-3); stroke-width: 1.5; }
+
+.card-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.surface-bar .spacer { flex: 1; }

@@ -205,6 +205,9 @@ export default function Results({ result, onResult }) {
               ? 'bottom of the pavement structure — standard earthwork practice'
               : 'top of pavement — includes the pavement layer in fill'}
           </span>
+          <span className="spacer" />
+          <a className="btn" href={annotatedPdfUrl(result.job_id, excluded, surface)}
+            title="Your original PDF with cut/fill and areas drawn on every section">Download PDF</a>
         </div>
         <div className="kpis">
           <div className="kpi">

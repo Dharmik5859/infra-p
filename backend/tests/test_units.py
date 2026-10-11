@@ -133,3 +133,13 @@ def test_repair_fixes_a_run_of_dropped_leading_digits():
     assert [r.label for r in out] == [f"{68 + i // 2}+{'50' if i % 2 else '00'}" for i in range(len(seq))]
     assert all(r.source in ("inferred", "ocr") for r in out[4:12])
     assert out[4].source == "inferred"                          # a correction nobody read is flagged
+
+
+def test_repair_keeps_the_history_through_unreadable_labels():
+    # Perry Creek page 8: a badly misread label followed by three unreadable
+    # ones; the next real reading shows they were 56+00 .. 57+50
+    seq = ["54+50", "55+00", "55+50", "764+00", None, None, None, "58+00", "58+50"]
+    out = repair([read(x) for x in seq])
+    assert [r.label for r in out] == ["54+50", "55+00", "55+50", "56+00", "56+50", "57+00", "57+50",
+                                      "58+00", "58+50"]
+    assert all(r.source == "inferred" for r in out[3:7])

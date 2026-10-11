@@ -1,3 +1,4 @@
+import { annotatedPdfUrl } from '../api';
 import { cy, signed } from '../format';
 import { GRADES, accuracy, grade, sentence } from '../verdict';
 import { IconAccuracy, IconArrow, IconCheck, IconInfo, IconUpload } from './Icons';
@@ -54,7 +55,7 @@ export function VerdictCard({ f }) {
         <div><dt>Sections checked</dt><dd className="num">{m.sections}</dd></div>
         <div><dt>Within 10 %</dt><dd className="num">{m.within_10pct == null ? '—' : `${Math.round(m.within_10pct)} %`}</dd></div>
         <div><dt>Typical error</dt><dd className="num">{m.median_error_pct == null ? '—' : `${m.median_error_pct.toFixed(1)} %`}</dd></div>
-        <div><dt>9 in 10 sections within</dt><dd className="num">{m.p90_error_pct == null ? '—' : `${m.p90_error_pct.toFixed(0)} %`}</dd></div>
+        <div><dt>90% within</dt><dd className="num">{m.p90_error_pct == null ? '—' : `${m.p90_error_pct.toFixed(0)} %`}</dd></div>
       </dl>
       <footer className="vc-ref">
         <IconInfo width={16} height={16} />
@@ -110,7 +111,10 @@ function LatestTakeoff({ job, onOpen, onNew }) {
           <span className="eyebrow">Latest takeoff</span>
           <h3>{job.filename}</h3>
         </div>
-        <button className="btn" onClick={onOpen}>Open results <IconArrow width={18} height={18} /></button>
+        <div className="card-actions">
+          <a className="btn" href={annotatedPdfUrl(job.job_id, roads.filter((r) => r.repeat_of).map((r) => r.id), surf)}>Download PDF</a>
+          <button className="btn primary" onClick={onOpen}>Open results <IconArrow width={18} height={18} /></button>
+        </div>
       </div>
       <div className="stat-tiles">
         <div className="tile t-red"><span>Cut</span><b className="num">{cy(cut)}</b><small>cubic yards</small></div>
