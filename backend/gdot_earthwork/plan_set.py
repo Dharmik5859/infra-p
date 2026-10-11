@@ -23,6 +23,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import Callable
 
+import numpy as np
 import pymupdf as fitz
 
 from .config import PipelineConfig, get_config
@@ -31,7 +32,7 @@ from .pages import could_hold_sections, load_page, sideways_labels
 from .render import encode_png, overlay
 from .roads import Road, StationEntry, group_into_roads
 from .stations import StationRead, repair
-from .surfaces import measure, raster_surfaces, vector_surfaces
+from .surfaces import Surfaces, _canon_size, measure, raster_surfaces, vector_surfaces
 from .volume import RoadVolumeResult, average_end_area_volume
 
 
@@ -55,6 +56,7 @@ class SectionResult:
     rotation: int                      # quarter turns the page was read at (np.rot90 k)
     warnings: list[str] = field(default_factory=list)
     overlay_png: bytes | None = None
+    geometry: dict | None = None       # page-space outline + traced lines, for the annotated PDF
 
     @property
     def net_ft2(self) -> float:
@@ -72,6 +74,35 @@ class PlanSetResult:
     warnings: list[str]
     timing: dict
     design_surface: str = "subgrade"
+
+
+GEOMETRY_STEP = 4      # canonical columns between stored points (~0.3 ft)
+
+
+def _geometry(surf: Surfaces, f, img, cfg: PipelineConfig) -> dict | None:
+    """The section in PDF page coordinates: its frame corners, and the
+    ground and both proposed surfaces as polylines (None where untraced),
+    so an annotated copy of the original PDF can be drawn later."""
+    if img.placement is None:
+        return None
+    sx, sy, _, _ = _canon_size(f, cfg)
+    cols = np.arange(0, surf.width, GEOMETRY_STEP)
+    vx = f.left + (cols + 0.5) / sx
+
+    def line(rows):
+        out = []
+        for x, r in zip(vx, rows[cols]):
+            out.append(None if np.isnan(r) else img.page_point(x, f.y0 + r / sy))
+        return out
+
+    corner = lambda x, y: img.page_point(x, y)
+    return {
+        # top-left, top-right, bottom-left of the frame, as drawn on the sheet
+        "frame": [corner(f.left, f.top), corner(f.right, f.top), corner(f.left, f.bottom)],
+        "ground": line(surf.ground),
+        "finished": line(surf.design),
+        "subgrade": line(surf.surface("subgrade")),
+    }
 
 
 def _measure_page(pdf_path: str, index: int, cfg: PipelineConfig, overlays: bool) -> list[SectionResult]:
@@ -122,7 +153,7 @@ def _measure_page(pdf_path: str, index: int, cfg: PipelineConfig, overlays: bool
                 alt_fill_ft2=round(alt.fill_ft2, 2), alt_cut_ft2=round(alt.cut_ft2, 2),
                 bbox=(f.top, f.bottom, f.left, f.right), page_kind=img.kind,
                 px_per_ft=(f.pitch_x / cfg.grid_ft, f.pitch_y / cfg.grid_ft), rotation=img.rot,
-                warnings=warnings, overlay_png=png,
+                warnings=warnings, overlay_png=png, geometry=_geometry(surf, f, img, cfg),
             ))
         return out
     finally:

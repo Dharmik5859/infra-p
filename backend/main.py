@@ -8,13 +8,15 @@ HTTP API for the earthwork pipeline.
     GET  /api/jobs/{id}/sections/{n}.png     audit overlay for one cross-section
     GET  /api/jobs/{id}/volumes.csv          volume table (respects ?exclude=road ids)
     GET  /api/jobs/{id}/sections.csv         per-section areas
+    GET  /api/jobs/{id}/annotated.pdf        the original PDF with the takeoff drawn on it
     PUT  /api/jobs/{id}/edits                save hand-edited cut/fill areas; volumes are recomputed
 
 Processing a plan set takes seconds to minutes, so uploads return at once
 and the client polls the job. Jobs run MAX_CONCURRENT_JOBS at a time (each
 already uses every core); the rest wait as "queued". Jobs live in memory and
 expire after JOB_TTL_SECONDS; nothing is written to disk except the upload
-itself, which is deleted as soon as processing ends.
+itself, which is kept while its job lives (for the annotated PDF export) and
+deleted with it.
 """
 from __future__ import annotations
 
@@ -36,6 +38,7 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from gdot_earthwork import __version__
+from gdot_earthwork.export import annotated_pdf
 from gdot_earthwork.plan_set import PlanSetResult, process_plan_set
 from gdot_earthwork.volume import average_end_area_volume
 
@@ -66,6 +69,7 @@ class Job:
     error: str | None = None
     result: PlanSetResult | None = None
     payload: dict | None = None
+    pdf_path: str | None = None       # the upload, kept while the job lives
 
 
 JOBS: dict[str, Job] = {}
@@ -77,7 +81,9 @@ def _expire() -> None:
     cutoff = time.time() - JOB_TTL_SECONDS
     with LOCK:
         for k in [k for k, j in JOBS.items() if j.created < cutoff and j.status in ("done", "error")]:
-            del JOBS[k]
+            job = JOBS.pop(k)
+            if job.pdf_path:
+                shutil.rmtree(os.path.dirname(job.pdf_path), ignore_errors=True)
 
 
 def _round(v: float, n: int = 1) -> float:
@@ -164,10 +170,10 @@ def _run(job: Job, path: str) -> None:
             res = process_plan_set(path, progress=progress)
             job.result = res
             job.payload = serialize(job, res)
+            job.pdf_path = path
             job.status = "done"
         except Exception as e:  # surfaced to the client, not swallowed
             job.status, job.error = "error", f"{type(e).__name__}: {e}"
-        finally:
             shutil.rmtree(os.path.dirname(path), ignore_errors=True)
 
 
@@ -379,6 +385,25 @@ def sections_csv(job_id: str):
                      s["areas"][a]["fill_ft2"], s["areas"][a]["cut_ft2"], s["areas"][b]["fill_ft2"], s["areas"][b]["cut_ft2"],
                      note, s["method"], " | ".join(s["warnings"])])
     return _csv(rows, f"{os.path.splitext(job.filename)[0]}-sections.csv")
+
+
+@app.get("/api/jobs/{job_id}/annotated.pdf")
+def annotated(job_id: str, exclude: list[str] = Query(default=[]), surface: str | None = None):
+    """The uploaded PDF, every page as it was, with each measured section's
+    cut/fill shading and areas (hand edits included) drawn on it, plus
+    summary pages at the end."""
+    job = _job(job_id)
+    if job.payload is None or job.result is None:
+        raise HTTPException(409, "Job is not finished.")
+    if not job.pdf_path or not os.path.exists(job.pdf_path):
+        raise HTTPException(410, "The original PDF is no longer available for this job.")
+    surface = _surface(job, surface)
+    with LOCK:
+        payload = json.loads(json.dumps(job.payload))      # a consistent snapshot of the edits
+    pdf = annotated_pdf(job.pdf_path, [s.geometry for s in job.result.sections], payload, surface, set(exclude))
+    name = f"{os.path.splitext(job.filename)[0]}-takeoff.pdf"
+    return Response(pdf, media_type="application/pdf",
+                    headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
 
 # Production: serve the built frontend from the same origin, so the app's

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { saveEdits, sectionsCsvUrl, volumesCsvUrl } from '../api';
+import { annotatedPdfUrl, saveEdits, sectionsCsvUrl, volumesCsvUrl } from '../api';
 import { cy, signed } from '../format';
 import { roadVolumes } from '../volumes';
 import ProfileChart from './ProfileChart';
@@ -93,7 +93,7 @@ export default function Results({ result, onResult }) {
       }
       setDrafts({});
       onResult(latest);
-      setSaveMsg({ ok: true, text: 'Saved. Volumes, chart and CSV exports now use your areas.' });
+      setSaveMsg({ ok: true, text: 'Saved. Volumes, the chart, the PDF and the CSV downloads now use your areas.' });
     } catch (e) {
       setSaveMsg({ ok: false, text: `Could not save: ${e.message}` });
     } finally {
@@ -152,10 +152,13 @@ export default function Results({ result, onResult }) {
           })} />
         <section className="panel">
           <div className="panel-h"><h3>Export</h3></div>
-          <div style={{ display: 'grid', gap: 8, padding: 14 }}>
+          <div className="export-list">
+            <a className="btn primary" href={annotatedPdfUrl(result.job_id, excluded, surface)}>Plan set PDF with takeoff</a>
+            <span className="export-note">Your original PDF, every page unchanged, with cut/fill shading and areas drawn on each
+              section and a volume summary at the end.</span>
             <a className="btn" href={volumesCsvUrl(result.job_id, excluded, surface)}>Volumes by road (CSV)</a>
             <a className="btn" href={sectionsCsvUrl(result.job_id)}>Areas by section (CSV)</a>
-            {dirtyCount > 0 && <span className="muted" style={{ fontSize: 12.5 }}>Exports include saved edits only.</span>}
+            {dirtyCount > 0 && <span className="export-note warn-text">Save your edits first: downloads use saved areas only.</span>}
           </div>
         </section>
       </div>

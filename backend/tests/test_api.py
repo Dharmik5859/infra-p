@@ -127,3 +127,23 @@ def test_edits_reject_bad_input(tmp_path):
     for body in bad:
         assert client.put(url, json=body).status_code == 400, body
     assert client.put("/api/jobs/nope/edits", json={"surface": surface, "edits": {}}).status_code == 404
+
+
+def test_annotated_pdf_keeps_original_pages_and_shows_edits(tmp_path):
+    import pymupdf as fitz
+    client = TestClient(main.app)
+    job_id, result = _finished_job(tmp_path, client)
+    surface = result["summary"]["design_surface"]
+    first = result["roads"][0]["sections"][0]
+    client.put(f"/api/jobs/{job_id}/edits",
+               json={"surface": surface, "edits": {str(first): {"fill_ft2": 432.1, "cut_ft2": 0}}})
+    r = client.get(f"/api/jobs/{job_id}/annotated.pdf")
+    assert r.status_code == 200 and r.headers["content-type"] == "application/pdf"
+    out = fitz.open(stream=r.content, filetype="pdf")
+    src = fitz.open(main.JOBS[job_id].pdf_path)
+    assert len(out) == len(src) + 1                                # every page kept + a summary page
+    assert all(out[i].rect == src[i].rect for i in range(len(src)))
+    text = "".join(p.get_text() for p in out)
+    assert "STA 11+00" in text and "STA 12+00" in text             # every section labelled
+    assert "432.1" in text and "EDITED" in text                    # the edit is on the sheet
+    assert "Earthwork takeoff" in out[-1].get_text()

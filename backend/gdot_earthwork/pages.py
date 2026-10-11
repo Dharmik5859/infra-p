@@ -47,6 +47,7 @@ class PageImage:
     page: fitz.Page | None = None  # kept for vector stroke access
     rot: int = 0                   # quarter turns applied (np.rot90 k): 0, 1 or -1
     base_shape: tuple[int, int] = (0, 0)   # (H, W) before rotation
+    placement: dict | None = None  # how image pixels sit on the PDF page (see page_point)
 
     def to_view(self, x, y):
         """Map unrotated page-pixel coordinates into this (possibly rotated) image."""
@@ -57,13 +58,24 @@ class PageImage:
             return H - 1 - y, x
         return x, y
 
+    def page_point(self, x: float, y: float) -> tuple[float, float]:
+        """Inverse of the whole loading chain: a pixel of this (possibly
+        rotated) image -> PDF page coordinates, unrotated, as PyMuPDF's
+        drawing calls expect them."""
+        H, W = self.base_shape if self.rot else self.gray.shape
+        if self.rot == 1:
+            x, y = W - 1 - y, x
+        elif self.rot == -1:
+            x, y = y, H - 1 - x
+        return page_point(self.placement, x, y)
+
     def rotated(self, k: int) -> "PageImage":
         """This page turned a quarter turn (k=1 counter-clockwise, k=-1
         clockwise). Some consultants plot cross-sections sideways on the sheet;
         turned upright they read like any other sheet."""
         base = PageImage(self.number, self.gray, self.kind, self.scale, self.spans, self.page)
         out = PageImage(self.number, np.ascontiguousarray(np.rot90(self.gray, k)), self.kind,
-                        self.scale, [], self.page, k, self.gray.shape)
+                        self.scale, [], self.page, k, self.gray.shape, self.placement)
         for sp in base.spans:
             x, y = out.to_view(sp.x, sp.y)
             out.spans.append(TextSpan(x, y, sp.text, sp.size))
@@ -78,7 +90,26 @@ def parse_station(text: str) -> float | None:
     return int(m.group(1)) * 100 + float(m.group(2))
 
 
-def _base_image(doc: fitz.Document, page: fitz.Page) -> np.ndarray | None:
+def page_point(placement: dict, x: float, y: float) -> tuple[float, float]:
+    """Unrotated page image pixel -> unrotated PDF page coordinates.
+
+    vector: the page was rendered as displayed at `zoom`, so pixels are
+            displayed points; the page's derotation matrix undoes /Rotate.
+    raster: the scan's own placement matrix maps its unit square onto the
+            page; `flipped` undoes the quarter turn applied when the image
+            was stored sideways."""
+    if placement["kind"] == "vector":
+        z = placement["zoom"]
+        p = fitz.Point(x / z, y / z) * fitz.Matrix(*placement["derot"])
+        return p.x, p.y
+    w0, h0 = placement["w0"], placement["h0"]
+    if placement["flipped"]:              # pixel (x, y) of np.rot90(img, 3) is img[h0 - 1 - x, y]
+        x, y = y, h0 - 1 - x
+    p = fitz.Point((x + 0.5) / w0, (y + 0.5) / h0) * fitz.Matrix(*placement["m"])
+    return p.x, p.y
+
+
+def _base_image(doc: fitz.Document, page: fitz.Page) -> tuple[np.ndarray, dict] | tuple[None, None]:
     """The page's scan, if the page is essentially one full-page image.
 
     Picks the largest embedded image whose placement covers most of the
@@ -100,7 +131,7 @@ def _base_image(doc: fitz.Document, page: fitz.Page) -> np.ndarray | None:
         if w * h > best_area:
             best, best_area = xref, w * h
     if best is None:
-        return None
+        return None, None
     pix = fitz.Pixmap(doc, best)
     if pix.alpha or pix.n not in (1, 3):
         pix = fitz.Pixmap(fitz.csRGB, pix)
@@ -111,10 +142,12 @@ def _base_image(doc: fitz.Document, page: fitz.Page) -> np.ndarray | None:
         arr = arr[..., 0].copy()
     # Respect the placement orientation: a portrait image placed on a
     # landscape page (or vice versa) has been rotated by the PDF.
-    rect = page.get_image_rects(best)[0]
-    if (rect.width > rect.height) != (arr.shape[1] > arr.shape[0]):
+    (rect, matrix), = page.get_image_rects(best, transform=True)[:1]
+    h0, w0 = arr.shape
+    flipped = (rect.width > rect.height) != (w0 > h0)
+    if flipped:
         arr = np.ascontiguousarray(np.rot90(arr, 3))
-    return arr
+    return arr, {"kind": "raster", "m": tuple(matrix), "w0": w0, "h0": h0, "flipped": flipped}
 
 
 def _text_spans(page: fitz.Page, scale: float) -> list[TextSpan]:
@@ -136,7 +169,7 @@ def could_hold_sections(doc: fitz.Document, index: int) -> bool:
     station label somewhere; a scanned page always has to be looked at."""
     page = doc[index]
     words = page.get_text("words")
-    if len(words) < 20 or _base_image(doc, page) is not None:
+    if len(words) < 20 or _base_image(doc, page)[0] is not None:
         return True
     return any(STATION_RE.match(w[4].strip()) for w in words)
 
@@ -153,13 +186,14 @@ def sideways_labels(page: fitz.Page) -> bool:
 def load_page(doc: fitz.Document, index: int, vector_dpi: int = 300) -> PageImage:
     page = doc[index]
     words = page.get_text("words")
-    scan = _base_image(doc, page) if len(words) < 20 else None
+    scan, placement = _base_image(doc, page) if len(words) < 20 else (None, None)
     if scan is not None:
         scale = scan.shape[1] / page.rect.width
         return PageImage(index + 1, scan, "raster", scale,
-                         _text_spans(page, scale) if words else [], page)
+                         _text_spans(page, scale) if words else [], page, placement=placement)
     # cap the render size: a 36x24 in sheet at 300 dpi would be ~78 megapixels
     zoom = min(vector_dpi / 72.0, MAX_RENDER_PX / max(page.rect.width, page.rect.height))
     pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), colorspace=fitz.csGRAY, alpha=False)
     gray = np.frombuffer(pix.samples, np.uint8).reshape(pix.h, pix.w).copy()
-    return PageImage(index + 1, gray, "vector", zoom, _text_spans(page, zoom), page)
+    return PageImage(index + 1, gray, "vector", zoom, _text_spans(page, zoom), page,
+                     placement={"kind": "vector", "zoom": zoom, "derot": tuple(page.derotation_matrix)})
