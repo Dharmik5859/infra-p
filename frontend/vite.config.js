@@ -7,6 +7,6 @@ import { defineConfig } from 'vite';
 export default defineConfig({
   plugins: [react()],
   server: {
-    proxy: { '/api': process.env.API_URL || 'http://127.0.0.1:8000' },
+    proxy: { '/api': process.env.API_URL || 'https://improved-space-journey-w4rrv6rx5w6cgxxv-8000.app.github.dev' },
   },
 });

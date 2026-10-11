@@ -47,10 +47,10 @@ JOB_TTL_SECONDS = int(os.environ.get("JOB_TTL_SECONDS", 6 * 3600))
 # would only slow every one of them down, so further uploads wait their turn
 MAX_CONCURRENT_JOBS = int(os.environ.get("MAX_CONCURRENT_JOBS", 1))
 # Scanned plan sets are big (the dataset's largest is ~120 MB); the cap only
-# guards the disk. Anything in front of the app (nginx, a load balancer, a
-# hosting platform) must allow at least this much too -- see README.
+# guards the disk. Uploads arrive in chunks (see /api/uploads), so proxies with
+# their own request-size limits in front of the app don't get in the way.
 MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", 2048))
-ALLOWED_ORIGINS = [o for o in os.environ.get("ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",") if o]
+ALLOWED_ORIGINS = [o for o in os.environ.get("ALLOWED_ORIGINS", "http://localhost:5173,https://improved-space-journey-w4rrv6rx5w6cgxxv-5173.app.github.dev").split(",") if o]
 
 app = FastAPI(title="Earthwork Takeoff API", version=__version__)
 app.add_middleware(
