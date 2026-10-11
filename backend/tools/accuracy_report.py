@@ -112,6 +112,82 @@ def _scale(survey_dir: str | None) -> dict | None:
     }
 
 
+# Which evaluation checks which scanned plan set, best reference first.
+PAIR_EVALS = {          # scan file -> evaluation against the CAD drawing of the same sheets
+    "19series.pdf": "s19_pair",
+    "SR 332  - MAINLINE.pdf": "sr332_pair",
+    "Florence RD.pdf": "florence_pair",
+    "PERRY CREEK RD- TAKEOFF EARTHWORK.pdf": "perry_pair",
+    "SR 70 - CROSS SECTION.pdf": "sr70_pair",
+    "WEEB CREEK - EARTHWORK.pdf": "webb_pair",
+}
+MARKUP_EVALS = ["markup", "mib_markup"]     # rows carry their file name
+
+
+def _stats(rows: list[dict]) -> dict:
+    """Totals and per-section shares for one plan set's checked sections."""
+    f, rf = sum(r["fill"] for r in rows), sum(r["ref_fill"] for r in rows)
+    c, rc = sum(r["cut"] for r in rows), sum(r["ref_cut"] for r in rows)
+    big = [r for r in rows if r["ref_fill"] + r["ref_cut"] >= MIN_AREA]
+    err = sorted((abs(r["fill"] - r["ref_fill"]) + abs(r["cut"] - r["ref_cut"])) / (r["ref_fill"] + r["ref_cut"])
+                 for r in big)
+    pct = lambda a, b: round(100 * (a - b) / b, 1) if b >= MIN_AREA else None
+    share = lambda t: round(100 * sum(e <= t for e in err) / len(err), 1) if err else None
+    return {
+        "sections_checked": len(rows), "sections_scored": len(big),
+        "fill_error_pct": pct(f, rf), "cut_error_pct": pct(c, rc),
+        "volume_error_pct": pct(f + c, rf + rc),
+        "within_10pct": share(0.10), "within_25pct": share(0.25),
+        "median_error_pct": round(100 * err[len(err) // 2], 1) if err else None,
+    }
+
+
+def _plan_sets(eval_dir: str, survey_dir: str | None) -> list[dict]:
+    """One entry per PDF the survey ran: what was found, and -- where a
+    reference exists -- how close the takeoff came."""
+    if not survey_dir or not os.path.isdir(survey_dir):
+        return []
+    rows_by_file: dict[str, tuple[str, list]] = {}
+    for name in MARKUP_EVALS:
+        path = os.path.join(eval_dir, f"{name}.json")
+        if os.path.exists(path):
+            with open(path, encoding="utf-8") as fh:
+                for r in json.load(fh)["rows"]:
+                    rows_by_file.setdefault(r["file"], ("estimator", []))[1].append(r)
+    for fname, ev in PAIR_EVALS.items():                    # CAD drawing beats an estimator
+        path = os.path.join(eval_dir, f"{ev}.json")
+        if os.path.exists(path):
+            with open(path, encoding="utf-8") as fh:
+                rows_by_file[fname] = ("cad", json.load(fh)["rows"])
+    out = []
+    for name in sorted(os.listdir(survey_dir)):
+        if not name.endswith(".json"):
+            continue
+        with open(os.path.join(survey_dir, name), encoding="utf-8") as fh:
+            r = json.load(fh)
+        fname = os.path.basename(r["file"])
+        entry = {"file": fname, "folder": os.path.dirname(r["file"]) or None}
+        if "error" in r:
+            entry["error"] = r["error"]
+            out.append(entry)
+            continue
+        vector = "vector" in r.get("kinds", []) and "raster" not in r.get("kinds", [])
+        entry.update({
+            "kind": "CAD drawing" if vector else "Scan",
+            "pages": r["pages"], "sections": r["sections"],
+            "stations_read": r["text"] + r["ocr"], "stations_inferred": r["inferred"],
+            "no_earthwork": r["zero"], "seconds": r["seconds"],
+        })
+        if fname in rows_by_file and not vector:
+            ref, rows = rows_by_file[fname]
+            entry["reference"] = ref
+            entry["check"] = _stats(rows)
+        out.append(entry)
+    order = {"cad": 0, "estimator": 1}
+    out.sort(key=lambda e: (order.get(e.get("reference"), 2), e.get("kind") != "Scan", e["file"].lower()))
+    return out
+
+
 KEEP = ("sections", "sections_scored", "median_error_pct", "p90_error_pct", "within_5pct",
         "within_10pct", "total_fill_ft2", "ref_total_fill_ft2", "total_cut_ft2",
         "ref_total_cut_ft2", "total_fill_error_pct", "total_cut_error_pct")
@@ -149,7 +225,8 @@ def build(eval_dir: str, survey_dir: str | None = None) -> dict:
         if m:
             checks.append({"id": name, "title": title, "reference": reference, "note": note, "metrics": m})
     return {"generated": dt.date.today().isoformat(), "headline": _headline(eval_dir),
-            "scale": _scale(survey_dir), "formats": formats, "checks": checks}
+            "scale": _scale(survey_dir), "formats": formats, "checks": checks,
+            "plan_sets": _plan_sets(eval_dir, survey_dir)}
 
 
 def main(argv=None) -> int:

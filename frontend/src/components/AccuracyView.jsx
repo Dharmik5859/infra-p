@@ -1,6 +1,7 @@
 import { accuracy } from '../verdict';
 import { VerdictCard } from './Dashboard';
 import Headline from './Headline';
+import PlanSetTable from './PlanSetTable';
 import { IconInfo } from './Icons';
 
 const signedPct = (v) => (v == null ? '—' : `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(1)} %`);
@@ -29,6 +30,8 @@ export default function AccuracyView({ report }) {
       <div className="verdict-grid">
         {report.formats.map((f) => <VerdictCard key={f.id} f={f} />)}
       </div>
+
+      <PlanSetTable planSets={report.plan_sets} />
 
       <section className="card">
         <div className="card-h">
