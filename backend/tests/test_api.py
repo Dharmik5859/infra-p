@@ -147,3 +147,52 @@ def test_annotated_pdf_keeps_original_pages_and_shows_edits(tmp_path):
     assert "STA 11+00" in text and "STA 12+00" in text             # every section labelled
     assert "432.1" in text and "EDITED" in text                    # the edit is on the sheet
     assert "Earthwork takeoff" in out[-1].get_text()
+
+
+def test_upload_limit_is_reported_and_enforced(tmp_path, monkeypatch):
+    client = TestClient(main.app)
+    assert client.get("/api/health").json()["max_upload_mb"] == main.MAX_UPLOAD_MB
+    pdf = tmp_path / "big.pdf"
+    pdf.write_bytes(b"%PDF-1.7\n" + b"0" * (2 << 20))           # a 2 MB "plan set"
+    monkeypatch.setattr(main, "MAX_UPLOAD_MB", 1)
+    r = client.post("/api/jobs", files={"file": ("big.pdf", pdf.read_bytes(), "application/pdf")})
+    assert r.status_code == 413
+    assert "MAX_UPLOAD_MB" in r.json()["detail"]
+
+
+def test_chunked_upload_assembles_the_pdf_and_runs_the_job(tmp_path):
+    client = TestClient(main.app)
+    pdf = tmp_path / "plans.pdf"
+    make_pdf(str(pdf), [[embankment("11+50", 651.3, 5.0), embankment("11+00", 651.7, 4.0)]])
+    data = pdf.read_bytes()
+    r = client.post("/api/uploads", json={"filename": "plans.pdf", "size": len(data)})
+    assert r.status_code == 200
+    uid = r.json()["upload_id"]
+    parts = [data[i:i + 4096] for i in range(0, len(data), 4096)]
+    for i, part in enumerate(parts):
+        assert client.put(f"/api/uploads/{uid}/{i}", content=part).status_code == 200
+    # a retried chunk (response lost) is acknowledged, not written twice
+    assert client.put(f"/api/uploads/{uid}/{len(parts) - 1}", content=parts[-1]).json()["received"] == len(data)
+    job_id = client.post(f"/api/uploads/{uid}/complete").json()["job_id"]
+    for _ in range(300):
+        body = client.get(f"/api/jobs/{job_id}").json()
+        if body["status"] in ("done", "error"):
+            break
+        time.sleep(0.1)
+    assert body["status"] == "done", body.get("error")
+    assert body["result"]["summary"]["sections"] == 2
+    with open(main.JOBS[job_id].pdf_path, "rb") as fh:
+        assert fh.read() == data
+
+
+def test_chunked_upload_rejects_bad_sequences(tmp_path, monkeypatch):
+    client = TestClient(main.app)
+    uid = client.post("/api/uploads", json={"filename": "a.pdf", "size": 10}).json()["upload_id"]
+    assert client.put(f"/api/uploads/{uid}/1", content=b"12345").status_code == 409      # out of order
+    assert client.put(f"/api/uploads/{uid}/0", content=b"%PDF-").status_code == 200
+    assert client.post(f"/api/uploads/{uid}/complete").status_code == 400               # incomplete
+    assert client.put(f"/api/uploads/{uid}/1", content=b"123456").status_code == 413     # past declared size
+    assert client.put("/api/uploads/nope/0", content=b"x").status_code == 404
+    assert client.post("/api/uploads", json={"filename": "a.txt", "size": 10}).status_code == 400
+    monkeypatch.setattr(main, "MAX_UPLOAD_MB", 1)
+    assert client.post("/api/uploads", json={"filename": "a.pdf", "size": 2 << 20}).status_code == 413

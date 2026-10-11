@@ -167,6 +167,24 @@ docker build -t earthwork .
 docker run -p 8000:8000 earthwork        # http://localhost:8000
 ```
 
+### Large plan sets
+
+Scanned plan sets are big (100 MB+ is common). The app uploads them in
+**chunks** (8 MB by default, `UPLOAD_CHUNK_MB`), so the request-size limits of
+anything in front of it -- nginx (1 MB by default), dev tunnels such as GitHub
+Codespaces port forwarding, hosting platforms -- never see the whole file. If a
+proxy still refuses a chunk as too large, the browser halves the chunk size and
+retries, down to 256 KB; dropped connections are retried too. The backend
+reassembles the file and caps the total at `MAX_UPLOAD_MB` (default 2048 MB),
+which the upload page shows.
+
+For better throughput behind nginx you can still allow bigger requests:
+
+```nginx
+client_max_body_size 64m;
+proxy_read_timeout 600s;
+```
+
 ### Command line
 
 ```bash
@@ -184,7 +202,10 @@ Writes `sections.csv`, `volumes.csv` and one overlay PNG per section.
 |---|---|---|
 | `GET` | `/api/health` | dependency check |
 | `GET` | `/api/accuracy` | measured accuracy per plan-set format (drives the dashboard) |
-| `POST` | `/api/jobs` | upload a PDF (`file`), returns `{job_id}`; jobs run one at a time and queue |
+| `POST` | `/api/jobs` | upload a PDF (`file`) in one request, returns `{job_id}`; jobs run one at a time and queue |
+| `POST` | `/api/uploads` | start a chunked upload `{"filename", "size"}` → `{upload_id, chunk_size}` (what the app uses) |
+| `PUT` | `/api/uploads/{id}/{n}` | chunk `n` as raw bytes, in order (re-sending the last one is safe) |
+| `POST` | `/api/uploads/{id}/complete` | assemble the PDF and start the job → `{job_id}` |
 | `GET` | `/api/jobs/{id}` | status, progress, and the result when done |
 | `GET` | `/api/jobs/{id}/sections/{n}.png` | audit overlay of one section |
 | `GET` | `/api/jobs/{id}/volumes.csv?surface=subgrade&exclude=r2` | volumes per road |
@@ -193,7 +214,7 @@ Writes `sections.csv`, `volumes.csv` and one overlay PNG per section.
 | `PUT` | `/api/jobs/{id}/edits` | save hand-edited areas `{"surface": "subgrade", "edits": {"12": {"fill_ft2": 40, "cut_ft2": 3}, "13": null}}` (`null` = back to measured); volumes are recomputed and the updated result returned |
 
 Environment: `ALLOWED_ORIGINS` (CORS, comma separated), `MAX_CONCURRENT_JOBS` (default 1), `MAX_UPLOAD_MB`
-(default 600), `JOB_TTL_SECONDS` (default 6 h), `FRONTEND_DIST`, `ACCURACY_FILE`.
+(default 2048), `UPLOAD_CHUNK_MB` (default 8), `JOB_TTL_SECONDS` (default 6 h), `FRONTEND_DIST`, `ACCURACY_FILE`.
 
 ---
 
