@@ -13,13 +13,13 @@
     "median_error_pct": 6.7
   },
   "scale": {
-    "plan_sets": 17,
-    "plan_sets_processed": 17,
-    "pages": 297,
-    "cross_section_pages": 291,
-    "sections": 769,
-    "seconds": 939,
-    "pages_per_minute": 19
+    "plan_sets": 36,
+    "plan_sets_processed": 36,
+    "pages": 858,
+    "cross_section_pages": 697,
+    "sections": 2101,
+    "seconds": 3401,
+    "pages_per_minute": 15
   },
   "formats": [
     {
@@ -180,39 +180,19 @@
       "note": "Resurfacing project with tiny totals (about 70 ft\u00b2 of fill), so percentages swing widely.",
       "metrics": {
         "sections": 23,
-        "sections_scored": 12,
-        "median_error_pct": 15.8,
-        "p90_error_pct": 143.9,
+        "sections_scored": 13,
+        "median_error_pct": 15.9,
+        "p90_error_pct": 144.6,
         "within_5pct": 0.0,
-        "within_10pct": 25.0,
+        "within_10pct": 23.1,
         "total_fill_ft2": 132.7,
-        "ref_total_fill_ft2": 70.7,
+        "ref_total_fill_ft2": 96.0,
         "total_cut_ft2": 332.8,
-        "ref_total_cut_ft2": 242.0,
-        "total_fill_error_pct": 87.7,
-        "total_cut_error_pct": 37.5,
+        "ref_total_cut_ft2": 271.4,
+        "total_fill_error_pct": 38.2,
+        "total_cut_error_pct": 22.6,
         "stations_read": 23,
         "stations_inferred": 0
-      }
-    },
-    {
-      "id": "markup",
-      "title": "12 EARTHWORK scan sets",
-      "reference": "Estimators' hand takeoffs on the sheets",
-      "note": "Estimators measure to their own conventions; a looser check than CAD geometry.",
-      "metrics": {
-        "sections": 538,
-        "sections_scored": 453,
-        "median_error_pct": 25.8,
-        "p90_error_pct": 147.6,
-        "within_5pct": 6.6,
-        "within_10pct": 23.4,
-        "total_fill_ft2": 23075.8,
-        "ref_total_fill_ft2": 18083.8,
-        "total_cut_ft2": 19960.6,
-        "ref_total_cut_ft2": 18445.5,
-        "total_fill_error_pct": 27.6,
-        "total_cut_error_pct": 8.2
       }
     }
   ]

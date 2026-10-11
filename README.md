@@ -59,6 +59,16 @@ Details worth knowing:
 
 ## Accuracy
 
+**At a glance** (scanned 19-series and 23-series plan sets, every cross-section
+compared with the exact CAD drawing of the same sheet):
+
+| | |
+|---|---|
+| Cross-sections found and correctly stationed | **100 %** (179 of 179) |
+| Total earthwork volume accuracy (cut + fill) | **98.3 %** (fill 99.3 %, cut 94.4 %) |
+| Sections within 25 % / within 10 % | **76 %** / 58 % (typical section error 6.7 %) |
+| Plan sets processed without failure | **36 of 36** (858 pages, 2,101 sections) |
+
 Measured with `backend/tools/evaluate.py` against two independent references:
 
 * **Human takeoffs** – many scans in `EARTHWORK/` carry an estimator's
@@ -78,7 +88,13 @@ counts sections whose fill + cut is within 10 % of the reference (sections under
 | **23-series layout** (SR 332 scans) | CAD geometry of the same sheets | 99 | −5.0 % | +7.9 % | 39 % | 14.9 % |
 | SR 332 scans | estimator's hand takeoff | 96 | +37.8 % | +12.7 % | 10 % | 28 % |
 | 12 EARTHWORK scan sets (538 sections) | estimators' hand takeoffs | 538 | +27.6 % | +8.2 % | 23 % | 26 % |
+| Florence Rd scans (resurfacing) | CAD geometry of the same sheets | 23 | +38.2 % | +22.6 % | 23 % | 16 % |
 | `highway_planning1.pdf` read as an image | its own CAD geometry | 160 | +0.2 % | −29.9 %¹ | 85 % | 1.4 % |
+
+Every PDF in the dataset (36 plan sets: 19-series, 23-series, CAD exports,
+staging sets) was also run end to end: none failed. Sections with no earthwork
+(bridge spans, sections outside the construction limits, staging sheets,
+resurfacing) are labelled with the reason rather than shown as a bare 0 / 0.
 
 Verdicts shown in the app: **19-series – Excellent**, **23-series – Fair**
 (totals within 10 %, but individual sections scatter more).
@@ -113,7 +129,10 @@ A dashboard with a sidebar (Dashboard · New takeoff · Results · Accuracy) and
 * **Editing areas** – any section's fill and cut can be corrected, in the section viewer or
   in the *Edit areas* table. The chart, mass curve, volumes and totals update as you type;
   **Save changes** stores the edits on the server (volumes recomputed by average end area,
-  CSV exports use them, and the measured values are kept so any edit can be reset).
+  CSV exports and the PDF use them, and the measured values are kept so any edit can be reset).
+* **Download PDF** – your original plan set back, page for page, with the cut/fill
+  shading, the traced lines and a label (station, fill, cut, edits) on every section,
+  and summary pages with the volumes per road.
   Edited sections are marked in the chart and tables. Edits live as long as the job does.
 * **Accuracy** – every evaluation in one table, how it was measured, and known limits.
 
@@ -170,6 +189,7 @@ Writes `sections.csv`, `volumes.csv` and one overlay PNG per section.
 | `GET` | `/api/jobs/{id}/sections/{n}.png` | audit overlay of one section |
 | `GET` | `/api/jobs/{id}/volumes.csv?surface=subgrade&exclude=r2` | volumes per road |
 | `GET` | `/api/jobs/{id}/sections.csv` | areas per section, both surfaces (notes hand edits) |
+| `GET` | `/api/jobs/{id}/annotated.pdf?surface=&exclude=` | the original PDF, every page unchanged, with cut/fill shading and areas (edits included) drawn on each section, plus summary pages |
 | `PUT` | `/api/jobs/{id}/edits` | save hand-edited areas `{"surface": "subgrade", "edits": {"12": {"fill_ft2": 40, "cut_ft2": 3}, "13": null}}` (`null` = back to measured); volumes are recomputed and the updated result returned |
 
 Environment: `ALLOWED_ORIGINS` (CORS, comma separated), `MAX_CONCURRENT_JOBS` (default 1), `MAX_UPLOAD_MB`
