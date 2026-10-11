@@ -87,7 +87,7 @@ counts sections whose fill + cut is within 10 % of the reference (sections under
 | **19-series** scans | CAD geometry of the same sheets (`highway_planning1.pdf`) | 80 (all stations read correctly) | +1.2 % | −3.9 % | 87 % | 1.5 % |
 | **23-series layout** (SR 332 scans) | CAD geometry of the same sheets | 99 | −5.0 % | +7.9 % | 39 % | 14.9 % |
 | SR 332 scans | estimator's hand takeoff | 96 | +37.8 % | +12.7 % | 10 % | 28 % |
-| 12 EARTHWORK scan sets (538 sections) | estimators' hand takeoffs | 538 | +27.6 % | +8.2 % | 23 % | 26 % |
+| 12 EARTHWORK scan sets (538 sections) | estimators' hand takeoffs | 538 | +33.6 % | +8.9 % | 24 % | 26 % |
 | Florence Rd scans (resurfacing) | CAD geometry of the same sheets | 23 | +38.2 % | +22.6 % | 23 % | 16 % |
 | `highway_planning1.pdf` read as an image | its own CAD geometry | 160 | +0.2 % | −29.9 %¹ | 85 % | 1.4 % |
 
