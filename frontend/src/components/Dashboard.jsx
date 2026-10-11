@@ -1,6 +1,7 @@
 import { cy, signed } from '../format';
 import { GRADES, accuracy, grade, sentence } from '../verdict';
 import { IconAccuracy, IconArrow, IconCheck, IconInfo, IconUpload } from './Icons';
+import Headline from './Headline';
 
 /** Ring gauge: value 0-100 drawn as an arc in the given colour token. */
 export function Gauge({ value, tone, label, sub }) {
@@ -28,7 +29,7 @@ export function VerdictPill({ g }) {
   return <span className={`pill verdict t-${g.tone}`}><IconCheck width={16} height={16} />{g.label}</span>;
 }
 
-function VerdictCard({ f }) {
+export function VerdictCard({ f }) {
   const m = f.metrics;
   const g = grade(m);
   const errText = (e) => (e == null ? '' : `${e > 0 ? '+' : e < 0 ? '−' : ''}${Math.abs(e).toFixed(1)} % vs reference`);
@@ -126,14 +127,17 @@ export default function Dashboard({ report, job, onOpen, onNew, onAccuracy }) {
     <div className="page">
       <section className="hero">
         <div>
-          <h2>How accurate are the takeoffs?</h2>
+          <span className="eyebrow">Automated earthwork takeoff</span>
+          <h2>Cut &amp; fill from cross-section plan sets, measured and verified</h2>
           <p className="muted">
-            Each plan-set format was measured end to end and compared with an independent reference.
-            Accuracy is 100 % minus the difference in total fill or cut volume.
+            Every result below was measured end to end and checked against an independent reference:
+            the exact CAD drawing of the same sheets.
           </p>
         </div>
         <button className="btn" onClick={onAccuracy}><IconAccuracy width={18} height={18} />Full accuracy report</button>
       </section>
+
+      {report && <Headline report={report} compact />}
 
       {report === undefined && <div className="card skeleton" aria-busy="true">Loading accuracy…</div>}
       {report === null && (

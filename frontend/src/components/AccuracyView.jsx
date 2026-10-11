@@ -1,5 +1,6 @@
-import { accuracy, grade } from '../verdict';
-import { VerdictPill } from './Dashboard';
+import { accuracy } from '../verdict';
+import { VerdictCard } from './Dashboard';
+import Headline from './Headline';
 import { IconInfo } from './Icons';
 
 const signedPct = (v) => (v == null ? '—' : `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(1)} %`);
@@ -13,10 +14,26 @@ export default function AccuracyView({ report }) {
   }
   return (
     <div className="page">
+      <section className="hero">
+        <div>
+          <span className="eyebrow">Accuracy at a glance · measured {report.generated}</span>
+          <h2>How reliable are the numbers?</h2>
+          <p className="muted">
+            Scanned plan sets were run through the pipeline untouched and every cross-section was compared with the exact
+            CAD drawing of the same sheet.
+          </p>
+        </div>
+      </section>
+      <Headline report={report} />
+
+      <div className="verdict-grid">
+        {report.formats.map((f) => <VerdictCard key={f.id} f={f} />)}
+      </div>
+
       <section className="card">
         <div className="card-h">
           <div>
-            <span className="eyebrow">Measured {report.generated}</span>
+            <span className="eyebrow">Detail</span>
             <h3>Every evaluation</h3>
           </div>
         </div>
@@ -24,7 +41,7 @@ export default function AccuracyView({ report }) {
           <table className="acc-table">
             <thead>
               <tr>
-                <th>Plan set</th><th>Reference</th><th>Verdict</th><th>Sections</th>
+                <th>Plan set</th><th>Reference</th><th>Sections</th>
                 <th>Fill accuracy</th><th>Cut accuracy</th><th>Within 10 %</th><th>Typical error</th>
                 <th>Fill ft² (ours / ref)</th><th>Cut ft² (ours / ref)</th>
               </tr>
@@ -34,9 +51,8 @@ export default function AccuracyView({ report }) {
                 const m = c.metrics;
                 return (
                   <tr key={c.id}>
-                    <td><b>{c.title}</b></td>
+                    <td><b>{c.title}</b>{c.note && <div className="row-note">{c.note}</div>}</td>
                     <td className="muted">{c.reference}</td>
-                    <td><VerdictPill g={grade(m)} /></td>
                     <td className="num">{m.sections}</td>
                     <td className="num"><span className="g-text-green">{pct(accuracy(m.total_fill_error_pct))}</span> <small className="muted">{signedPct(m.total_fill_error_pct)}</small></td>
                     <td className="num"><span className="g-text-red">{pct(accuracy(m.total_cut_error_pct))}</span> <small className="muted">{signedPct(m.total_cut_error_pct)}</small></td>

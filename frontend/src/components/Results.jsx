@@ -14,6 +14,7 @@ function needsReview(s) {
 }
 
 const SURFACE_LABEL = { subgrade: 'Subgrade', finished: 'Finished grade' };
+const ZERO_SHORT = { structure: 'Bridge / structure', no_design: 'No proposed surface drawn', matches_existing: 'Matches existing ground' };
 const same = (a, b) => Math.abs(a.fill_ft2 - b.fill_ft2) < 0.005 && Math.abs(a.cut_ft2 - b.cut_ft2) < 0.005;
 
 export default function Results({ result, onResult }) {
@@ -30,11 +31,15 @@ export default function Results({ result, onResult }) {
   const sections = useMemo(() => result.sections.map((s) => {
     const measured = (s.measured || s.areas)[surface];
     const area = drafts[surface]?.[s.id] || s.areas[surface];
+    const edited = !same(area, measured);
+    // a section with no earthwork says why (bridge, nothing proposed, resurfacing) -- unless the user typed areas in
+    const zero = s.zero_reason && !edited && area.fill_ft2 + area.cut_ft2 < 0.5
+      ? { short: ZERO_SHORT[s.zero_reason] || 'No earthwork', text: result.zero_reasons?.[s.zero_reason] || '' } : null;
     return {
       ...s, fill_ft2: area.fill_ft2, cut_ft2: area.cut_ft2, net_ft2: area.fill_ft2 - area.cut_ft2,
-      measured, edited: !same(area, measured), dirty: Boolean(drafts[surface]?.[s.id]),
+      measured, edited, dirty: Boolean(drafts[surface]?.[s.id]), zero,
     };
-  }), [result.sections, surface, drafts]);
+  }), [result.sections, result.zero_reasons, surface, drafts]);
 
   // volumes are recomputed in the browser from the areas above, so edits
   // show in the chart, tables and totals before they are saved
@@ -52,6 +57,7 @@ export default function Results({ result, onResult }) {
   const roadSections = useMemo(() => (road ? road.sections.map((i) => sections[i]) : sections), [road, sections]);
   const review = useMemo(() => sections.filter(needsReview), [sections]);
   const editedCount = sections.filter((s) => s.edited).length;
+  const zeroCount = sections.filter((s) => s.zero).length;
   const dirtyCount = Object.values(drafts).reduce((n, d) => n + Object.keys(d).length, 0);
 
   const totals = useMemo(() => {
@@ -224,6 +230,7 @@ export default function Results({ result, onResult }) {
             <div className="value num">{summary.sections}</div>
             <div className="sub">
               {summary.cross_section_pages} of {summary.pages} pages · {review.length} to review
+              {zeroCount > 0 && <> · {zeroCount} with no earthwork</>}
               {editedCount > 0 && <> · <span className="edited-text">{editedCount} edited</span></>}
             </div>
           </div>

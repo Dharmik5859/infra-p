@@ -63,6 +63,7 @@ export default function AreaEditor({ sections, selectedId, onSelect, onEdit, onR
                 <td className="num">{ft2(s.net_ft2)}</td>
                 <td>
                   <div className="row-actions">
+                    {s.zero && <span className="tag neutral" title={s.zero.text}>no earthwork</span>}
                     {s.dirty && <span className="tag warn">unsaved</span>}
                     {s.edited && !s.dirty && <span className="tag edited">edited</span>}
                     {s.edited && <button className="btn ghost small" onClick={() => onReset(s.id)}>Reset</button>}
