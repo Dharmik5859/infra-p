@@ -520,3 +520,13 @@ tr.total td { font-weight: 500; background: var(--surface-2); }
 
 .card-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .surface-bar .spacer { flex: 1; }
+
+.deliverables { margin-top: 22px; }
+.deliverables ul { list-style: none; margin: 8px 0 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 20px; }
+.deliverables li { position: relative; padding-left: 18px; font-size: 13.5px; color: var(--text-2); }
+.deliverables li::before { content: ''; position: absolute; left: 0; top: 7px; width: 8px; height: 8px; border-radius: 50%; background: var(--blue); }
+.deliverables li:nth-child(2)::before { background: var(--red); }
+.deliverables li:nth-child(3)::before { background: var(--yellow); }
+.deliverables li:nth-child(4)::before { background: var(--green); }
+.deliverables b { font-weight: 500; color: var(--text); }
+@media (max-width: 640px) { .deliverables ul { grid-template-columns: minmax(0, 1fr); } }
