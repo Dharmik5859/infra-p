@@ -47,7 +47,7 @@ JOB_TTL_SECONDS = int(os.environ.get("JOB_TTL_SECONDS", 6 * 3600))
 # would only slow every one of them down, so further uploads wait their turn
 MAX_CONCURRENT_JOBS = int(os.environ.get("MAX_CONCURRENT_JOBS", 1))
 MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", 600))
-ALLOWED_ORIGINS = [o for o in os.environ.get("ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",") if o]
+ALLOWED_ORIGINS = [o for o in os.environ.get("ALLOWED_ORIGINS", "http://localhost:5173,https://improved-space-journey-w4rrv6rx5w6cgxxv-5173.app.github.dev").split(",") if o]
 
 app = FastAPI(title="Earthwork Takeoff API", version=__version__)
 app.add_middleware(
