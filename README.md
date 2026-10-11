@@ -110,6 +110,11 @@ A dashboard with a sidebar (Dashboard · New takeoff · Results · Accuracy) and
 * **Results** – roads (toggle which count toward the total), the cut/fill profile with
   mass curve, every cross-section with its audit overlay (← / → to step), the volume table,
   sections that need review, CSV export, and a switch between subgrade and finished grade.
+* **Editing areas** – any section's fill and cut can be corrected, in the section viewer or
+  in the *Edit areas* table. The chart, mass curve, volumes and totals update as you type;
+  **Save changes** stores the edits on the server (volumes recomputed by average end area,
+  CSV exports use them, and the measured values are kept so any edit can be reset).
+  Edited sections are marked in the chart and tables. Edits live as long as the job does.
 * **Accuracy** – every evaluation in one table, how it was measured, and known limits.
 
 ---
@@ -164,7 +169,8 @@ Writes `sections.csv`, `volumes.csv` and one overlay PNG per section.
 | `GET` | `/api/jobs/{id}` | status, progress, and the result when done |
 | `GET` | `/api/jobs/{id}/sections/{n}.png` | audit overlay of one section |
 | `GET` | `/api/jobs/{id}/volumes.csv?surface=subgrade&exclude=r2` | volumes per road |
-| `GET` | `/api/jobs/{id}/sections.csv` | areas per section, both surfaces |
+| `GET` | `/api/jobs/{id}/sections.csv` | areas per section, both surfaces (notes hand edits) |
+| `PUT` | `/api/jobs/{id}/edits` | save hand-edited areas `{"surface": "subgrade", "edits": {"12": {"fill_ft2": 40, "cut_ft2": 3}, "13": null}}` (`null` = back to measured); volumes are recomputed and the updated result returned |
 
 Environment: `ALLOWED_ORIGINS` (CORS, comma separated), `MAX_CONCURRENT_JOBS` (default 1), `MAX_UPLOAD_MB`
 (default 600), `JOB_TTL_SECONDS` (default 6 h), `FRONTEND_DIST`, `ACCURACY_FILE`.

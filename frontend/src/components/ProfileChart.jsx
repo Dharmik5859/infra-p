@@ -106,6 +106,7 @@ export default function ProfileChart({ sections, selectedId, onSelect }) {
               {s.id === selectedId && <rect className="sel" x={x - bw / 2 - 3} y={M.top} width={bw + 6} height={ph} rx="3" />}
               <rect className="bar-fill" x={x - bw / 2} y={zeroY - s.fill_ft2 * ay} width={bw} height={s.fill_ft2 * ay} rx="1.5" />
               <rect className="bar-cut" x={x - bw / 2} y={zeroY} width={bw} height={s.cut_ft2 * ay} rx="1.5" />
+              {s.edited && <circle className={`edit-dot ${s.dirty ? 'dirty' : ''}`} cx={x} cy={M.top + 5} r="3.5" />}
               <rect className="bar-hit" x={x - Math.max(bw, 8) / 2} y={M.top} width={Math.max(bw, 8)} height={ph}
                 onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} onClick={() => onSelect(s.id)} />
             </g>
@@ -123,12 +124,18 @@ export default function ProfileChart({ sections, selectedId, onSelect }) {
           <b className="mono">{hov.station}</b> <span className="muted">page {hov.page}</span>
           <div className="num fill-text">fill {ft2(hov.fill_ft2)} ft²</div>
           <div className="num cut-text">cut {ft2(hov.cut_ft2)} ft²</div>
+          {hov.edited && (
+            <div className="muted" style={{ marginTop: 4 }}>
+              {hov.dirty ? 'unsaved edit' : 'edited'} · measured {ft2(hov.measured.fill_ft2)} / {ft2(hov.measured.cut_ft2)}
+            </div>
+          )}
         </div>
       )}
       <div className="legend">
         <span><i style={{ background: 'var(--fill)' }} />fill area</span>
         <span><i style={{ background: 'var(--cut)' }} />cut area</span>
         <span><i style={{ background: 'var(--mass)', height: 2, verticalAlign: 3 }} />mass curve (cumulative cut − fill, cy)</span>
+        {sections.some((s) => s.edited) && <span><i style={{ background: 'var(--yellow)', borderRadius: '50%' }} />edited by hand</span>}
       </div>
     </div>
   );

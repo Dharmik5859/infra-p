@@ -8,6 +8,7 @@ HTTP API for the earthwork pipeline.
     GET  /api/jobs/{id}/sections/{n}.png     audit overlay for one cross-section
     GET  /api/jobs/{id}/volumes.csv          volume table (respects ?exclude=road ids)
     GET  /api/jobs/{id}/sections.csv         per-section areas
+    PUT  /api/jobs/{id}/edits                save hand-edited cut/fill areas; volumes are recomputed
 
 Processing a plan set takes seconds to minutes, so uploads return at once
 and the client polls the job. Jobs run MAX_CONCURRENT_JOBS at a time (each
@@ -20,6 +21,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import math
 import os
 import shutil
 import tempfile
@@ -28,13 +30,14 @@ import time
 import uuid
 from dataclasses import dataclass, field
 
-from fastapi import FastAPI, File, HTTPException, Query, UploadFile
+from fastapi import Body, FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from gdot_earthwork import __version__
 from gdot_earthwork.plan_set import PlanSetResult, process_plan_set
+from gdot_earthwork.volume import average_end_area_volume
 
 JOB_TTL_SECONDS = int(os.environ.get("JOB_TTL_SECONDS", 6 * 3600))
 # each job already runs its pages in parallel on all cores; more jobs at once
@@ -47,7 +50,7 @@ app = FastAPI(title="Earthwork Takeoff API", version=__version__)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PUT"],
     allow_headers=["*"],
 )
 
@@ -112,16 +115,19 @@ def serialize(job: Job, res: PlanSetResult) -> dict:
             "sections": [sec_id[id(e.ref)] for e in road.entries],
             "volumes": {res.design_surface: vol_json(vol), alt_surface: vol_json(alt)},
         })
+    def areas(s):
+        return {
+            res.design_surface: {"fill_ft2": _round(s.fill_ft2, 2), "cut_ft2": _round(s.cut_ft2, 2)},
+            alt_surface: {"fill_ft2": _round(s.alt_fill_ft2, 2), "cut_ft2": _round(s.alt_cut_ft2, 2)},
+        }
     sections = [{
         "id": i,
         "page": s.page,
         "station": s.station_label,
         "station_ft": s.station_ft,
         "label_source": s.label_source,
-        "areas": {
-            res.design_surface: {"fill_ft2": _round(s.fill_ft2, 2), "cut_ft2": _round(s.cut_ft2, 2)},
-            alt_surface: {"fill_ft2": _round(s.alt_fill_ft2, 2), "cut_ft2": _round(s.alt_cut_ft2, 2)},
-        },
+        "areas": areas(s),               # what volumes use: measured, or the user's edit
+        "measured": areas(s),            # as traced from the drawing, never changed
         "method": s.method,
         "page_kind": s.page_kind,
         "road": road_of.get(i),
@@ -144,6 +150,7 @@ def serialize(job: Job, res: PlanSetResult) -> dict:
         "roads": roads,
         "sections": sections,
         "warnings": res.warnings,
+        "edits": {res.design_surface: {}, alt_surface: {}},   # section id -> {fill_ft2, cut_ft2}
     }
 
 
@@ -239,6 +246,83 @@ def section_png(job_id: str, n: int):
     return Response(png, media_type="image/png", headers={"Cache-Control": "private, max-age=86400"})
 
 
+MAX_AREA_FT2 = 1e6
+
+
+def _area(v) -> float:
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or not 0 <= v <= MAX_AREA_FT2:
+        raise HTTPException(400, f"Areas must be numbers between 0 and {MAX_AREA_FT2:g} sq ft.")
+    return _round(v, 2)
+
+
+def _recompute_volumes(payload: dict, surface: str) -> None:
+    """Rebuild every road's average-end-area volumes for `surface` from the
+    sections' current (possibly edited) areas."""
+    @dataclass
+    class _Station:
+        station_label: str
+        station_ft: float
+        fill_ft2: float
+        cut_ft2: float
+
+    secs = payload["sections"]
+    for road in payload["roads"]:
+        stations = [_Station(secs[i]["station"], secs[i]["station_ft"], **secs[i]["areas"][surface])
+                    for i in road["sections"] if secs[i]["station_ft"] is not None]
+        vol = average_end_area_volume(stations, road["label"])
+        road["volumes"][surface] = {
+            "fill_cy": _round(vol.total_fill_cy),
+            "cut_cy": _round(vol.total_cut_cy),
+            "net_cy": _round(vol.total_net_cy),
+            "segments": [{
+                "from": g.station_from, "to": g.station_to, "length_ft": _round(g.length_ft, 2),
+                "fill_cy": _round(g.fill_cy), "cut_cy": _round(g.cut_cy), "net_cy": _round(g.net_cy),
+                "warning": g.warning,
+            } for g in vol.segments],
+        }
+
+
+@app.put("/api/jobs/{job_id}/edits")
+def save_edits(job_id: str, body: dict = Body(...)):
+    """Save hand-edited areas for one surface, e.g.
+    {"surface": "subgrade", "edits": {"12": {"fill_ft2": 40.5, "cut_ft2": 3}, "13": null}}.
+    null puts a section back to its measured areas. Road volumes for that
+    surface are recomputed; the updated result is returned."""
+    job = _job(job_id)
+    if job.payload is None:
+        raise HTTPException(409, "Job is not finished.")
+    surface = _surface(job, body.get("surface"))
+    edits = body.get("edits")
+    if not isinstance(edits, dict) or len(edits) > len(job.payload["sections"]):
+        raise HTTPException(400, "edits must map section ids to {fill_ft2, cut_ft2} or null.")
+    parsed: dict[int, dict | None] = {}
+    for key, val in edits.items():
+        try:
+            i = int(key)
+        except (TypeError, ValueError):
+            raise HTTPException(400, f"Unknown section {key!r}.") from None
+        if not 0 <= i < len(job.payload["sections"]):
+            raise HTTPException(400, f"Unknown section {key!r}.")
+        if val is None:
+            parsed[i] = None
+        elif isinstance(val, dict):
+            parsed[i] = {"fill_ft2": _area(val.get("fill_ft2")), "cut_ft2": _area(val.get("cut_ft2"))}
+        else:
+            raise HTTPException(400, f"Section {key}: expected {{fill_ft2, cut_ft2}} or null.")
+    with LOCK:
+        saved = job.payload["edits"][surface]
+        for i, val in parsed.items():
+            sec = job.payload["sections"][i]
+            if val is None or val == sec["measured"][surface]:
+                saved.pop(str(i), None)
+                sec["areas"][surface] = dict(sec["measured"][surface])
+            else:
+                saved[str(i)] = val
+                sec["areas"][surface] = dict(val)
+        _recompute_volumes(job.payload, surface)
+        return job.payload
+
+
 def _csv(rows: list[list], filename: str) -> Response:
     buf = io.StringIO()
     csv.writer(buf).writerows(rows)
@@ -260,7 +344,9 @@ def volumes_csv(job_id: str, exclude: list[str] = Query(default=[]), surface: st
     if job.payload is None:
         raise HTTPException(409, "Job is not finished.")
     surface = _surface(job, surface)
-    rows = [[f"Measured to {surface}"], ["Road", "From", "To", "Length (ft)", "Fill (cy)", "Cut (cy)", "Net (cy)", "Note"]]
+    n_edited = len(job.payload["edits"][surface])
+    title = f"Measured to {surface}" + (f"; {n_edited} section(s) edited by hand" if n_edited else "")
+    rows = [[title], ["Road", "From", "To", "Length (ft)", "Fill (cy)", "Cut (cy)", "Net (cy)", "Note"]]
     tf = tc = 0.0
     for r in job.payload["roads"]:
         if r["id"] in exclude:
@@ -281,13 +367,17 @@ def sections_csv(job_id: str):
         raise HTTPException(409, "Job is not finished.")
     roads = {r["id"]: r["label"] for r in job.payload["roads"]}
     a, b = job.payload["summary"]["surfaces"]
+    edits = job.payload["edits"]
     rows = [["Page", "Station", "Station source", "Road",
              f"Fill to {a} (sq ft)", f"Cut to {a} (sq ft)", f"Fill to {b} (sq ft)", f"Cut to {b} (sq ft)",
-             "Method", "Warnings"]]
+             "Edited by hand", "Method", "Warnings"]]
     for s in job.payload["sections"]:
+        edited = [sf for sf in (a, b) if str(s["id"]) in edits[sf]]
+        note = "; ".join(f"{sf} (measured fill {s['measured'][sf]['fill_ft2']}, cut {s['measured'][sf]['cut_ft2']})"
+                         for sf in edited)
         rows.append([s["page"], s["station"] or "", s["label_source"] or "", roads.get(s["road"], ""),
                      s["areas"][a]["fill_ft2"], s["areas"][a]["cut_ft2"], s["areas"][b]["fill_ft2"], s["areas"][b]["cut_ft2"],
-                     s["method"], " | ".join(s["warnings"])])
+                     note, s["method"], " | ".join(s["warnings"])])
     return _csv(rows, f"{os.path.splitext(job.filename)[0]}-sections.csv")
 
 

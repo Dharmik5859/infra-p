@@ -97,7 +97,7 @@ export default function App() {
 
   let page;
   if (view === 'results') {
-    page = done ? <Results key={done.job_id} result={done.result} />
+    page = done ? <Results key={done.job_id} result={done.result} onResult={(r) => setJob((j) => ({ ...j, result: r }))} />
       : running ? <ProgressView job={running} />
       : (
         <div className="page-empty">

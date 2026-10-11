@@ -1,30 +1,49 @@
-import { useEffect, useMemo, useState } from 'react';
-import { sectionsCsvUrl, volumesCsvUrl } from '../api';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { saveEdits, sectionsCsvUrl, volumesCsvUrl } from '../api';
 import { cy, signed } from '../format';
+import { roadVolumes } from '../volumes';
 import ProfileChart from './ProfileChart';
 import RoadList from './RoadList';
 import SectionViewer from './SectionViewer';
 import SegmentsTable from './SegmentsTable';
 import ReviewList from './ReviewList';
+import AreaEditor from './AreaEditor';
 
 function needsReview(s) {
   return s.label_source === 'inferred' || s.warnings.length > 0 || !s.station;
 }
 
 const SURFACE_LABEL = { subgrade: 'Subgrade', finished: 'Finished grade' };
+const same = (a, b) => Math.abs(a.fill_ft2 - b.fill_ft2) < 0.005 && Math.abs(a.cut_ft2 - b.cut_ft2) < 0.005;
 
-export default function Results({ result }) {
+export default function Results({ result, onResult }) {
   const { summary } = result;
   const [surface, setSurface] = useState(summary.design_surface);
-  // flatten the chosen surface's numbers onto roads and sections, so every
-  // view below reads plain fill/cut fields
-  const roads = useMemo(() => result.roads.map((r) => ({ ...r, ...r.volumes[surface] })), [result.roads, surface]);
+  // unsaved hand edits: { surface: { sectionId: {fill_ft2, cut_ft2} } }
+  const [drafts, setDrafts] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState(null);       // {ok, text}
+
+  // Flatten the chosen surface onto each section: the area in use (a draft,
+  // a saved edit, or the measurement) plus what was measured, so every view
+  // below reads plain fill/cut fields.
   const sections = useMemo(() => result.sections.map((s) => {
-    const a = s.areas[surface];
-    return { ...s, fill_ft2: a.fill_ft2, cut_ft2: a.cut_ft2, net_ft2: a.fill_ft2 - a.cut_ft2 };
-  }), [result.sections, surface]);
+    const measured = (s.measured || s.areas)[surface];
+    const area = drafts[surface]?.[s.id] || s.areas[surface];
+    return {
+      ...s, fill_ft2: area.fill_ft2, cut_ft2: area.cut_ft2, net_ft2: area.fill_ft2 - area.cut_ft2,
+      measured, edited: !same(area, measured), dirty: Boolean(drafts[surface]?.[s.id]),
+    };
+  }), [result.sections, surface, drafts]);
+
+  // volumes are recomputed in the browser from the areas above, so edits
+  // show in the chart, tables and totals before they are saved
+  const roads = useMemo(() => result.roads.map((r) => ({
+    ...r, ...roadVolumes(r.sections.map((i) => sections[i]), r.volumes[surface]),
+  })), [result.roads, sections, surface]);
+
   // Repeated sheet series (same stations drawn again) are excluded by default.
-  const [included, setIncluded] = useState(() => new Set(roads.filter((r) => !r.repeat_of).map((r) => r.id)));
+  const [included, setIncluded] = useState(() => new Set(result.roads.filter((r) => !r.repeat_of).map((r) => r.id)));
   const [roadId, setRoadId] = useState(roads[0]?.id ?? null);
   const [sectionId, setSectionId] = useState(roads[0]?.sections[0] ?? sections[0]?.id ?? null);
   const [tab, setTab] = useState('segments');
@@ -32,6 +51,8 @@ export default function Results({ result }) {
   const road = roads.find((r) => r.id === roadId) || null;
   const roadSections = useMemo(() => (road ? road.sections.map((i) => sections[i]) : sections), [road, sections]);
   const review = useMemo(() => sections.filter(needsReview), [sections]);
+  const editedCount = sections.filter((s) => s.edited).length;
+  const dirtyCount = Object.values(drafts).reduce((n, d) => n + Object.keys(d).length, 0);
 
   const totals = useMemo(() => {
     let fill = 0, cut = 0;
@@ -39,6 +60,56 @@ export default function Results({ result }) {
     return { fill, cut, net: fill - cut };
   }, [roads, included]);
 
+  // ---------------------------------------------------------------- editing
+  const setArea = useCallback((id, area) => {
+    setSaveMsg(null);
+    setDrafts((prev) => {
+      const saved = result.sections[id].areas[surface];
+      const mine = { ...(prev[surface] || {}) };
+      if (same(area, saved)) delete mine[id];          // back to what the server has: nothing to save
+      else mine[id] = area;
+      return { ...prev, [surface]: mine };
+    });
+  }, [result.sections, surface]);
+
+  const resetArea = useCallback((id) => {
+    setArea(id, { ...(result.sections[id].measured || result.sections[id].areas)[surface] });
+  }, [result.sections, surface, setArea]);
+
+  async function save() {
+    setSaving(true);
+    setSaveMsg(null);
+    try {
+      let latest = result;
+      for (const [sf, d] of Object.entries(drafts)) {
+        const ids = Object.keys(d);
+        if (!ids.length) continue;
+        const edits = {};
+        for (const id of ids) {
+          const measured = (result.sections[id].measured || result.sections[id].areas)[sf];
+          edits[id] = same(d[id], measured) ? null : d[id];
+        }
+        latest = await saveEdits(result.job_id, sf, edits);
+      }
+      setDrafts({});
+      onResult(latest);
+      setSaveMsg({ ok: true, text: 'Saved. Volumes, chart and CSV exports now use your areas.' });
+    } catch (e) {
+      setSaveMsg({ ok: false, text: `Could not save: ${e.message}` });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // don't lose unsaved edits to a closed tab
+  useEffect(() => {
+    if (!dirtyCount) return undefined;
+    const warn = (e) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirtyCount]);
+
+  // ------------------------------------------------------------- navigation
   function selectSection(id) {
     const s = sections[id];
     if (s?.road && s.road !== roadId) setRoadId(s.road);
@@ -84,11 +155,32 @@ export default function Results({ result }) {
           <div style={{ display: 'grid', gap: 8, padding: 14 }}>
             <a className="btn" href={volumesCsvUrl(result.job_id, excluded, surface)}>Volumes by road (CSV)</a>
             <a className="btn" href={sectionsCsvUrl(result.job_id)}>Areas by section (CSV)</a>
+            {dirtyCount > 0 && <span className="muted" style={{ fontSize: 12.5 }}>Exports include saved edits only.</span>}
           </div>
         </section>
       </div>
 
       <div className="main-col">
+        {(dirtyCount > 0 || saveMsg) && (
+          <div className={`save-bar ${dirtyCount ? 'dirty' : saveMsg?.ok ? 'ok' : 'bad'}`} role="status">
+            {dirtyCount > 0 ? (
+              <>
+                <span><b>{dirtyCount} unsaved edit{dirtyCount === 1 ? '' : 's'}</b>
+                  <span className="muted"> · the chart, tables and totals already show {dirtyCount === 1 ? 'it' : 'them'}</span></span>
+                <span className="spacer" />
+                <button className="btn" onClick={() => { setDrafts({}); setSaveMsg(null); }} disabled={saving}>Discard</button>
+                <button className="btn primary" onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save changes'}</button>
+              </>
+            ) : (
+              <>
+                <span>{saveMsg.text}</span>
+                <span className="spacer" />
+                <button className="btn ghost" onClick={() => setSaveMsg(null)}>Dismiss</button>
+              </>
+            )}
+          </div>
+        )}
+
         <div className="surface-bar">
           <span className="muted">Earthwork measured to</span>
           <div className="segmented" role="radiogroup" aria-label="Proposed surface used for earthwork">
@@ -128,7 +220,8 @@ export default function Results({ result }) {
             <div className="label">Cross-sections</div>
             <div className="value num">{summary.sections}</div>
             <div className="sub">
-              {summary.cross_section_pages} of {summary.pages} pages · {review.length} to review · {Math.round(summary.seconds)}s
+              {summary.cross_section_pages} of {summary.pages} pages · {review.length} to review
+              {editedCount > 0 && <> · <span className="edited-text">{editedCount} edited</span></>}
             </div>
           </div>
         </div>
@@ -152,7 +245,10 @@ export default function Results({ result }) {
 
         {section && (
           <SectionViewer section={section} position={pos} count={roadSections.length}
-            shadingNote={surface !== summary.design_surface ? `Shading in the drawing shows the ${SURFACE_LABEL[summary.design_surface].toLowerCase()} measurement; the numbers above follow your selection.` : null}
+            onEdit={(area) => setArea(section.id, area)} onReset={() => resetArea(section.id)}
+            shadingNote={surface !== summary.design_surface || section.edited
+              ? `Shading in the drawing shows the measured ${SURFACE_LABEL[summary.design_surface].toLowerCase()} areas; the numbers follow your selection${section.edited ? ' and edits' : ''}.`
+              : null}
             onPrev={pos > 0 ? () => setSectionId(roadSections[pos - 1].id) : null}
             onNext={pos >= 0 && pos < roadSections.length - 1 ? () => setSectionId(roadSections[pos + 1].id) : null} />
         )}
@@ -161,14 +257,20 @@ export default function Results({ result }) {
           <div className="panel-h">
             <div className="tabs" role="tablist">
               <button role="tab" aria-selected={tab === 'segments'} className={`tab ${tab === 'segments' ? 'active' : ''}`} onClick={() => setTab('segments')}>Volumes</button>
+              <button role="tab" aria-selected={tab === 'edit'} className={`tab ${tab === 'edit' ? 'active' : ''}`} onClick={() => setTab('edit')}>
+                Edit areas {editedCount > 0 && <span className="tag edited" style={{ marginLeft: 6 }}>{editedCount}</span>}
+              </button>
               <button role="tab" aria-selected={tab === 'review'} className={`tab ${tab === 'review' ? 'active' : ''}`} onClick={() => setTab('review')}>
                 Needs review {review.length > 0 && <span className="tag warn" style={{ marginLeft: 6 }}>{review.length}</span>}
               </button>
             </div>
           </div>
-          {tab === 'segments'
-            ? <SegmentsTable road={road} sections={sections} onSelect={selectSection} />
-            : <ReviewList items={review} onSelect={selectSection} />}
+          {tab === 'segments' && <SegmentsTable road={road} sections={sections} onSelect={selectSection} />}
+          {tab === 'edit' && (
+            <AreaEditor sections={roadSections} selectedId={sectionId} onSelect={setSectionId}
+              onEdit={setArea} onReset={resetArea} surfaceLabel={SURFACE_LABEL[surface] || surface} />
+          )}
+          {tab === 'review' && <ReviewList items={review} onSelect={selectSection} />}
         </section>
       </div>
     </div>

@@ -443,3 +443,43 @@ tr.total td { font-weight: 500; background: var(--surface-2); }
   .kpi .value, .tile b { font-size: 22px; }
   .hero h2 { font-size: 20px; }
 }
+
+/* ================================================================ editing */
+.save-bar {
+  position: sticky; top: calc(var(--nav-h) + 8px); z-index: 5;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 12px 10px 16px; border-radius: var(--radius);
+  background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-lg);
+}
+.save-bar.dirty { border-left: 4px solid var(--yellow); }
+.save-bar.ok { border-left: 4px solid var(--green); }
+.save-bar.bad { border-left: 4px solid var(--red); color: var(--red-ink); }
+.save-bar .spacer { flex: 1; }
+.tag.edited { background: var(--yellow-soft); color: var(--yellow-ink); }
+.edited-text { color: var(--yellow-ink); font-weight: 500; }
+.area-input {
+  width: 96px; height: 32px; padding: 0 8px; text-align: right;
+  font: 500 14px var(--sans); font-variant-numeric: tabular-nums;
+  color: var(--text); background: var(--surface);
+  border: 1px solid var(--line-strong); border-radius: 6px;
+}
+.area-input.fill { color: var(--green-ink); }
+.area-input.cut { color: var(--red-ink); }
+.area-input:hover { border-color: var(--text-3); }
+.area-input:focus { outline: 2px solid var(--blue); outline-offset: -1px; border-color: transparent; }
+.area-input.invalid { border-color: var(--red); background: var(--red-soft); }
+.edit-stat { gap: 2px; }
+.edit-note { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: 13px; }
+.btn.small { height: 28px; padding: 0 10px; font-size: 12.5px; }
+.editor-hint { padding: 12px 16px 4px; font-size: 13px; }
+.edit-table td { padding-top: 6px; padding-bottom: 6px; vertical-align: middle; }
+.edit-table tbody tr { cursor: default; }
+.edit-table tr.sel-row td { background: var(--blue-soft); }
+.edit-table tr.edited-row td:first-child { box-shadow: inset 3px 0 0 var(--yellow); }
+.row-actions { display: flex; gap: 6px; justify-content: flex-end; align-items: center; min-height: 32px; }
+.chart .edit-dot { fill: var(--yellow); stroke: var(--surface); stroke-width: 1.5; }
+.chart .edit-dot.dirty { fill: var(--surface); stroke: var(--yellow); stroke-width: 2; }
+@media (max-width: 640px) {
+  .save-bar { top: calc(var(--nav-h) + 4px); }
+  .area-input { width: 80px; }
+}

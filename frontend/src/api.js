@@ -26,6 +26,17 @@ export async function getJob(id) {
   return json(await fetch(`${BASE}/api/jobs/${id}`));
 }
 
+/** Save hand-edited areas for one surface. `edits` maps section id ->
+ * {fill_ft2, cut_ft2}, or null to go back to the measured areas.
+ * Returns the updated result (volumes recomputed by the server). */
+export async function saveEdits(jobId, surface, edits) {
+  return json(await fetch(`${BASE}/api/jobs/${jobId}/edits`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ surface, edits }),
+  }));
+}
+
 export function assetUrl(path) {
   return `${BASE}${path}`;
 }
