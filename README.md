@@ -132,8 +132,10 @@ A dashboard with a sidebar (Dashboard · New takeoff · Results · Accuracy) and
   mass curve, every cross-section with its audit overlay (← / → to step), the volume table,
   sections that need review, CSV export, and a switch between subgrade and finished grade.
 * **Editing areas** – **Edit** on any section opens it large: type the fill and cut, or
-  click points around an area on the drawing and press **Fill** or **Cut** (**Reset** goes
-  back to the measurement). The green / red shading on the picture follows every change,
+  click points around an area on the drawing (finish by clicking the first point again,
+  double-clicking or pressing Enter) and press **Fill** or **Cut** to add it, or
+  **Remove fill** / **Remove cut** to take away shading the pipeline put there by mistake
+  (that part goes back to the plain drawing). **Reset** goes back to the measurement. The green / red shading on the picture follows every change,
   and **Save** stores it. Areas can also be typed in the *Edit areas* table. The chart, mass
   curve, volumes and totals update as you type; saved edits are kept on the server (volumes
   recomputed by average end area, CSV exports and the PDF use them, outlined areas are drawn

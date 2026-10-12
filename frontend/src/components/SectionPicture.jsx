@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import { assetUrl, getProfile } from '../api';
 import { ft2 } from '../format';
 
@@ -52,6 +52,39 @@ export function polygonFt2(pts, pxPerFt) {
 }
 
 const markSum = (marks, kind) => marks.filter((m) => m.kind === kind).reduce((n, m) => n + m.ft2, 0);
+export const isRemoval = (m) => m.kind === 'remove_fill' || m.kind === 'remove_cut';
+
+/** Where a vertical line at x crosses a polygon: the inside spans, top to bottom. */
+function spansAt(poly, x) {
+  const ys = [];
+  for (let i = 0; i < poly.length; i++) {
+    const [x1, y1] = poly[i], [x2, y2] = poly[(i + 1) % poly.length];
+    if ((x1 <= x && x < x2) || (x2 <= x && x < x1)) ys.push(y1 + ((x - x1) / (x2 - x1)) * (y2 - y1));
+  }
+  ys.sort((a, b) => a - b);
+  const out = [];
+  for (let i = 0; i + 1 < ys.length; i += 2) out.push([ys[i], ys[i + 1]]);
+  return out;
+}
+
+/**
+ * Share of the traced fill (or cut) that lies inside a polygon, column by
+ * column -- the same way areas are measured. Removing that share takes the
+ * matching part of the measured area away.
+ */
+export function shareInside(prof, surface, kind, poly) {
+  const { x, ground: g } = prof;
+  const t = prof[surface] || prof.finished;
+  let total = 0, inside = 0;
+  for (let i = 0; i < x.length; i++) {
+    if (g[i] == null || t[i] == null) continue;
+    const [a, b] = kind === 'fill' ? [t[i], g[i]] : [g[i], t[i]];
+    if (b - a <= 0.05) continue;
+    total += b - a;
+    for (const [c, d] of spansAt(poly, x[i])) inside += Math.max(0, Math.min(b, d) - Math.max(a, c));
+  }
+  return total > 0 ? Math.min(1, inside / total) : 0;
+}
 
 /** A section's traced lines in its image's pixels, or null while loading. */
 export function useProfile(url) {
@@ -73,18 +106,34 @@ export function useProfile(url) {
  */
 export function Shading({ prof, surface, fill, cut, measured, marks = [], selected = -1, onMarkClick }) {
   const zs = useMemo(() => (prof ? zones(prof, surface) : []), [prof, surface]);
-  const k = {
-    fill: measured.fill_ft2 > 0 ? Math.max(0, fill - markSum(marks, 'fill')) / measured.fill_ft2 : 1,
-    cut: measured.cut_ft2 > 0 ? Math.max(0, cut - markSum(marks, 'cut')) / measured.cut_ft2 : 1,
+  const maskId = `rm${useId().replace(/:/g, '')}`;
+  // the traced zones carry what outlined areas don't; removed parts are cut out of them
+  const scale = (kind) => {
+    const left = measured[`${kind}_ft2`] - markSum(marks, `remove_${kind}`);
+    const base = Math.max(0, (kind === 'fill' ? fill : cut) - markSum(marks, kind));
+    if (!(measured[`${kind}_ft2`] > 0)) return 1;
+    return left > 0.005 ? base / left : 0;
   };
+  const k = { fill: scale('fill'), cut: scale('cut') };
+  const removals = marks.filter(isRemoval);
   return (
     <>
-      {zs.map((z, i) => {
-        if (k[z.kind] === 0) return null;
-        const top = z.pts.map(([x, g, d]) => [x, g - d * k[z.kind]]);
-        return <polygon key={`z${i}`} className={`zone ${z.kind}`}
-          points={[...top, ...z.pts.slice().reverse()].map(pt).join(' ')} />;
-      })}
+      {removals.length > 0 && (
+        <defs>
+          <mask id={maskId} maskUnits="userSpaceOnUse" x="-1e5" y="-1e5" width="2e5" height="2e5">
+            <rect x="-1e5" y="-1e5" width="2e5" height="2e5" fill="#fff" />
+            {removals.map((m, i) => <polygon key={i} points={m.pts.map(pt).join(' ')} fill="#000" />)}
+          </mask>
+        </defs>
+      )}
+      <g mask={removals.length ? `url(#${maskId})` : undefined}>
+        {zs.map((z, i) => {
+          if (k[z.kind] === 0) return null;
+          const top = z.pts.map(([x, g, d]) => [x, g - d * k[z.kind]]);
+          return <polygon key={`z${i}`} className={`zone ${z.kind}`}
+            points={[...top, ...z.pts.slice().reverse()].map(pt).join(' ')} />;
+        })}
+      </g>
       {marks.map((m, i) => (
         <polygon key={`m${i}`} className={`zone mark ${m.kind} ${i === selected ? 'selected' : ''}`}
           points={m.pts.map(pt).join(' ')}

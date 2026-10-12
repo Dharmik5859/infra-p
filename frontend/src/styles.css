@@ -554,6 +554,8 @@ tr.total td { font-weight: 500; background: var(--surface-2); }
 .zone.fill { fill: #1e8e3e; }
 .zone.cut { fill: #d93025; }
 .zone.mark { fill-opacity: 0.5; }
+.zone.mark.remove_fill, .zone.mark.remove_cut { fill: transparent; }
+.edit-svg .zone.mark.remove_fill.selected, .edit-svg .zone.mark.remove_cut.selected { fill: #1a73e8; fill-opacity: 0.12; }
 .zone.mark.selected { stroke: #1a73e8; stroke-width: 3; vector-effect: non-scaling-stroke; fill-opacity: 0.6; }
 .pic-areas { position: sticky; left: 0; padding: 8px 10px; border-bottom: 1px solid var(--line); background: var(--surface); display: flex; gap: 6px; flex-wrap: wrap; }
 .chip { padding: 3px 9px; border-radius: 999px; font-size: 12.5px; font-weight: 500; background: var(--surface); border: 1px solid var(--line-strong); font-variant-numeric: tabular-nums; }
@@ -584,6 +586,12 @@ tr.total td { font-weight: 500; background: var(--surface-2); }
 .edit-svg .outline polyline { fill: none; stroke: #1a73e8; stroke-width: 2; vector-effect: non-scaling-stroke; }
 .edit-svg .outline circle { fill: #fff; stroke: #1a73e8; stroke-width: 2; vector-effect: non-scaling-stroke; }
 .edit-svg .outline circle.first { fill: #1a73e8; }
+.edit-svg .outline circle.snap { fill: #fbbc04; stroke: #1a73e8; cursor: pointer; }
+.edit-svg .outline.closed polygon { fill-opacity: 0.28; stroke: #1a73e8; stroke-width: 2.5; vector-effect: non-scaling-stroke; }
+.btn.remove-btn { flex: 1; background: var(--surface); }
+.btn.remove-btn.fill { color: var(--green-ink); border-color: var(--green); }
+.btn.remove-btn.cut { color: var(--red-ink); border-color: var(--red); }
+.btn.remove-btn:hover:not(:disabled) { background: var(--surface-2); }
 .edit-side { width: 320px; flex: none; overflow: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
 .edit-fields { display: flex; gap: 12px; }
 .edit-fields .area-input { width: 120px; font-size: 16px; }
@@ -602,6 +610,8 @@ tr.total td { font-weight: 500; background: var(--surface-2); }
 .mark-pick i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; }
 .mark-pick i.fill { background: var(--green); }
 .mark-pick i.cut { background: var(--red); }
+.mark-pick i.remove_fill, .mark-pick i.remove_cut { background: transparent; border: 2px solid var(--green); }
+.mark-pick i.remove_cut { border-color: var(--red); }
 @media (max-width: 860px) {
   .edit-body { flex-direction: column; }
   .edit-canvas { flex: none; height: 45vh; border-right: 0; border-bottom: 1px solid var(--line); }

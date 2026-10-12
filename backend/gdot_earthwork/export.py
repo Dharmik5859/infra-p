@@ -63,15 +63,65 @@ def _text_rotate(ex) -> int:
     return int(round(-ang / 90.0)) % 4 * 90
 
 
+def _image_to_page(geom):
+    """Section-image pixel -> page point (None when the geometry predates it)."""
+    if not (geom.get("canvas") and geom.get("image_size")):
+        return None
+    (ox, oy), (ax, ay), (bx, by) = geom["canvas"]
+    w, h = geom["image_size"]
+    return lambda x, y: (ox + (ax - ox) * x / w + (bx - ox) * y / h, oy + (ay - oy) * x / w + (by - oy) * y / h)
+
+
+def _spans_at(poly, a):
+    """Inside spans of a polygon (frame coordinates) on the line at offset a."""
+    ys = []
+    for (a1, b1), (a2, b2) in zip(poly, poly[1:] + poly[:1]):
+        if (a1 <= a < a2) or (a2 <= a < a1):
+            ys.append(b1 + (a - a1) / (a2 - a1) * (b2 - b1))
+    ys.sort()
+    return [(ys[i], ys[i + 1]) for i in range(0, len(ys) - 1, 2)]
+
+
+def _strips(shape, geom, ground, top, k_fill, k_cut, removed):
+    """Fill/cut drawn column strip by column strip, leaving out whatever lies
+    inside the areas the user removed."""
+    origin, ex, ey, _, _ = _frame_axes(geom)
+    ab = lambda p: ((p[0] - origin[0]) * ex[0] + (p[1] - origin[1]) * ex[1],
+                    (p[0] - origin[0]) * ey[0] + (p[1] - origin[1]) * ey[1])
+    for i in range(len(ground) - 1):
+        if None in (ground[i], top[i], ground[i + 1], top[i + 1]):
+            continue
+        (a0, g0), (_, t0) = ab(ground[i]), ab(top[i])
+        (a1, g1), (_, t1) = ab(ground[i + 1]), ab(top[i + 1])
+        g, d = (g0 + g1) / 2, (g0 + g1 - t0 - t1) / 2       # d > 0: proposed above ground (fill)
+        if abs(d) < 0.01:
+            continue
+        k = k_fill if d > 0 else k_cut
+        lo, hi = sorted((g, g - d * k))
+        keep = [(lo, hi)]
+        for poly in removed:
+            for c, e in _spans_at(poly, (a0 + a1) / 2):
+                keep = [part for x, y in keep for part in ((x, min(y, c)), (max(x, e), y)) if part[1] - part[0] > 1e-3]
+        for x, y in keep:
+            shape.draw_polyline([fitz.Point(_at(origin, ex, ey, a, b)) for a, b in ((a0, x), (a1, x), (a1, y), (a0, y))])
+            shape.finish(color=None, fill=FILL if d > 0 else CUT, fill_opacity=0.38, closePath=True)
+
+
 def _shade(page: fitz.Page, geom: dict, surface: str, k_fill: float = 1.0, k_cut: float = 1.0,
            marks: list[dict] = ()) -> None:
     """Fill/cut between the traced lines -- each zone's depth stretched by
     k (areas in use / measured, so the shading matches hand-edited areas) --
-    plus any areas the user outlined on the section image."""
+    plus any areas the user outlined on the section image, minus any they
+    removed."""
     ground, top = geom["ground"], geom[surface]
-    _, _, ey, _, _ = _frame_axes(geom)
+    origin, ex, ey, _, _ = _frame_axes(geom)
     up = (-ey[0], -ey[1])
     shape = page.new_shape()
+    to_page = _image_to_page(geom)
+    # removed areas in frame coordinates (along the section, down the drawing)
+    removed = [[((x - origin[0]) * ex[0] + (y - origin[1]) * ex[1], (x - origin[0]) * ey[0] + (y - origin[1]) * ey[1])
+                for x, y in (to_page(*q) for q in m["pts"])]
+               for m in marks if m["kind"].startswith("remove_")] if to_page else []
     run: list[int] = []
     run_sign = 0
 
@@ -84,7 +134,7 @@ def _shade(page: fitz.Page, geom: dict, surface: str, k_fill: float = 1.0, k_cut
             shape.draw_polyline(pts)
             shape.finish(color=None, fill=FILL if run_sign > 0 else CUT, fill_opacity=0.38, closePath=True)
 
-    for i, (g, t) in enumerate(zip(ground, top)):
+    for i, (g, t) in enumerate(zip(ground, top) if not removed else ()):
         sign = 0
         if g is not None and t is not None:
             d = (t[0] - g[0]) * up[0] + (t[1] - g[1]) * up[1]   # +: proposed above ground
@@ -96,6 +146,8 @@ def _shade(page: fitz.Page, geom: dict, surface: str, k_fill: float = 1.0, k_cut
         if sign:
             run.append(i)
     flush()
+    if removed:
+        _strips(shape, geom, ground, top, k_fill, k_cut, removed)
 
     def polyline(pts, colour, width):
         seg = []
@@ -108,12 +160,11 @@ def _shade(page: fitz.Page, geom: dict, surface: str, k_fill: float = 1.0, k_cut
             else:
                 seg.append(p)
 
-    if marks and geom.get("canvas") and geom.get("image_size"):
-        (ox, oy), (ax, ay), (bx, by) = geom["canvas"]
-        w, h = geom["image_size"]
+    if marks and to_page:
         for m in marks:
-            pts = [fitz.Point(ox + (ax - ox) * x / w + (bx - ox) * y / h,
-                              oy + (ay - oy) * x / w + (by - oy) * y / h) for x, y in m["pts"]]
+            if m["kind"] not in ("fill", "cut"):
+                continue
+            pts = [fitz.Point(to_page(x, y)) for x, y in m["pts"]]
             shape.draw_polyline(pts)
             shape.finish(color=None, fill=FILL if m["kind"] == "fill" else CUT, fill_opacity=0.38, closePath=True)
 
@@ -251,9 +302,10 @@ def annotated_pdf(src_path: str, geometries: list[dict | None], payload: dict, s
         marks = sec.get("marks", {}).get(surface, [])
         k = {}
         for kind in ("fill", "cut"):
-            # the traced zones carry what the outlined areas don't
+            # the traced zones carry what the outlined areas don't; removed parts are left out
             base = max(0.0, area[f"{kind}_ft2"] - sum(m["ft2"] for m in marks if m["kind"] == kind))
-            k[kind] = base / measured[f"{kind}_ft2"] if measured[f"{kind}_ft2"] > 0 else 1.0
+            left = measured[f"{kind}_ft2"] - sum(m["ft2"] for m in marks if m["kind"] == f"remove_{kind}")
+            k[kind] = (base / left if left > 0.005 else 0.0) if measured[f"{kind}_ft2"] > 0 else 1.0
         _shade(page, geom, surface if geom.get(surface) else "finished", k["fill"], k["cut"], marks)
         _label(page, geom, sec, surface, str(sec["id"]) in edits)
 

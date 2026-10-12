@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { assetUrl } from '../api';
 import { ft2 } from '../format';
 import { AreaInput } from './AreaEditor';
-import { Shading, polygonFt2, unplacedText, useProfile } from './SectionPicture';
+import { Shading, isRemoval, polygonFt2, shareInside, unplacedText, useProfile } from './SectionPicture';
 
+const MARK_LABEL = { fill: 'Added fill', cut: 'Added cut', remove_fill: 'Removed fill', remove_cut: 'Removed cut' };
 const r2 = (v) => Math.round(Math.max(0, v) * 100) / 100;
 
 /** The part of the image worth editing: the fill/cut zones (and outlines),
@@ -43,6 +44,8 @@ export default function EditSectionModal({ section: s, surface, onClose, onSave 
   const [cut, setCut] = useState(s.cut_ft2);
   const [marks, setMarks] = useState(() => (s.marks || []).map((m) => ({ ...m })));
   const [pending, setPending] = useState([]);     // points of the outline being drawn
+  const [closed, setClosed] = useState(false);    // the outline has been finished
+  const [notice, setNotice] = useState(null);
   const [hover, setHover] = useState(null);       // cursor, image pixels
   const [selected, setSelected] = useState(-1);   // an outlined area picked to change or remove
   const [view, setView] = useState(null);        // visible part of the image {x, y, w, h}, image pixels
@@ -56,6 +59,7 @@ export default function EditSectionModal({ section: s, surface, onClose, onSave 
   const svg = useRef(null);
 
   const pendingFt2 = pending.length >= 3 && ppf ? polygonFt2(pending, ppf) : 0;
+  const clearSelection = () => { setPending([]); setClosed(false); };
   const markedFill = marks.filter((m) => m.kind === 'fill').reduce((n, m) => n + m.ft2, 0);
   const markedCut = marks.filter((m) => m.kind === 'cut').reduce((n, m) => n + m.ft2, 0);
   const changed = Math.abs(fill - s.fill_ft2) > 0.005 || Math.abs(cut - s.cut_ft2) > 0.005
@@ -64,12 +68,28 @@ export default function EditSectionModal({ section: s, surface, onClose, onSave 
 
   // -------------------------------------------------------------- actions
   function mark(kind) {
+    setNotice(null);
     if (pending.length >= 3) {
-      const ft = r2(polygonFt2(pending, ppf));
-      setMarks((m) => [...m, { kind, pts: pending.map(([x, y]) => [Math.round(x * 10) / 10, Math.round(y * 10) / 10]), ft2: ft }]);
-      if (kind === 'fill') setFill((v) => r2(v + ft)); else setCut((v) => r2(v + ft));
-      setPending([]);
-    } else if (selected >= 0 && marks[selected].kind !== kind) {
+      const pts = pending.map(([x, y]) => [Math.round(x * 10) / 10, Math.round(y * 10) / 10]);
+      if (kind === 'fill' || kind === 'cut') {
+        const ft = r2(polygonFt2(pending, ppf));
+        setMarks((m) => [...m, { kind, pts, ft2: ft }]);
+        if (kind === 'fill') setFill((v) => r2(v + ft)); else setCut((v) => r2(v + ft));
+      } else {
+        // take away the traced fill/cut that lies inside the outline
+        const base = kind === 'remove_fill' ? 'fill' : 'cut';
+        const already = marks.filter((m) => m.kind === kind).reduce((n, m) => n + m.ft2, 0);
+        const ft = r2(Math.min(measured[`${base}_ft2`] * shareInside(prof, surface, base, pending),
+          measured[`${base}_ft2`] - already));
+        if (ft < 0.05) {
+          setNotice(`There is no measured ${base} inside this selection to remove.`);
+          return;
+        }
+        setMarks((m) => [...m, { kind, pts, ft2: ft }]);
+        if (base === 'fill') setFill((v) => r2(v - ft)); else setCut((v) => r2(v - ft));
+      }
+      clearSelection();
+    } else if (selected >= 0 && !isRemoval(marks[selected]) && marks[selected].kind !== kind && (kind === 'fill' || kind === 'cut')) {
       // switch an outlined area between fill and cut
       const m = marks[selected];
       setMarks((ms) => ms.map((x, i) => (i === selected ? { ...x, kind } : x)));
@@ -81,7 +101,9 @@ export default function EditSectionModal({ section: s, surface, onClose, onSave 
   function removeMark(i) {
     const m = marks[i];
     setMarks((ms) => ms.filter((_, j) => j !== i));
-    if (m.kind === 'fill') setFill((v) => r2(v - m.ft2)); else setCut((v) => r2(v - m.ft2));
+    // undoing an outline gives back what it added or took away
+    const sign = isRemoval(m) ? 1 : -1;
+    if (m.kind.endsWith('fill')) setFill((v) => r2(v + sign * m.ft2)); else setCut((v) => r2(v + sign * m.ft2));
     setSelected(-1);
     setRev((n) => n + 1);
   }
@@ -90,7 +112,8 @@ export default function EditSectionModal({ section: s, surface, onClose, onSave 
     setFill(measured.fill_ft2);
     setCut(measured.cut_ft2);
     setMarks([]);
-    setPending([]);
+    clearSelection();
+    setNotice(null);
     setSelected(-1);
     setRev((n) => n + 1);
   }
@@ -99,7 +122,8 @@ export default function EditSectionModal({ section: s, surface, onClose, onSave 
     setBusy(true);
     setError(null);
     try {
-      await onSave({ fill_ft2: r2(fill), cut_ft2: r2(cut) }, marks.map(({ kind, pts }) => ({ kind, pts })));
+      await onSave({ fill_ft2: r2(fill), cut_ft2: r2(cut) },
+        marks.map(({ kind, pts, ft2: ft }) => (isRemoval({ kind }) ? { kind, pts, ft2: ft } : { kind, pts })));
       onClose();
     } catch (e) {
       setError(e.message);
@@ -115,18 +139,26 @@ export default function EditSectionModal({ section: s, surface, onClose, onSave 
     return [p.x, p.y];
   }
 
+  const nearFirst = (p) => pending.length >= 3 && p && Math.hypot(p[0] - pending[0][0], p[1] - pending[0][1]) < 10 * upp;
+
   function onCanvasClick(e) {
     if (suppressClick.current) { suppressClick.current = false; return; }
     const p = toImage(e);
-    if (!p || !prof || !ppf) return;
+    if (!p || !prof || !ppf || closed) return;
     setSelected(-1);
-    // clicking the first point again closes the outline (nothing more to add)
-    if (pending.length >= 3) {
-      const [x0, y0] = pending[0];
-      const near = 9 * upp;
-      if (Math.hypot(p[0] - x0, p[1] - y0) < near) return;
-    }
+    setNotice(null);
+    // clicking the first point again finishes the outline
+    if (nearFirst(p)) { setClosed(true); return; }
     setPending((pts) => [...pts, p]);
+  }
+
+  // a double-click finishes the outline at the point clicked
+  function onCanvasDoubleClick() {
+    setPending((pts) => {
+      const out = pts.filter((q, i) => i === 0 || Math.hypot(q[0] - pts[i - 1][0], q[1] - pts[i - 1][1]) > 3 * upp);
+      if (out.length >= 3) setClosed(true);
+      return out;
+    });
   }
 
   useEffect(() => {
@@ -134,9 +166,13 @@ export default function EditSectionModal({ section: s, surface, onClose, onSave 
       if (e.target.closest('input, textarea, select')) return;
       if (e.key === 'Escape') {
         e.preventDefault();
-        if (pending.length) setPending([]); else if (selected >= 0) setSelected(-1); else if (!busy) onClose();
+        if (pending.length) clearSelection(); else if (selected >= 0) setSelected(-1); else if (!busy) onClose();
+      } else if (e.key === 'Enter' && pending.length >= 3) {
+        e.preventDefault();
+        setClosed(true);
       } else if (e.key === 'Backspace' && pending.length) {
         e.preventDefault();
+        setClosed(false);
         setPending((pts) => pts.slice(0, -1));
       } else if ((e.key === 'Delete' || e.key === 'Backspace') && selected >= 0) {
         e.preventDefault();
@@ -212,7 +248,7 @@ export default function EditSectionModal({ section: s, surface, onClose, onSave 
   // image pixels per screen pixel, to keep handles a constant size on screen
   const upp = view && box ? Math.max(view.w / box.w, view.h / box.h) : 1;
   const zoomPct = view && prof ? Math.round((fit ? fit.w / view.w : 1) * 100) : 100;
-  const canMark = pending.length >= 3 || selected >= 0;
+  const canMark = pending.length >= 3 || (selected >= 0 && !isRemoval(marks[selected]));
 
   return (
     <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}>
@@ -237,21 +273,27 @@ export default function EditSectionModal({ section: s, surface, onClose, onSave 
             {prof && view ? (
               <svg ref={svg} className={`edit-svg ${drag.current?.moved ? 'panning' : 'drawing'}`}
                 viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`}
-                onClick={onCanvasClick} onPointerDown={onPointerDown} onPointerMove={onPointerMove}
+                onClick={onCanvasClick} onDoubleClick={onCanvasDoubleClick} onPointerDown={onPointerDown} onPointerMove={onPointerMove}
                 onPointerUp={onPointerUp} onPointerLeave={() => { setHover(null); onPointerUp(); }}>
                 <image href={assetUrl(s.overlay)} x="0" y="0" width={prof.size[0]} height={prof.size[1]} preserveAspectRatio="none" />
                 <Shading prof={prof} surface={surface} fill={fill} cut={cut} measured={measured} marks={marks}
                   selected={selected} onMarkClick={pending.length ? undefined : (i) => setSelected(i)} />
                 {pending.length > 0 && (
-                  <g className="outline">
+                  <g className={`outline ${closed ? 'closed' : ''}`}>
                     {pending.length >= 3 && <polygon points={pending.map((p) => p.join(',')).join(' ')} />}
-                    <polyline points={[...pending, ...(hover ? [hover] : [])].map((p) => p.join(',')).join(' ')} />
-                    {pending.map(([x, y], i) => <circle key={i} cx={x} cy={y} r={5 * upp} className={i === 0 ? 'first' : ''} />)}
+                    {!closed && <polyline points={[...pending, ...(hover ? [nearFirst(hover) ? pending[0] : hover] : [])].map((p) => p.join(',')).join(' ')} />}
+                    {pending.map(([x, y], i) => (
+                      <circle key={i} cx={x} cy={y} r={(i === 0 && !closed && nearFirst(hover) ? 9 : 5) * upp}
+                        className={i === 0 ? `first ${!closed && nearFirst(hover) ? 'snap' : ''}` : ''} />
+                    ))}
                   </g>
                 )}
               </svg>
             ) : <div className="empty">Loading the drawing…</div>}
-            <div className="canvas-hint">Click to add points · drag to move · scroll to zoom</div>
+            <div className="canvas-hint">
+              {pending.length >= 3 && !closed ? 'Click the first point, double-click or press Enter to finish the selection'
+                : 'Click to add points · drag to move · scroll to zoom'}
+            </div>
           </div>
 
           <aside className="edit-side">
@@ -272,33 +314,45 @@ export default function EditSectionModal({ section: s, surface, onClose, onSave 
             <div className="edit-tool">
               <h4>Select an area</h4>
               <p className="muted small-text">
-                {pending.length === 0 && selected < 0 && 'Click points around an area on the drawing, like a freeform shape. Then press Fill or Cut.'}
+                {pending.length === 0 && selected < 0 && 'Click points around an area on the drawing. Finish by clicking the first point again (or double-click / Enter), then choose what to do with it.'}
                 {pending.length > 0 && pending.length < 3 && `${pending.length} point${pending.length > 1 ? 's' : ''} — keep clicking around the area.`}
-                {pending.length >= 3 && <>Selected <b>{ft2(pendingFt2)} ft²</b>. Press Fill or Cut, or keep adding points.</>}
-                {pending.length === 0 && selected >= 0 && `Outlined ${marks[selected].kind} area selected (${ft2(marks[selected].ft2)} ft²). Fill or Cut switches it.`}
+                {pending.length >= 3 && !closed && <>Selected <b>{ft2(pendingFt2)} ft²</b>. Keep adding points, or click the first point to finish.</>}
+                {pending.length >= 3 && closed && <>Selection finished: <b>{ft2(pendingFt2)} ft²</b>. Choose an action below.</>}
+                {pending.length === 0 && selected >= 0 && (isRemoval(marks[selected])
+                  ? `Removed area selected (${ft2(marks[selected].ft2)} ft²). Undo it in the list below.`
+                  : `Outlined ${marks[selected].kind} area selected (${ft2(marks[selected].ft2)} ft²). Fill or Cut switches it.`)}
               </p>
               <div className="edit-buttons">
-                <button className="btn fill-btn" onClick={() => mark('fill')} disabled={!canMark}>Fill</button>
-                <button className="btn cut-btn" onClick={() => mark('cut')} disabled={!canMark}>Cut</button>
+                <button className="btn fill-btn" onClick={() => mark('fill')} disabled={!canMark} title="Count the selection as fill">Fill</button>
+                <button className="btn cut-btn" onClick={() => mark('cut')} disabled={!canMark} title="Count the selection as cut">Cut</button>
+              </div>
+              <div className="edit-buttons">
+                <button className="btn remove-btn fill" onClick={() => mark('remove_fill')} disabled={pending.length < 3}
+                  title="Take away the measured fill inside the selection">Remove fill</button>
+                <button className="btn remove-btn cut" onClick={() => mark('remove_cut')} disabled={pending.length < 3}
+                  title="Take away the measured cut inside the selection">Remove cut</button>
+              </div>
+              <div className="edit-buttons">
                 <button className="btn" onClick={reset} title="Back to the areas measured from the drawing">Reset</button>
               </div>
+              {notice && <div className="pic-note warn-text">{notice}</div>}
               {pending.length > 0 && (
                 <div className="edit-buttons">
-                  <button className="btn ghost small" onClick={() => setPending((p) => p.slice(0, -1))}>Undo point</button>
-                  <button className="btn ghost small" onClick={() => setPending([])}>Clear selection</button>
+                  <button className="btn ghost small" onClick={() => { setClosed(false); setPending((p) => p.slice(0, -1)); }}>Undo point</button>
+                  <button className="btn ghost small" onClick={clearSelection}>Clear selection</button>
                 </div>
               )}
             </div>
 
             {marks.length > 0 && (
               <div className="mark-list">
-                <h4>Outlined areas</h4>
+                <h4>Your changes</h4>
                 {marks.map((m, i) => (
                   <div key={i} className={`mark-row ${i === selected ? 'on' : ''}`}>
-                    <button className="mark-pick" onClick={() => { setPending([]); setSelected(i); }}>
-                      <i className={m.kind} /> {m.kind === 'fill' ? 'Fill' : 'Cut'} · <span className="num">{ft2(m.ft2)} ft²</span>
+                    <button className="mark-pick" onClick={() => { clearSelection(); setSelected(i); }}>
+                      <i className={m.kind} /> {MARK_LABEL[m.kind]} · <span className="num">{ft2(m.ft2)} ft²</span>
                     </button>
-                    <button className="btn ghost small" onClick={() => removeMark(i)} aria-label={`Remove outlined ${m.kind} area`}>Remove</button>
+                    <button className="btn ghost small" onClick={() => removeMark(i)} aria-label={`Undo ${MARK_LABEL[m.kind].toLowerCase()}`}>Undo</button>
                   </div>
                 ))}
               </div>
