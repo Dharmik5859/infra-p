@@ -59,64 +59,28 @@ Details worth knowing:
 
 ## Accuracy
 
-**At a glance** (6 scanned plan sets -- 19-series, SR 332 in the 23-series layout,
-Perry Creek, SR 70, Webb Creek, Florence -- every cross-section compared with the
-exact CAD drawing of the same sheet):
+Measured **only against labelled data**: the cut (red) and fill (green) that
+estimators shaded by hand on scanned plan sets in `EARTHWORK/`. The pipeline reads
+the scan underneath without seeing the shading; every section the estimator shaded
+is compared (`backend/tools/labelled_eval.py`, 16 labelled PDFs, 769 sections).
 
-| | |
-|---|---|
-| Sections found with the right station | **97 %** (351 of 361) |
-| Total earthwork volume accuracy (cut + fill) | **98.9 %** (fill 99.7 %, cut 95.9 %) |
-| Sections within 25 % / within 10 % | **76 %** / 52 % (typical section error 9.5 %) |
-| Plan sets processed without failure | **36 of 36** (858 pages, 2,101 sections) |
+| Against the estimators' labels | Mainline sheets (10 sets, 478 sections) | All labelled sheets (16 sets, 769 sections) |
+|---|---|---|
+| Cut + fill total | **98.0 %** (+2.0 %) | 91.3 % (+8.7 %) |
+| Fill / cut | +7.3 % / −2.7 % | +19.1 % / −1.4 % |
+| Sections within 25 % / 10 % | **63 %** / 36 % (typical difference 17.4 %) | 54 % / 31 % (typical 21.4 %) |
+| Estimators' shading inside a section the pipeline found | 97.6 % | 98.0 % |
 
-The app's **Accuracy** page also lists every PDF with what was found in it and,
-where a reference exists (the CAD drawing of the same sheets, or an estimator's
-hand takeoff), its volume, fill and cut accuracy -- 14 plan sets in all.
+Staged-construction sheets are the gap between the two columns: they show the same
+cross-sections as the mainline set, but the estimator shades only that stage's work,
+while the pipeline measures the whole section (it does not yet separate stages).
+The 19-series has no labelled copy in the data, so it is not scored; the 23-series
+sample's labelled copy (Mountain Ind Blvd mainline) comes out at 89.3 % (fill +0.6 %,
+cut −19.4 %). The app's **Accuracy** page shows every labelled plan set.
 
-Measured with `backend/tools/evaluate.py` against two independent references:
-
-* **Human takeoffs** – many scans in `EARTHWORK/` carry an estimator's
-  red/green cut/fill shading on a transparent layer. The pipeline reads only
-  the scan underneath; the shading is then measured as the human answer.
-* **Exact vector geometry** – for vector PDFs the surfaces are read exactly
-  from the CAD strokes; the scan path is scored against them (and the
-  19-series scans against the vector sheets they were made from).
-
-Totals are the sum of fill (or cut) area over all checked sections; "within 10 %"
-counts sections whose fill + cut is within 10 % of the reference (sections under
-10 ft² in total are left out of that share).
-
-| Plan set | Checked against | Sections | Total fill | Total cut | Within 10 % | Typical section error |
-|---|---|---|---|---|---|---|
-| **19-series** scans | CAD geometry of the same sheets (`highway_planning1.pdf`) | 80 (all stations read correctly) | +1.2 % | −3.9 % | 87 % | 1.5 % |
-| **23-series layout** (SR 332 scans) | CAD geometry of the same sheets | 99 | −5.0 % | +7.9 % | 39 % | 14.9 % |
-| SR 332 scans | estimator's hand takeoff | 96 | +37.8 % | +12.7 % | 10 % | 28 % |
-| 12 EARTHWORK scan sets (538 sections) | estimators' hand takeoffs | 538 | +33.6 % | +8.9 % | 24 % | 26 % |
-| Florence Rd scans (resurfacing) | CAD geometry of the same sheets | 23 | +38.2 % | +22.6 % | 23 % | 16 % |
-| `highway_planning1.pdf` read as an image | its own CAD geometry | 160 | +0.2 % | −29.9 %¹ | 85 % | 1.4 % |
-
-Every PDF in the dataset (36 plan sets: 19-series, 23-series, CAD exports,
-staging sets) was also run end to end: none failed. Sections with no earthwork
-(bridge spans, sections outside the construction limits, staging sheets,
-resurfacing) are labelled with the reason rather than shown as a bare 0 / 0.
-
-Verdicts shown in the app: **19-series – Excellent**, **23-series – Fair**
-(totals within 10 %, but individual sections scatter more).
-
-* CAD-exported PDFs such as `highway_planning1.pdf` are measured from the
-  drawing's own linework, so they are exact up to how the sheet is drawn.
-* ¹ Five sections near the bridge (30+50 – 32+50) carry a flat "remove below
-  elevation 640" line; the CAD reading counts it as cut, the image reading
-  treats it as a ruler. Without those stations the cut total is −0.9 %.
-* The 23-series sample itself carries no estimator takeoff; SR 332 is the same
-  sheet format and has both a CAD twin and a takeoff. Its remaining outliers are
-  sheet-specific: an ambiguous ground line at 82+50 (most of the fill gap against
-  the estimator), a template the scan does not show at 135+00, and grading
-  "by others" counted as cut at 67+50. The two references also disagree with
-  each other: estimators measure to their own conventions.
-
-Regenerate with the commands under **Testing**.
+The label area is measured shape by shape: the bright fill plus half of each shape's
+outline (drawn on the shape's edge); orange and brown notes are not counted. On shapes
+of known size in the estimators' colours this is within 1 % (a few % on 1 ft slivers).
 
 ---
 
@@ -124,8 +88,9 @@ Regenerate with the commands under **Testing**.
 
 A dashboard with a sidebar (Dashboard · New takeoff · Results · Accuracy) and a top bar.
 
-* **Dashboard** – a verdict card for the 19-series and the 23-series: fill and cut accuracy,
-  share of sections within 10 %, typical section error, and what it was checked against;
+* **Dashboard** – a verdict card for the 19-series and the 23-series, scored against the
+  estimators' labels where a labelled copy exists (fill and cut accuracy, share of sections
+  within 10 %, typical section difference);
   plus the latest takeoff's cut, fill and net volume.
 * **New takeoff** – drop a plan-set PDF; progress is shown page by page.
 * **Results** – roads (toggle which count toward the total), the cut/fill profile with
@@ -144,7 +109,8 @@ A dashboard with a sidebar (Dashboard · New takeoff · Results · Accuracy) and
   shading, the traced lines and a label (station, fill, cut, edits) on every section,
   and summary pages with the volumes per road.
   Edited sections are marked in the chart and tables. Edits live as long as the job does.
-* **Accuracy** – every evaluation in one table, how it was measured, and known limits.
+* **Accuracy** – results against the estimators' labels only: mainline vs staged sheets,
+  every labelled plan set, how it was measured, and what the differences mean.
 
 ---
 
@@ -244,10 +210,8 @@ volumes and the HTTP API end to end.
 To re-measure accuracy on real plan sets:
 
 ```bash
-python -m tools.evaluate markup  SCAN_WITH_TAKEOFF.pdf [...]          --json evals/markup.json
-python -m tools.evaluate vector  VECTOR.pdf                           --json evals/hp_vector.json
-python -m tools.evaluate pair    SCAN.pdf VECTOR_OF_SAME_SHEETS.pdf   --json evals/s19_pair.json
-python -m tools.accuracy_report  evals/        # rewrites accuracy.json for the dashboard
+python -m tools.labelled_eval   labelled/ EARTHWORK/*/*.pdf   # pipeline vs the estimators' labels, per PDF
+python -m tools.accuracy_report labelled/                     # rewrites accuracy.json for the app
 ```
 
 ---
@@ -268,8 +232,9 @@ backend/
     render.py             audit overlay images
     plan_set.py           orchestration (parallel over pages)
     cli.py                command-line entry point
-  tools/evaluate.py       accuracy measurement
-  tools/accuracy_report.py  evaluation results -> accuracy.json (dashboard)
+  tools/evaluate.py       label measurement and other accuracy checks
+  tools/labelled_eval.py  pipeline vs the estimators' labels, per PDF
+  tools/accuracy_report.py  labelled results -> accuracy.json (dashboard)
   accuracy.json           latest measured accuracy
   tests/                  synthetic-sheet tests
 frontend/                 React + Vite app

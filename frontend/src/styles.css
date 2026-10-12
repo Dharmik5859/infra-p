@@ -619,3 +619,15 @@ tr.total td { font-weight: 500; background: var(--surface-2); }
   .modal-backdrop { padding: 0; }
   .edit-modal { height: 100%; border-radius: 0; }
 }
+
+/* label-based accuracy */
+.pill.t-neutral { background: var(--surface-2); color: var(--text-2); padding: 0 10px; }
+.verdict-card.edge-neutral { border-top-color: var(--line-strong); }
+.group-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.group-card .big { font-size: 34px; font-weight: 500; line-height: 1.1; }
+.group-card dl { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px 12px; margin: 14px 0 10px; }
+.group-card dt { font-size: 11.5px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.05em; }
+.group-card dd { margin: 2px 0 0; font-size: 16px; font-weight: 500; }
+.kind-tag { display: inline-block; margin-left: 6px; }
+@media (max-width: 900px) { .group-grid { grid-template-columns: minmax(0, 1fr); } .group-card dl { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.verdict-card.edge-neutral { align-content: start; }
