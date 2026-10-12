@@ -5,6 +5,7 @@ import { currentSides } from '../sides';
 import { roadVolumes } from '../volumes';
 import ProfileChart from './ProfileChart';
 import RoadList from './RoadList';
+import RoadSides from './RoadSides';
 import SectionViewer from './SectionViewer';
 import SegmentsTable from './SegmentsTable';
 import ReviewList from './ReviewList';
@@ -68,8 +69,16 @@ export default function Results({ result, onResult }) {
 
   const totals = useMemo(() => {
     let fill = 0, cut = 0;
-    for (const r of roads) if (included.has(r.id)) { fill += r.fill_cy; cut += r.cut_cy; }
-    return { fill, cut, net: fill - cut };
+    const side = { left: { fill: 0, cut: 0 }, right: { fill: 0, cut: 0 } };
+    for (const r of roads) {
+      if (!included.has(r.id)) continue;
+      fill += r.fill_cy; cut += r.cut_cy;
+      for (const sd of ['left', 'right']) {
+        side[sd].fill += r.sides?.[sd].fill_cy || 0;
+        side[sd].cut += r.sides?.[sd].cut_cy || 0;
+      }
+    }
+    return { fill, cut, net: fill - cut, side };
   }, [roads, included]);
 
   // ---------------------------------------------------------------- editing
@@ -235,6 +244,7 @@ export default function Results({ result, onResult }) {
           <div className="kpi">
             <div className="label">Cut</div>
             <div className="value num cut-text">{cy(totals.cut)}<small>cy</small></div>
+            <div className="sub lr">left {cy(totals.side.left.cut)} · right {cy(totals.side.right.cut)} cy</div>
             <div className="balance" aria-hidden="true">
               <div className="c" style={{ width: `${(totals.cut / balanceTotal) * 100}%` }} />
               <div className="f" style={{ width: `${(totals.fill / balanceTotal) * 100}%` }} />
@@ -243,6 +253,7 @@ export default function Results({ result, onResult }) {
           <div className="kpi">
             <div className="label">Fill</div>
             <div className="value num fill-text">{cy(totals.fill)}<small>cy</small></div>
+            <div className="sub lr">left {cy(totals.side.left.fill)} · right {cy(totals.side.right.fill)} cy</div>
             <div className="sub">{included.size} of {roads.length} road{roads.length === 1 ? '' : 's'} counted</div>
           </div>
           <div className="kpi">
@@ -275,6 +286,7 @@ export default function Results({ result, onResult }) {
               <span className="num fill-text">{cy(road.fill_cy)} cy fill</span>
             </div>
             <ProfileChart sections={roadSections} selectedId={sectionId} onSelect={setSectionId} />
+            <RoadSides road={road} />
           </section>
         )}
 

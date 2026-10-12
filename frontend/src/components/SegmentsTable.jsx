@@ -11,7 +11,8 @@ export default function SegmentsTable({ road, sections, onSelect }) {
     <div className="table-wrap">
       <table>
         <thead>
-          <tr><th>From</th><th>To</th><th>Length (ft)</th><th>Cut (cy)</th><th>Fill (cy)</th><th>Net (cy)</th></tr>
+          <tr><th>From</th><th>To</th><th>Length (ft)</th><th>Cut (cy)</th><th>Fill (cy)</th><th>Net (cy)</th>
+            <th>Left cut (cy)</th><th>Left fill (cy)</th><th>Right cut (cy)</th><th>Right fill (cy)</th></tr>
         </thead>
         <tbody>
           {road.segments.map((s, i) => (
@@ -26,6 +27,10 @@ export default function SegmentsTable({ road, sections, onSelect }) {
               <td className="num cut-text">{cy(s.cut_cy)}</td>
               <td className="num fill-text">{cy(s.fill_cy)}</td>
               <td className="num">{signed(s.net_cy)}</td>
+              <td className="num cut-text">{s.sides ? cy(s.sides.left.cut_cy) : '—'}</td>
+              <td className="num fill-text">{s.sides ? cy(s.sides.left.fill_cy) : '—'}</td>
+              <td className="num cut-text">{s.sides ? cy(s.sides.right.cut_cy) : '—'}</td>
+              <td className="num fill-text">{s.sides ? cy(s.sides.right.fill_cy) : '—'}</td>
             </tr>
           ))}
           <tr className="total">
@@ -34,6 +39,10 @@ export default function SegmentsTable({ road, sections, onSelect }) {
             <td className="num cut-text">{cy(road.cut_cy)}</td>
             <td className="num fill-text">{cy(road.fill_cy)}</td>
             <td className="num">{signed(road.net_cy)}</td>
+            <td className="num cut-text">{road.sides ? cy(road.sides.left.cut_cy) : '—'}</td>
+            <td className="num fill-text">{road.sides ? cy(road.sides.left.fill_cy) : '—'}</td>
+            <td className="num cut-text">{road.sides ? cy(road.sides.right.cut_cy) : '—'}</td>
+            <td className="num fill-text">{road.sides ? cy(road.sides.right.fill_cy) : '—'}</td>
           </tr>
         </tbody>
       </table>

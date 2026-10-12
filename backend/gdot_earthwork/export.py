@@ -21,7 +21,7 @@ import time
 
 import pymupdf as fitz
 
-from .sides import current_sides
+from .sides import current_sides, road_side_volumes
 
 FILL = (30 / 255, 142 / 255, 62 / 255)       # #1E8E3E
 CUT = (217 / 255, 48 / 255, 37 / 255)        # #D93025
@@ -248,6 +248,11 @@ def _summary_pages(doc: fitz.Document, title: str, summary: dict) -> None:
         rows.append(("road", [r["label"], f"{r['from']} – {r['to']}", str(r["sections"]),
                               "yes" if r["counted"] else "no (repeat)" if r["repeat"] else "no",
                               f"{r['cut_cy']:,.0f}", f"{r['fill_cy']:,.0f}", f"{r['net_cy']:+,.0f}"]))
+        if r.get("sides"):
+            for side in ("left", "right"):
+                d = r["sides"][side]
+                rows.append(("edit", ["", f"   {side} of centreline", "", "",
+                                      f"{d['cut_cy']:,.0f}", f"{d['fill_cy']:,.0f}", ""]))
     if summary["edits"]:
         rows.append(("gap", []))
         rows.append(("h2", ["Hand-edited sections"]))
@@ -325,7 +330,14 @@ def annotated_pdf(src_path: str, geometries: list[dict | None], payload: dict, s
         counted = r["id"] not in excluded
         if counted:
             tf, tc = tf + v["fill_cy"], tc + v["cut_cy"]
-        roads.append({"label": r["label"], "from": r["station_from"], "to": r["station_to"],
+        stations = [(payload["sections"][i]["station_ft"], payload["sections"][i]) for i in r["sections"]
+                    if payload["sections"][i]["station_ft"] is not None]
+        sides = None
+        if stations and all(sec.get("sides_measured") for _, sec in stations):
+            sides = road_side_volumes([(ft, current_sides(sec["sides_measured"][surface], sec["measured"][surface],
+                                                          sec["areas"][surface], sec.get("marks", {}).get(surface, [])))
+                                       for ft, sec in stations])
+        roads.append({"label": r["label"], "from": r["station_from"], "to": r["station_to"], "sides": sides,
                       "sections": len(r["sections"]), "counted": counted, "repeat": bool(r["repeat_of"]),
                       "fill_cy": v["fill_cy"], "cut_cy": v["cut_cy"], "net_cy": v["net_cy"]})
     secs = payload["sections"]
