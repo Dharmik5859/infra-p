@@ -3,34 +3,11 @@ import { assetUrl } from '../api';
 import { ft2 } from '../format';
 import { AreaInput } from './AreaEditor';
 import { CENTRE_NOTE, currentSides, polygonSides, removalSides } from '../sides';
-import { Centreline, Shading, isRemoval, polygonFt2, shareInside, unplacedText, useProfile } from './SectionPicture';
+import { Centreline, Shading, fitView, isRemoval, polygonFt2, shareInside, unplacedText, useProfile } from './SectionPicture';
 import SideTable from './SideTable';
 
 const MARK_LABEL = { fill: 'Added fill', cut: 'Added cut', remove_fill: 'Removed fill', remove_cut: 'Removed cut' };
 const r2 = (v) => Math.round(Math.max(0, v) * 100) / 100;
-
-/** The part of the image worth editing: the fill/cut zones (and outlines),
- * padded, shaped to the canvas so the view fills it. */
-function fitView(prof, surface, marks, ppf, box) {
-  const t = prof[surface] || prof.finished;
-  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
-  const add = (x, y) => { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); };
-  prof.x.forEach((x, i) => {
-    const g = prof.ground[i];
-    if (g != null && t[i] != null && Math.abs(g - t[i]) > 0.05) { add(x, g); add(x, t[i]); }
-  });
-  marks.forEach((m) => m.pts.forEach(([x, y]) => add(x, y)));
-  if (!Number.isFinite(x0)) prof.x.forEach((x, i) => { if (t[i] != null) add(x, t[i]); });
-  const [W, H] = prof.size;
-  if (!Number.isFinite(x0)) return { x: 0, y: 0, w: W, h: H };
-  const ft = ppf || 10;
-  let w = Math.min(W, x1 - x0 + Math.max(0.3 * (x1 - x0), 24 * ft));
-  let h = y1 - y0 + 12 * ft;
-  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
-  const aspect = box ? box.w / box.h : 2.5;
-  if (w / h > aspect) h = w / aspect; else w = h * aspect;
-  return { x: cx - w / 2, y: cy - h / 2, w, h };
-}
 
 /**
  * Edit one cross-section in a large view. Type the fill / cut areas, or
@@ -207,7 +184,7 @@ export default function EditSectionModal({ section: s, surface, onClose, onSave 
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  const fit = useMemo(() => (prof && box ? fitView(prof, surface, s.marks || [], ppf, box) : null), [prof, box, surface, s.marks, ppf]);
+  const fit = useMemo(() => (prof && box ? fitView(prof, surface, s.marks || [], ppf, box, s.centreline?.x) : null), [prof, box, surface, s.marks, ppf, s.centreline?.x]);
   useEffect(() => { if (fit && !view) setView(fit); }, [fit, view]);
 
   function zoomAt(f, cx, cy) {
@@ -318,7 +295,7 @@ export default function EditSectionModal({ section: s, surface, onClose, onSave 
               Measured from the drawing: fill {ft2(measured.fill_ft2)} ft², cut {ft2(measured.cut_ft2)} ft². Net now{' '}
               <b className={fill - cut >= 0 ? 'fill-text' : 'cut-text'}>{ft2(fill - cut)} ft²</b>.
             </div>
-            <SideTable sides={sides} note={CENTRE_NOTE[s.centreline?.source]} />
+            <SideTable sides={sides} note={CENTRE_NOTE[s.centreline?.source]} compact />
             {(fill < markedFill - 0.05 || cut < markedCut - 0.05) && (
               <div className="pic-note warn-text">Lower than the areas outlined below; remove an outline to go lower.</div>
             )}

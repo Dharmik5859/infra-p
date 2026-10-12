@@ -11,22 +11,22 @@ export default function Headline({ report, compact = false }) {
   if (!main || !all) return null;
   const tiles = [
     {
-      tone: 'green', value: fmtPct(acc(main.total_error_pct)),
+      tone: 'green', value: fmtPct(acc(main.total_error_pct)), meter: acc(main.total_error_pct),
       label: 'Cut + fill total vs the estimator',
       sub: `Mainline sheets: ${main.sections} labelled sections in ${main.files} plan sets (fill ${fmtPct(acc(main.fill_error_pct))}, cut ${fmtPct(acc(main.cut_error_pct))})`,
     },
     {
-      tone: 'yellow', value: fmtPct(main.within_25pct, 0),
+      tone: 'yellow', value: fmtPct(main.within_25pct, 0), meter: main.within_25pct,
       label: 'Sections within 25% of the estimator',
       sub: `${fmtPct(main.within_10pct, 0)} within 10% · typical section difference ${fmtPct(main.median_error_pct)}`,
     },
     {
-      tone: 'blue', value: fmtPct(all.label_found_pct, 0),
+      tone: 'blue', value: fmtPct(all.label_found_pct, 0), meter: all.label_found_pct,
       label: "Of the estimators' shading found",
       sub: 'Labelled area that falls inside a cross-section the pipeline located',
     },
     {
-      tone: 'red', value: fmtPct(acc(all.total_error_pct)),
+      tone: 'red', value: fmtPct(acc(all.total_error_pct)), meter: acc(all.total_error_pct),
       label: 'All labelled sheets, staged included',
       sub: `${all.sections} sections in ${all.files} plan sets; staged sheets shade only one stage's work`,
     },
@@ -37,6 +37,7 @@ export default function Headline({ report, compact = false }) {
         {tiles.map((t) => (
           <div key={t.label} className={`hl-tile t-${t.tone}`}>
             <div className="hl-value num">{t.value}</div>
+            <div className="hl-meter" aria-hidden="true"><i style={{ width: `${Math.max(0, Math.min(100, t.meter))}%` }} /></div>
             <div className="hl-label">{t.label}</div>
             <div className="hl-sub">{t.sub}</div>
           </div>

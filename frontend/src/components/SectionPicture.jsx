@@ -98,7 +98,7 @@ export function Centreline({ x, height, scale = 1 }) {
   if (x == null) return null;
   const fs = 13 * scale;
   return (
-    <g className="centreline" aria-hidden="true">
+    <g className="centreline" aria-hidden="true" style={{ strokeWidth: fs * 0.28 }}>
       <line x1={x} x2={x} y1={0} y2={height} />
       <text x={x} y={fs * 1.2} textAnchor="middle" className="cl" style={{ fontSize: fs }}>CL</text>
       <text x={x - fs * 0.5} y={fs * 2.5} textAnchor="end" style={{ fontSize: fs * 0.85 }}>← LEFT</text>
@@ -164,6 +164,30 @@ export function Shading({ prof, surface, fill, cut, measured, marks = [], select
   );
 }
 
+/** The part of the image worth looking at: the fill/cut zones (and outlines),
+ * padded, shaped to the canvas so the view fills it. */
+export function fitView(prof, surface, marks, ppf, box, centreX) {
+  const t = prof[surface] || prof.finished;
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  const add = (x, y) => { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); };
+  prof.x.forEach((x, i) => {
+    const g = prof.ground[i];
+    if (g != null && t[i] != null && Math.abs(g - t[i]) > 0.05) { add(x, g); add(x, t[i]); }
+  });
+  marks.forEach((m) => m.pts.forEach(([x, y]) => add(x, y)));
+  if (Number.isFinite(x0) && centreX != null) add(centreX, (y0 + y1) / 2);   // keep the centreline in view
+  if (!Number.isFinite(x0)) prof.x.forEach((x, i) => { if (t[i] != null) add(x, t[i]); });
+  const [W, H] = prof.size;
+  if (!Number.isFinite(x0)) return { x: 0, y: 0, w: W, h: H };
+  const ft = ppf || 10;
+  let w = Math.min(W, x1 - x0 + Math.max(0.3 * (x1 - x0), 24 * ft));
+  let h = y1 - y0 + 12 * ft;
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  const aspect = box ? box.w / box.h : 2.5;
+  if (w / h > aspect) h = w / aspect; else w = h * aspect;
+  return { x: cx - w / 2, y: cy - h / 2, w, h };
+}
+
 /** Fill / cut typed in where nothing on the drawing can be shaded for it. */
 export function unplacedText(fill, cut, measured, marks) {
   const out = [];
@@ -172,26 +196,44 @@ export function unplacedText(fill, cut, measured, marks) {
   return out.length ? `${out.join(' and ')} typed in with no such zone on the drawing to shade: counted, not drawn. Outline it with the area tool to show it.` : null;
 }
 
-/** The section drawing with fill and cut shaded from the areas in use. */
+/**
+ * The section drawing with fill and cut shaded from the areas in use. It
+ * opens zoomed on the earthwork (the whole strip is up to 300 ft wide and
+ * the work often a fraction of it); "Whole section" shows all of it.
+ */
 export default function SectionPicture({ section: s, surface, alt }) {
   const prof = useProfile(s.profile);
+  const [whole, setWhole] = useState(false);
   const measured = s.measured || { fill_ft2: s.fill_ft2, cut_ft2: s.cut_ft2 };
-  const note = unplacedText(s.fill_ft2, s.cut_ft2, measured, s.marks || []);
+  const marks = s.marks || [];
+  const note = unplacedText(s.fill_ft2, s.cut_ft2, measured, marks);
+  const view = useMemo(() => {
+    if (!prof) return null;
+    const [W, H] = prof.size;
+    return whole ? { x: 0, y: 0, w: W, h: H }
+      : fitView(prof, surface, marks, s.overlay_px_per_ft, { w: 3.2, h: 1 }, s.centreline?.x);
+  }, [prof, whole, surface, marks, s.overlay_px_per_ft, s.centreline?.x]);
   return (
-    <div className="viewer-img">
-      <div className="pic-areas">
+    <div className="pic-card">
+      <div className="pic-toolbar">
         <span className="chip fill">Fill {ft2(s.fill_ft2)} ft²</span>
         <span className="chip cut">Cut {ft2(s.cut_ft2)} ft²</span>
         {s.edited && <span className={`chip ${s.dirty ? 'warn' : 'edited'}`}>{s.dirty ? 'unsaved edit' : 'edited'}</span>}
+        <span className="spacer" />
+        <div className="segmented small" role="radiogroup" aria-label="How much of the section to show">
+          <button role="radio" aria-checked={!whole} className={!whole ? 'on' : ''} onClick={() => setWhole(false)}>Earthwork</button>
+          <button role="radio" aria-checked={whole} className={whole ? 'on' : ''} onClick={() => setWhole(true)}>Whole section</button>
+        </div>
       </div>
-      <div className="pic">
-        <img src={assetUrl(s.overlay)} alt={alt} />
-        {prof && (
-          <svg className="pic-shade" viewBox={`0 0 ${prof.size[0]} ${prof.size[1]}`} preserveAspectRatio="none" aria-hidden="true">
-            <Shading prof={prof} surface={surface} fill={s.fill_ft2} cut={s.cut_ft2} measured={measured} marks={s.marks || []} />
-            <Centreline x={s.centreline?.x} height={prof.size[1]} scale={prof.size[0] / 900} />
+      <div className="pic-frame">
+        {view ? (
+          <svg className="pic-svg" viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`} preserveAspectRatio="xMidYMid meet"
+            style={{ aspectRatio: `${view.w} / ${view.h}` }} role="img" aria-label={alt}>
+            <image href={assetUrl(s.overlay)} x="0" y="0" width={prof.size[0]} height={prof.size[1]} preserveAspectRatio="none" />
+            <Shading prof={prof} surface={surface} fill={s.fill_ft2} cut={s.cut_ft2} measured={measured} marks={marks} />
+            <Centreline x={s.centreline?.x} height={prof.size[1]} scale={view.w / 640} />
           </svg>
-        )}
+        ) : <img src={assetUrl(s.overlay)} alt={alt} />}
       </div>
       {note && <div className="pic-note">{note}</div>}
     </div>

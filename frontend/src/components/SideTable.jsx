@@ -1,38 +1,42 @@
 import { ft2 } from '../format';
 
-/** Fill and cut left and right of the centreline, with the totals. */
+/**
+ * Fill and cut left and right of the centreline as bars growing out from
+ * it, so the split reads at a glance; the numbers sit at each end.
+ */
 export default function SideTable({ sides, note, compact = false }) {
   if (!sides) return null;
-  const tot = (k) => sides.left[k] + sides.right[k] + (sides.unplaced?.[k] || 0);
-  const unplaced = (sides.unplaced?.fill_ft2 || 0) + (sides.unplaced?.cut_ft2 || 0) > 0.005;
+  const rows = [['fill', 'Fill'], ['cut', 'Cut']];
+  const max = Math.max(1e-9, ...rows.flatMap(([k]) => [sides.left[`${k}_ft2`], sides.right[`${k}_ft2`]]));
+  const unplaced = (sides.unplaced?.fill_ft2 || 0) + (sides.unplaced?.cut_ft2 || 0);
   return (
-    <div className={`side-table ${compact ? 'compact' : ''}`}>
-      <table aria-label="Fill and cut left and right of the centreline">
-        <thead>
-          <tr><th /><th>Left</th><th>Right</th><th>Total</th></tr>
-        </thead>
-        <tbody>
-          <tr className="fill-row">
-            <th>Fill ft²</th>
-            <td className="num">{ft2(sides.left.fill_ft2)}</td>
-            <td className="num">{ft2(sides.right.fill_ft2)}</td>
-            <td className="num">{ft2(tot('fill_ft2'))}</td>
-          </tr>
-          <tr className="cut-row">
-            <th>Cut ft²</th>
-            <td className="num">{ft2(sides.left.cut_ft2)}</td>
-            <td className="num">{ft2(sides.right.cut_ft2)}</td>
-            <td className="num">{ft2(tot('cut_ft2'))}</td>
-          </tr>
-        </tbody>
-      </table>
-      {unplaced && (
-        <div className="side-note warn-text">
-          {ft2((sides.unplaced.fill_ft2 || 0) + (sides.unplaced.cut_ft2 || 0))} ft² was typed in where nothing is traced, so
-          it is on neither side; outline it on the drawing to place it.
+    <div className={`split ${compact ? 'compact' : ''}`} role="table" aria-label="Fill and cut left and right of the centreline, square feet">
+      <div className="split-head" role="row">
+        <span role="columnheader" className="split-l">← Left</span>
+        <span role="columnheader" className="split-cl">CL</span>
+        <span role="columnheader" className="split-r">Right →</span>
+        <span role="columnheader" className="split-t">Total</span>
+      </div>
+      {rows.map(([k, label]) => {
+        const l = sides.left[`${k}_ft2`], r = sides.right[`${k}_ft2`];
+        return (
+          <div key={k} className={`split-row ${k}`} role="row">
+            <span className="split-kind" role="rowheader">{label}</span>
+            <span className="split-val l num" role="cell">{ft2(l)}</span>
+            <span className="split-bar l" aria-hidden="true"><i style={{ width: `${(100 * l) / max}%` }} /></span>
+            <span className="split-axis" aria-hidden="true" />
+            <span className="split-bar r" aria-hidden="true"><i style={{ width: `${(100 * r) / max}%` }} /></span>
+            <span className="split-val r num" role="cell">{ft2(r)}</span>
+            <span className="split-val t num" role="cell">{ft2(l + r + (sides.unplaced?.[`${k}_ft2`] || 0))} ft²</span>
+          </div>
+        );
+      })}
+      {unplaced > 0.005 && (
+        <div className="split-note warn-text">
+          {ft2(unplaced)} ft² was typed in where nothing is traced, so it is on neither side; outline it on the drawing to place it.
         </div>
       )}
-      {note && <div className="side-note muted">{note}</div>}
+      {note && <div className="split-note muted">{note}</div>}
     </div>
   );
 }
