@@ -7,6 +7,7 @@ import UploadView from './components/UploadView';
 import ProgressView from './components/ProgressView';
 import Results from './components/Results';
 import AccuracyView from './components/AccuracyView';
+import CalibrationView from './components/CalibrationView';
 
 // Routing lives in the URL hash: #/dashboard, #/new, #/accuracy and
 // #/results/<job id>. The job id in the URL means a reload (or a shared
@@ -25,6 +26,7 @@ const TITLES = {
   new: { title: 'New takeoff', sub: 'Upload a cross-section plan set' },
   results: { title: 'Takeoff results', sub: 'Cut and fill by road, station and section' },
   accuracy: { title: 'Accuracy', sub: 'How the measurements were checked' },
+  calibration: { title: 'Calibration', sub: 'Feet-to-pixel scale of every sheet, as JSON' },
 };
 
 export default function App() {
@@ -108,6 +110,8 @@ export default function App() {
       );
   } else if (view === 'new') {
     page = <UploadView server={server} onFile={upload} busy={Boolean(uploading)} progress={uploading} error={error} />;
+  } else if (view === 'calibration') {
+    page = <CalibrationView openJob={done} />;
   } else if (view === 'accuracy') {
     page = <AccuracyView report={report} />;
   } else {

@@ -54,6 +54,16 @@ export const IconClose = (p) => (
   <svg {...base} {...p}><path d="M6 6l12 12M18 6L6 18" /></svg>
 );
 
+export const IconRuler = (p) => (
+  <svg {...base} {...p}><path d="M3 17L17 3l4 4L7 21z" /><path d="M7 13l2 2M10 10l2 2M13 7l2 2" /></svg>
+);
+export const IconCopy = (p) => (
+  <svg {...base} {...p}><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3" /></svg>
+);
+export const IconDownload = (p) => (
+  <svg {...base} {...p}><path d="M12 4v12M7 11l5 5 5-5" /><path d="M4 18v1a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-1" /></svg>
+);
+
 export function Logo({ size = 30 }) {
   // a terrain profile over a cut/fill base line, in the four brand colours
   return (

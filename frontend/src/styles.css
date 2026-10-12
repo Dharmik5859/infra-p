@@ -803,3 +803,56 @@ tr.total td { font-weight: 500; background: var(--surface-2); }
 .kpi .sub.lr { color: var(--text-2); }
 .road-lr { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; margin-top: 4px; color: var(--text-2); }
 .road-lr i { font-style: normal; }
+
+/* calibration module */
+.calib-page { max-width: 1600px; }
+.calib-grid { display: grid; grid-template-columns: minmax(300px, 380px) minmax(0, 1fr); gap: 24px; align-items: start; }
+@media (max-width: 1100px) { .calib-grid { grid-template-columns: minmax(0, 1fr); } }
+.calib-input { display: grid; gap: 14px; position: sticky; top: calc(var(--nav-h) + 16px); }
+.calib-input h2 { margin: 0; font-size: 22px; }
+.calib-input p { margin: 0; font-size: 13.5px; }
+.dropzone.compact { min-height: 150px; padding: 22px; display: grid; place-items: center; gap: 6px; text-align: center; }
+.dropzone.compact > svg { color: var(--blue); }
+.dropzone.has-file { border-style: solid; border-color: var(--blue); background: var(--blue-soft); }
+.picked { display: flex; align-items: center; gap: 12px; text-align: left; min-width: 0; }
+.picked svg { color: var(--blue); flex: none; }
+.picked div { display: grid; min-width: 0; }
+.picked b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.btn.analyze { height: 44px; font-size: 15px; justify-content: center; gap: 8px; }
+.use-open { justify-self: center; }
+.calib-progress { display: grid; gap: 6px; font-size: 13px; color: var(--text-2); }
+.calib-summary { display: grid; gap: 12px; border-top: 1px solid var(--line); padding-top: 14px; }
+.calib-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.calib-stats div { background: var(--surface-2); border-radius: 12px; padding: 10px 12px; display: grid; }
+.calib-stats b { font-size: 22px; font-weight: 500; }
+.calib-stats span { font-size: 11.5px; color: var(--text-3); }
+.calib-scale { display: grid; gap: 2px; font-size: 13px; }
+.calib-table-wrap { max-height: 260px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; }
+.calib-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.calib-table th, .calib-table td { padding: 6px 10px; border-bottom: 1px solid var(--line); text-align: left; }
+.calib-table th { position: sticky; top: 0; background: var(--surface-2); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-3); font-weight: 500; }
+.calib-table .num { text-align: right; }
+.calib-output { display: grid; gap: 24px; min-width: 0; }
+.json-card, .code-card { padding: 0; overflow: hidden; }
+.json-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+.json-head h3 { margin: 2px 0 0; font-size: 16px; }
+.json-head .spacer { flex: 1; }
+.json-head .btn.small { display: inline-flex; align-items: center; gap: 6px; }
+.json-view {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); max-height: 560px; overflow: auto;
+  background: #0f1419; color: #d6deeb; font: 12.5px/1.6 var(--mono);
+}
+.json-gutter { display: grid; padding: 14px 10px 14px 14px; text-align: right; color: #4b5563; user-select: none; border-right: 1px solid #1f2937; position: sticky; left: 0; background: #0f1419; }
+.json-code { margin: 0; padding: 14px 18px; white-space: pre; font: inherit; outline: none; }
+.j-key { color: #82aaff; } .j-str { color: #c3e88d; } .j-num { color: #f78c6c; } .j-lit { color: #c792ea; } .j-com { color: #637777; font-style: italic; }
+.json-empty { display: grid; place-items: center; gap: 6px; text-align: center; padding: 64px 24px; color: var(--text-3); background: var(--surface-2); }
+.json-empty svg { color: var(--blue); opacity: 0.7; }
+.json-empty b { color: var(--text-2); }
+.code-block { margin: 0; padding: 16px 18px; background: #0f1419; color: #d6deeb; font: 12.5px/1.6 var(--mono); overflow: auto; max-height: 420px; white-space: pre; }
+.field-guide { margin: 0; padding: 14px 18px 18px; display: grid; gap: 8px; }
+.field-guide div { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 12px; font-size: 13px; }
+.field-guide dt code { font-size: 12px; }
+.field-guide dd { margin: 0; color: var(--text-2); }
+@media (max-width: 640px) { .field-guide div { grid-template-columns: minmax(0, 1fr); gap: 2px; } .calib-input { position: static; } }
+.code-block code { background: none; padding: 0; color: inherit; font: inherit; border-radius: 0; }
+.calib-input { position: static; }

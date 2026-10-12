@@ -116,6 +116,11 @@ export function getProfile(path) {
   return profiles.get(path);
 }
 
+/** Feet-to-pixel calibration per sheet, and the cut / fill shapes, for a finished job. */
+export async function getCalibration(jobId) {
+  return json(await fetch(`${BASE}/api/jobs/${jobId}/calibration`));
+}
+
 /** A sheet's measured sections, in the sheet image's coordinates (cached). */
 export const getSheet = (jobId, page) => getProfile(`/api/jobs/${jobId}/pages/${page}.json`);
 
