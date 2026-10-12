@@ -787,3 +787,19 @@ tr.total td { font-weight: 500; background: var(--surface-2); }
 .viewer-grid.sheet-mode .viewer-areas .edit-note { grid-column: 1 / -1; }
 @media (max-width: 900px) { .viewer-grid.sheet-mode .viewer-areas { grid-template-columns: minmax(0, 1fr); } }
 .sheet-frame { height: clamp(340px, 56vh, 600px); }
+
+/* road left / right */
+.road-sides { padding: 4px 16px 16px; overflow-x: auto; }
+.road-sides table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.road-sides th, .road-sides td { padding: 6px 10px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.road-sides thead th { font-size: 11.5px; color: var(--text-3); font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; }
+.road-sides thead th.grp { text-align: center; border-bottom: 2px solid var(--line-strong); color: var(--text-2); }
+.road-sides tbody th { text-align: left; font-weight: 500; }
+.road-sides .fill-row th, .road-sides .fill-row td { color: var(--green-ink); }
+.road-sides .cut-row th, .road-sides .cut-row td { color: var(--red-ink); }
+.road-sides td.tot { font-weight: 600; }
+.road-sides td:nth-child(5) { border-left: 1px solid var(--line); }
+.road-sides thead tr:nth-child(2) th:nth-child(4) { border-left: 1px solid var(--line); }
+.kpi .sub.lr { color: var(--text-2); }
+.road-lr { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; margin-top: 4px; color: var(--text-2); }
+.road-lr i { font-style: normal; }

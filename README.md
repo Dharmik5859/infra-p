@@ -112,6 +112,10 @@ A dashboard with a sidebar (Dashboard · New takeoff · Results · Accuracy) and
   1-3 % (left cut, a small total, 9 %). Where an axis cannot be read the neighbouring
   section's centreline is used and the section is flagged. Edits keep their side: an
   outlined area is split at the centreline, a removed area comes off the side it lies on.
+  Volumes are split the same way: each road's left and right fill and cut in cubic yards
+  (average end area on each side), shown under the road profile next to the summed section
+  areas in ft², in the cut / fill totals, the road list, the Volumes table, the volumes CSV
+  and the PDF summary.
 * **Editing areas** – **Edit** on any section opens it large: type the fill and cut, or
   click points around an area on the drawing (finish by clicking the first point again,
   double-clicking or pressing Enter) and press **Fill** or **Cut** to add it, or

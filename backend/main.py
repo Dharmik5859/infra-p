@@ -48,7 +48,7 @@ from fastapi.staticfiles import StaticFiles
 from gdot_earthwork import __version__
 from gdot_earthwork.export import annotated_pdf
 from gdot_earthwork.plan_set import ZERO_REASONS, PlanSetResult, process_plan_set
-from gdot_earthwork.sides import current_sides, polygon_sides, removal_sides
+from gdot_earthwork.sides import current_sides, polygon_sides, removal_sides, road_side_volumes
 from gdot_earthwork.volume import average_end_area_volume
 
 JOB_TTL_SECONDS = int(os.environ.get("JOB_TTL_SECONDS", 6 * 3600))
@@ -463,6 +463,15 @@ CENTRE_TEXT = {"text": "read from the drawing", "scan": "read from the scan", "n
                "assumed": "assumed at grid middle"}
 
 
+def road_sides(payload: dict, road: dict, surface: str) -> dict | None:
+    """Left / right volumes of a road (API payload) for the areas in use."""
+    secs = [payload["sections"][i] for i in road["sections"]]
+    stations = [(s["station_ft"], section_sides(s, surface)) for s in secs if s["station_ft"] is not None]
+    if not stations or any(sd is None for _, sd in stations):
+        return None
+    return road_side_volumes(stations)
+
+
 def section_sides(sec: dict, surface: str) -> dict | None:
     """Left / right fill and cut of a section (API payload) for the areas in use."""
     if not sec.get("sides_measured"):
@@ -615,17 +624,30 @@ def volumes_csv(job_id: str, exclude: list[str] = Query(default=[]), surface: st
     surface = _surface(job, surface)
     n_edited = len(job.payload["edits"][surface])
     title = f"Measured to {surface}" + (f"; {n_edited} section(s) edited by hand" if n_edited else "")
-    rows = [[title], ["Road", "From", "To", "Length (ft)", "Fill (cy)", "Cut (cy)", "Net (cy)", "Note"]]
+    rows = [[title], ["Road", "From", "To", "Length (ft)", "Fill (cy)", "Cut (cy)", "Net (cy)",
+                      "Left fill (cy)", "Left cut (cy)", "Right fill (cy)", "Right cut (cy)", "Note"]]
+    side_cells = lambda d: [d["left"]["fill_cy"], d["left"]["cut_cy"], d["right"]["fill_cy"], d["right"]["cut_cy"]] \
+        if d else ["", "", "", ""]
     tf = tc = 0.0
+    all_sides = {"left": {"fill_cy": 0.0, "cut_cy": 0.0}, "right": {"fill_cy": 0.0, "cut_cy": 0.0}}
     for r in job.payload["roads"]:
         if r["id"] in exclude:
             continue
         v = r["volumes"][surface]
-        for s in v["segments"]:
-            rows.append([r["label"], s["from"], s["to"], s["length_ft"], s["fill_cy"], s["cut_cy"], s["net_cy"], s["warning"] or ""])
-        rows.append([r["label"], "TOTAL", "", "", v["fill_cy"], v["cut_cy"], v["net_cy"], "; ".join(r["flags"])])
+        sides = road_sides(job.payload, r, surface)
+        for i, s in enumerate(v["segments"]):
+            rows.append([r["label"], s["from"], s["to"], s["length_ft"], s["fill_cy"], s["cut_cy"], s["net_cy"],
+                         *side_cells(sides["segments"][i] if sides else None), s["warning"] or ""])
+        rows.append([r["label"], "TOTAL", "", "", v["fill_cy"], v["cut_cy"], v["net_cy"], *side_cells(sides),
+                     "; ".join(r["flags"])])
         tf, tc = tf + v["fill_cy"], tc + v["cut_cy"]
-    rows.append(["ALL ROADS", "", "", "", _round(tf), _round(tc), _round(tf - tc), ""])
+        for side in ("left", "right"):
+            for k in ("fill_cy", "cut_cy"):
+                all_sides[side][k] += sides[side][k] if sides else 0.0
+    for side in all_sides.values():
+        for k in side:
+            side[k] = _round(side[k])
+    rows.append(["ALL ROADS", "", "", "", _round(tf), _round(tc), _round(tf - tc), *side_cells(all_sides), ""])
     return _csv(rows, f"{os.path.splitext(job.filename)[0]}-volumes-{surface}.csv")
 
 

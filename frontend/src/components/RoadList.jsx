@@ -27,6 +27,13 @@ export default function RoadList({ roads, included, activeId, onSelect, onToggle
                 <span className="fill-text">{cy(r.fill_cy)} fill</span>
                 <span className="muted">cy</span>
               </div>
+              {r.sides && (
+                <div className="road-lr num">
+                  <span>L <i className="cut-text">{cy(r.sides.left.cut_cy)}</i> / <i className="fill-text">{cy(r.sides.left.fill_cy)}</i></span>
+                  <span>R <i className="cut-text">{cy(r.sides.right.cut_cy)}</i> / <i className="fill-text">{cy(r.sides.right.fill_cy)}</i></span>
+                  <span className="muted">cut / fill cy</span>
+                </div>
+              )}
             </div>
           );
         })}

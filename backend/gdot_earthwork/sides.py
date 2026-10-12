@@ -117,3 +117,27 @@ def current_sides(measured: dict, measured_total: dict, area: dict, marks: list[
             out[side][key] = round(v, 2)
     out["unplaced"] = unplaced
     return out
+
+
+def road_side_volumes(stations: list[tuple[float, dict]]) -> dict:
+    """Average-end-area volumes (cy) left and right of the centreline along
+    one road. `stations`: (station_ft, sides) for its stationed sections,
+    sides as from `current_sides`. Segments are rounded to 0.01 cy and
+    summed, as the road totals are."""
+    stations = sorted(stations, key=lambda t: t[0])
+    total = {s: {"fill_cy": 0.0, "cut_cy": 0.0} for s in SIDES}
+    segments = []
+    for (a_ft, a), (b_ft, b) in zip(stations, stations[1:]):
+        length = b_ft - a_ft
+        seg = {}
+        for side in SIDES:
+            seg[side] = {}
+            for kind in KINDS:
+                v = round((a[side][f"{kind}_ft2"] + b[side][f"{kind}_ft2"]) / 2 * length / 27, 2)
+                seg[side][f"{kind}_cy"] = v
+                total[side][f"{kind}_cy"] += v
+        segments.append(seg)
+    for side in SIDES:
+        for k in total[side]:
+            total[side][k] = round(total[side][k], 1)
+    return {"segments": segments, **total}
