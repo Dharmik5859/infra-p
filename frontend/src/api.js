@@ -101,6 +101,21 @@ export async function saveEdits(jobId, surface, edits) {
   }));
 }
 
+const profiles = new Map();
+
+/** A section's traced lines in its image's pixels (cached: they never change). */
+export function getProfile(path) {
+  if (!profiles.has(path)) {
+    const p = fetch(assetUrl(path)).then((r) => {
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    });
+    p.catch(() => profiles.delete(path));
+    profiles.set(path, p);
+  }
+  return profiles.get(path);
+}
+
 export function assetUrl(path) {
   return `${BASE}${path}`;
 }

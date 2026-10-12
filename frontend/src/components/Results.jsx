@@ -257,11 +257,8 @@ export default function Results({ result, onResult }) {
         )}
 
         {section && (
-          <SectionViewer section={section} position={pos} count={roadSections.length}
+          <SectionViewer section={section} surface={surface} position={pos} count={roadSections.length}
             onEdit={(area) => setArea(section.id, area)} onReset={() => resetArea(section.id)}
-            shadingNote={surface !== summary.design_surface || section.edited
-              ? `Shading in the drawing shows the measured ${SURFACE_LABEL[summary.design_surface].toLowerCase()} areas; the numbers follow your selection${section.edited ? ' and edits' : ''}.`
-              : null}
             onPrev={pos > 0 ? () => setSectionId(roadSections[pos - 1].id) : null}
             onNext={pos >= 0 && pos < roadSections.length - 1 ? () => setSectionId(roadSections[pos + 1].id) : null} />
         )}

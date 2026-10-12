@@ -1,8 +1,8 @@
-import { assetUrl } from '../api';
 import { SOURCE_TEXT, ft2 } from '../format';
 import { AreaInput } from './AreaEditor';
+import SectionPicture from './SectionPicture';
 
-export default function SectionViewer({ section: s, position, count, onPrev, onNext, onEdit, onReset, shadingNote }) {
+export default function SectionViewer({ section: s, surface, position, count, onPrev, onNext, onEdit, onReset }) {
   const sourceTag = s.label_source === 'inferred' ? 'warn' : 'neutral';
   return (
     <section className="panel">
@@ -43,9 +43,8 @@ export default function SectionViewer({ section: s, position, count, onPrev, onN
           </div>
         )}
         {s.overlay ? (
-          <div className="viewer-img">
-            <img src={assetUrl(s.overlay)} alt={`Cross-section ${s.station || ''} on page ${s.page}: existing ground in blue, finished grade in black, subgrade in yellow, fill shaded green, cut shaded red`} />
-          </div>
+          <SectionPicture section={s} surface={surface}
+            alt={`Cross-section ${s.station || ''} on page ${s.page}: existing ground in blue, finished grade in black, subgrade in yellow, fill shaded green, cut shaded red`} />
         ) : <div className="empty">No overlay image for this section.</div>}
         <div className="legend" style={{ padding: 0 }}>
           <span><i style={{ background: '#1a73e8' }} />existing ground</span>
@@ -54,7 +53,6 @@ export default function SectionViewer({ section: s, position, count, onPrev, onN
           <span><i style={{ background: 'var(--fill)' }} />fill</span>
           <span><i style={{ background: 'var(--cut)' }} />cut</span>
         </div>
-        {shadingNote && <div className="muted" style={{ fontSize: 12.5 }}>{shadingNote}</div>}
         {s.warnings.length > 0 && (
           <div className="warnings">{s.warnings.map((w, i) => <div className="warning" key={i}>{w}</div>)}</div>
         )}

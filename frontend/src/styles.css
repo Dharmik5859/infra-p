@@ -545,3 +545,21 @@ tr.total td { font-weight: 500; background: var(--surface-2); }
 .acc-pill.g-blue { background: var(--blue-soft); color: var(--blue-ink); }
 .acc-pill.g-yellow { background: var(--yellow-soft); color: var(--yellow-ink); }
 .acc-pill.g-red { background: var(--red-soft); color: var(--red-ink); }
+
+/* section picture: the drawing with fill/cut shaded live from the areas in use */
+.pic { position: relative; min-width: 720px; }
+.pic img { min-width: 0; }
+.pic-shade { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.pic-shade .zone polygon { fill-opacity: 0.42; stroke-width: 0; transition: none; }
+.pic-shade .zone.fill polygon { fill: #1e8e3e; }
+.pic-shade .zone.cut polygon { fill: #d93025; }
+.pic-shade .zone polyline { fill: none; stroke-width: 2.5; stroke-dasharray: 7 4; vector-effect: non-scaling-stroke; }
+.pic-shade .zone.fill polyline { stroke: #137333; }
+.pic-shade .zone.cut polyline { stroke: #a50e0e; }
+.pic-areas { position: sticky; left: 0; padding: 8px 10px; border-bottom: 1px solid var(--line); background: var(--surface); display: flex; gap: 6px; flex-wrap: wrap; }
+.pic-areas .chip { padding: 3px 9px; border-radius: 999px; font-size: 12.5px; font-weight: 500; background: rgba(255, 255, 255, 0.92); border: 1px solid #dadce0; font-variant-numeric: tabular-nums; }
+.pic-areas .chip.fill { color: #137333; border-color: #1e8e3e; }
+.pic-areas .chip.cut { color: #a50e0e; border-color: #d93025; }
+.pic-areas .chip.warn { color: #b06000; border-color: #f9ab00; }
+.pic-areas .chip.edited { color: #1967d2; border-color: #1a73e8; }
+.pic-note { padding: 8px 12px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--text-2); background: var(--surface); }

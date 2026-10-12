@@ -9,6 +9,7 @@ HTTP API for the earthwork pipeline.
     POST /api/uploads/{id}/complete          assemble the PDF and start the job -> {job_id}
     GET  /api/jobs/{id}                      status, progress, and (when done) the result
     GET  /api/jobs/{id}/sections/{n}.png     audit overlay for one cross-section
+    GET  /api/jobs/{id}/sections/{n}/profile.json   its traced lines, in image pixels
     GET  /api/jobs/{id}/volumes.csv          volume table (respects ?exclude=road ids)
     GET  /api/jobs/{id}/sections.csv         per-section areas
     GET  /api/jobs/{id}/annotated.pdf        the original PDF with the takeoff drawn on it
@@ -37,7 +38,7 @@ from dataclasses import dataclass, field
 
 from fastapi import Body, FastAPI, File, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from gdot_earthwork import __version__
@@ -147,6 +148,7 @@ def serialize(job: Job, res: PlanSetResult) -> dict:
         "warnings": s.warnings,
         "overlay": f"/api/jobs/{job.id}/sections/{i}.png" if s.overlay_png else None,
         "overlay_px_per_ft": s.overlay_px_per_ft,
+        "profile": f"/api/jobs/{job.id}/sections/{i}/profile.json" if s.profile else None,
     } for i, s in enumerate(res.sections)]
     return {
         "job_id": job.id,
@@ -177,7 +179,9 @@ def _run(job: Job, path: str) -> None:
     with SLOTS:                       # stays "queued" until a slot is free
         job.status = "running"
         try:
-            res = process_plan_set(path, progress=progress)
+            # section images carry the lines only; the app shades fill/cut from
+            # the profile so the picture follows the areas the user types
+            res = process_plan_set(path, progress=progress, overlays="lines")
             job.result = res
             job.payload = serialize(job, res)
             job.pdf_path = path
@@ -359,6 +363,17 @@ def section_png(job_id: str, n: int):
     if not png:
         raise HTTPException(404, "No overlay for this section.")
     return Response(png, media_type="image/png", headers={"Cache-Control": "private, max-age=86400"})
+
+
+@app.get("/api/jobs/{job_id}/sections/{n}/profile.json")
+def section_profile(job_id: str, n: int):
+    job = _job(job_id)
+    if job.result is None or not 0 <= n < len(job.result.sections):
+        raise HTTPException(404, "No such section.")
+    prof = job.result.sections[n].profile
+    if prof is None:
+        raise HTTPException(404, "No profile for this section.")
+    return JSONResponse(prof, headers={"Cache-Control": "private, max-age=86400"})
 
 
 MAX_AREA_FT2 = 1e6

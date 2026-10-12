@@ -213,6 +213,7 @@ Writes `sections.csv`, `volumes.csv` and one overlay PNG per section.
 | `POST` | `/api/uploads/{id}/complete` | assemble the PDF and start the job → `{job_id}` |
 | `GET` | `/api/jobs/{id}` | status, progress, and the result when done |
 | `GET` | `/api/jobs/{id}/sections/{n}.png` | audit overlay of one section |
+| `GET` | `/api/jobs/{id}/sections/{n}/profile.json` | the section's traced lines in image pixels (the app shades fill/cut from them, following edits) |
 | `GET` | `/api/jobs/{id}/volumes.csv?surface=subgrade&exclude=r2` | volumes per road |
 | `GET` | `/api/jobs/{id}/sections.csv` | areas per section, both surfaces (notes hand edits) |
 | `GET` | `/api/jobs/{id}/annotated.pdf?surface=&exclude=` | the original PDF, every page unchanged, with cut/fill shading and areas (edits included) drawn on each section, plus summary pages |

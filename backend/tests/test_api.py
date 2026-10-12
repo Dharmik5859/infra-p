@@ -36,6 +36,11 @@ def test_job_lifecycle(tmp_path):
 
     png = client.get(section["overlay"])
     assert png.status_code == 200 and png.content[:4] == b"\x89PNG"
+    # the overlay's scale and traced lines let the browser shade fill/cut on it
+    assert 0 < section["overlay_px_per_ft"] <= 14.4
+    prof = client.get(section["profile"]).json()
+    assert len(prof["x"]) == len(prof["ground"]) == len(prof["subgrade"]) > 10
+    assert prof["size"][0] > 0 and prof["size"][1] > 0
     # the overlay's scale lets the browser turn a region drawn on it into ft²
     assert 0 < section["overlay_px_per_ft"] <= 14.4
     csv = client.get(f"/api/jobs/{job_id}/volumes.csv?surface=finished")
