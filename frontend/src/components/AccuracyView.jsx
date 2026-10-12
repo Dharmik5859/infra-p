@@ -1,98 +1,84 @@
-import { accuracy } from '../verdict';
 import { VerdictCard } from './Dashboard';
 import Headline from './Headline';
-import PlanSetTable from './PlanSetTable';
+import LabelledTable from './LabelledTable';
 import { IconInfo } from './Icons';
 
-const signedPct = (v) => (v == null ? '—' : `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(1)} %`);
-const pct = (v) => (v == null ? '—' : `${v.toFixed(1)} %`);
-const area = (v) => (v == null ? '—' : Math.round(v).toLocaleString());
+const sign = (v) => (v == null ? '—' : `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(1)}%`);
+const pct = (v, d = 0) => (v == null ? '—' : `${Number(v).toFixed(d)}%`);
+
+function GroupCard({ g }) {
+  return (
+    <section className="card group-card">
+      <span className="eyebrow">{g.files} plan sets · {g.sections} labelled sections</span>
+      <h3>{g.title}</h3>
+      <div className="big num">{pct(100 - Math.abs(g.total_error_pct), 1)}</div>
+      <div className="muted">cut + fill total vs the estimator ({sign(g.total_error_pct)})</div>
+      <dl>
+        <div><dt>Fill</dt><dd className="num fill-text">{sign(g.fill_error_pct)}</dd></div>
+        <div><dt>Cut</dt><dd className="num cut-text">{sign(g.cut_error_pct)}</dd></div>
+        <div><dt>Within 25%</dt><dd className="num">{pct(g.within_25pct)}</dd></div>
+        <div><dt>Typical diff.</dt><dd className="num">{pct(g.median_error_pct, 1)}</dd></div>
+      </dl>
+      <p className="muted small-text">{g.note}</p>
+    </section>
+  );
+}
 
 export default function AccuracyView({ report }) {
   if (report === undefined) return <div className="page"><div className="card skeleton">Loading accuracy…</div></div>;
-  if (report === null) {
+  if (report === null || !report.groups) {
     return <div className="page"><div className="card note"><IconInfo />No accuracy report has been generated on this server.</div></div>;
   }
   return (
     <div className="page">
       <section className="hero">
         <div>
-          <span className="eyebrow">Accuracy at a glance · measured {report.generated}</span>
-          <h2>How reliable are the numbers?</h2>
+          <span className="eyebrow">Measured against labelled data only · {report.generated}</span>
+          <h2>How close are we to the estimators?</h2>
           <p className="muted">
-            Scanned plan sets were run through the pipeline untouched and every cross-section was compared with the exact
-            CAD drawing of the same sheet.
+            Estimators shaded cut red and fill green by hand on scanned plan sets. Those labels are the only
+            reference used on this page: the pipeline read each scan untouched and every labelled section was compared.
           </p>
         </div>
       </section>
       <Headline report={report} />
 
+      <div className="group-grid">
+        {report.groups.map((g) => <GroupCard key={g.id} g={g} />)}
+      </div>
+
       <div className="verdict-grid">
         {report.formats.map((f) => <VerdictCard key={f.id} f={f} />)}
       </div>
 
-      <PlanSetTable planSets={report.plan_sets} />
-
-      <section className="card">
-        <div className="card-h">
-          <div>
-            <span className="eyebrow">Detail</span>
-            <h3>Every evaluation</h3>
-          </div>
-        </div>
-        <div className="table-wrap tall">
-          <table className="acc-table">
-            <thead>
-              <tr>
-                <th>Plan set</th><th>Reference</th><th>Sections</th>
-                <th>Fill accuracy</th><th>Cut accuracy</th><th>Within 10 %</th><th>Typical error</th>
-                <th>Fill ft² (ours / ref)</th><th>Cut ft² (ours / ref)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {report.checks.map((c) => {
-                const m = c.metrics;
-                return (
-                  <tr key={c.id}>
-                    <td><b>{c.title}</b>{c.note && <div className="row-note">{c.note}</div>}</td>
-                    <td className="muted">{c.reference}</td>
-                    <td className="num">{m.sections}</td>
-                    <td className="num"><span className="g-text-green">{pct(accuracy(m.total_fill_error_pct))}</span> <small className="muted">{signedPct(m.total_fill_error_pct)}</small></td>
-                    <td className="num"><span className="g-text-red">{pct(accuracy(m.total_cut_error_pct))}</span> <small className="muted">{signedPct(m.total_cut_error_pct)}</small></td>
-                    <td className="num">{m.within_10pct == null ? '—' : `${Math.round(m.within_10pct)} %`}</td>
-                    <td className="num">{pct(m.median_error_pct)}</td>
-                    <td className="num">{area(m.total_fill_ft2)} / {area(m.ref_total_fill_ft2)}</td>
-                    <td className="num">{area(m.total_cut_ft2)} / {area(m.ref_total_cut_ft2)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </section>
+      <LabelledTable files={report.files} unlabelled={report.unlabelled} />
 
       <div className="two-col">
         <section className="card prose">
           <h3>How it was measured</h3>
-          <p><b>Exact CAD geometry.</b> Some scanned sets also exist as CAD-exported PDFs of the same sheets. The scan is read
-            from its pixels only; the CAD twin's linework gives the exact answer, matched station by station.</p>
-          <p><b>Estimators' takeoffs.</b> Many scans in the EARTHWORK folder carry an estimator's red/green cut/fill shading on a
-            separate layer. The pipeline reads only the drawing underneath; the shading is then measured as the human answer.
-            Estimators sometimes follow different conventions (for example, how far below pavement cut is counted), so this is a
-            looser reference than CAD geometry.</p>
-          <p><b>Accuracy</b> is 100 % minus the difference in total fill (or cut) area across all checked sections.
-            <b> Within 10 %</b> counts individual sections whose fill + cut is within 10 % of the reference; very small
-            sections (under 10 ft² in total) are left out of that percentage because a few square feet swing it wildly.</p>
+          <p><b>The labels.</b> On each scan the estimator&apos;s shading sits on its own transparent layer. Its area is
+            measured shape by shape (the bright fill plus half of each shape&apos;s outline, which is drawn on the
+            shape&apos;s edge); orange and brown notes are not counted. Tested on shapes of known size in the
+            estimators&apos; colours, this is within 1% (a few % on slivers about 1 ft thick).</p>
+          <p><b>The comparison.</b> The pipeline runs on the scan underneath without seeing the shading. For every
+            section it finds, the estimator&apos;s shading inside that section is the answer it is scored against.
+            Shading outside every found section counts against <i>shading found</i>.</p>
+          <p><b>Total</b> is 100% minus the difference in cut + fill area summed over the labelled sections.
+            <b> Within 10% / 25%</b> count sections whose fill + cut difference is within that share of the
+            estimator&apos;s; sections under 10 ft² are left out of those shares.</p>
         </section>
         <section className="card prose">
-          <h3>Known limitations</h3>
+          <h3>What the differences mean</h3>
           <ul>
-            <li>Station labels on scans are read by OCR and decoded across the whole document. Misreads that break the
-              sequence are corrected and flagged under <i>Needs review</i>; a wrong but plausible label cannot be detected.</li>
-            <li>Lines drawn with the same pen as the proposed template (temporary works, staging, removal lines) can be
-              measured as earthwork. The audit overlay of every section shows exactly what was measured.</li>
-            <li>Bridge decks and buried pipes are recognised and excluded, and reported on the section.</li>
-            <li>A 10 ft major grid is assumed, which holds for every sheet series seen so far.</li>
+            <li><b>Staged sheets</b> show the same cross-sections as the mainline set, but the estimator shades only
+              that stage&apos;s work. The pipeline measures the whole section and does not yet separate stages, so these
+              differ by design (at the same 77 River Side stations the pipeline measured nearly the same area on the
+              Stage 3 and mainline sheets, while the Stage 3 shading was under a third of the mainline&apos;s).</li>
+            <li>Estimators follow their own conventions, such as how far under the pavement cut is counted; part of
+              any per-section difference is convention, not error.</li>
+            <li>Small plan sets with little earthwork (Florence, Hamilton) have totals of a few hundred ft², so their
+              percentages swing widely.</li>
+            <li>The 19-series has no labelled copy in the data, so it is not scored here.</li>
           </ul>
         </section>
       </div>

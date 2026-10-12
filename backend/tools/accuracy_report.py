@@ -1,11 +1,16 @@
 """
-Build accuracy.json (served at /api/accuracy, shown on the dashboard) from
-the JSON files written by `tools.evaluate ... --json`.
+Build accuracy.json (served at /api/accuracy, shown on the Accuracy page and
+the dashboard) from the estimators' labelled takeoffs ONLY.
 
-    python -m tools.accuracy_report EVAL_DIR [--survey SURVEY_DIR] [--out accuracy.json]
+    python -m tools.accuracy_report LABELLED_DIR [--out accuracy.json]
 
-EVAL_DIR holds one <name>.json per evaluation run; FORMATS and CHECKS below
-say which run backs which dashboard card. Runs that are missing are skipped.
+LABELLED_DIR holds one <file>.json per PDF, written by `tools.labelled_eval`.
+Every number in the report is the pipeline's answer compared with the area an
+estimator shaded on the same section; no other reference is used.
+
+Staged-construction sheets ("STAGE" in the file name) are reported apart from
+mainline sheets: an estimator shades only that stage's share of the work on
+them, while the pipeline measures the whole section.
 """
 from __future__ import annotations
 
@@ -14,141 +19,20 @@ import datetime as dt
 import json
 import os
 
-# One verdict card per plan-set format the user works with.
+MIN_AREA = 10.0     # ft²: sections smaller than this are left out of per-section shares
+
+# The sample of each format the user works with, where a labelled copy exists.
 FORMATS = [
-    {
-        "id": "19",
-        "title": "19-series",
-        "format": "Scanned strips, one cross-section per page",
-        "sample": "19series.pdf",
-        "eval": "s19_pair",
-        "reference": "Exact CAD geometry of the same 80 sheets (highway_planning1.pdf)",
-    },
-    {
-        "id": "23",
-        "title": "23-series",
-        "format": "Scanned sheets, several cross-sections per sheet",
-        "sample": "SR 332 mainline scans (23-series sheet layout)",
-        "eval": "sr332_pair",
-        "reference": "Exact CAD geometry of the same sheets (SR-332 EARTHWORK.pdf)",
-        "second": {"eval": "mib_markup", "reference": "the estimator's hand takeoff on the 23-series sample itself"},
-    },
+    {"id": "23", "title": "23-series", "format": "Scanned sheets, several cross-sections per sheet",
+     "file": "MOUNTAIN IND BLVD - MAINLINE EARTHWORK.pdf",
+     "reference": "the estimator's labelled takeoff of the 23-series sample (Mountain Ind Blvd mainline)"},
+    {"id": "19", "title": "19-series", "format": "Scanned strips, one cross-section per page",
+     "file": "19series.pdf", "reference": None},
 ]
 
-# Every evaluation, for the detailed table.
-CHECKS = [
-    ("s19_pair", "19-series scans", "Exact CAD geometry of the same sheets", ""),
-    ("sr332_pair", "SR 332 scans (23-series layout)", "Exact CAD geometry of the same sheets",
-     "Most of the scatter is three sheet-specific outliers (82+50, 135+00, 67+50)."),
-    ("sr332_markup", "SR 332 scans (23-series layout)", "Estimator's hand takeoff on the sheets",
-     "Estimators measure to their own conventions; a looser check than CAD geometry."),
-    ("hp_vector", "highway_planning1 read as an image", "Its own CAD geometry",
-     "The cut gap is a bridge 'remove below 640' line; without those stations cut is within 1 %."),
-    ("perry_pair", "Perry Creek scans", "Exact CAD geometry of the same sheets", ""),
-    ("sr70_pair", "SR 70 scans", "Exact CAD geometry of the same sheets", ""),
-    ("webb_pair", "Webb Creek scans", "Exact CAD geometry of the same sheets",
-     "Six sections could not be matched to the drawing by station; small plan set."),
-    ("mib_markup", "23-series sample (Mountain Ind Blvd mainline)", "Estimator's hand takeoff on the sheets",
-     "The 23-series sample's own sheets; estimators measure to their own conventions."),
-    ("florence_pair", "Florence Rd scans", "Exact CAD geometry of the same sheets",
-     "Resurfacing project with tiny totals (about 70 ft² of fill), so percentages swing widely."),
-    ("markup", "12 EARTHWORK scan sets", "Estimators' hand takeoffs on the sheets",
-     "Estimators measure to their own conventions; a looser check than CAD geometry."),
-]
 
-MIN_AREA = 10.0     # ft²: sections smaller than this are left out of per-section shares (as in evaluate)
-
-
-def _headline(eval_dir: str, survey_dir: str | None) -> dict | None:
-    """Pooled over every scanned plan set that also exists as a CAD drawing of
-    the same sheets (PAIR_EVALS). Sections the scan has but that could not be
-    matched to the drawing by station count against the stationing figure."""
-    rows, used, total = [], [], 0
-    found = _survey_sections(survey_dir)
-    for fname, name in PAIR_EVALS.items():
-        path = os.path.join(eval_dir, f"{name}.json")
-        if not os.path.exists(path):
-            continue
-        with open(path, encoding="utf-8") as fh:
-            data = json.load(fh)
-        rows += data["rows"]
-        used.append(fname)
-        total += found.get(fname, data["stats"]["sections"])
-    if not rows:
-        return None
-    f, rf = sum(r["fill"] for r in rows), sum(r["ref_fill"] for r in rows)
-    c, rc = sum(r["cut"] for r in rows), sum(r["ref_cut"] for r in rows)
-    big = [r for r in rows if r["ref_fill"] + r["ref_cut"] >= MIN_AREA]
-    err = sorted((abs(r["fill"] - r["ref_fill"]) + abs(r["cut"] - r["ref_cut"])) / (r["ref_fill"] + r["ref_cut"])
-                 for r in big)
-    share = lambda t: round(100 * sum(e <= t for e in err) / len(err), 1)
-    pct = lambda a, b: round(100 * (a - b) / b, 2)
-    return {
-        "basis": f"{len(used)} scanned plan sets, every section compared with the exact CAD drawing of the same sheet",
-        "plan_sets": [os.path.splitext(u)[0] for u in used],
-        "sections_checked": total,
-        "sections_found_and_stationed": len(rows),
-        "volume_error_pct": pct(f + c, rf + rc),
-        "fill_error_pct": pct(f, rf),
-        "cut_error_pct": pct(c, rc),
-        "sections_scored": len(big),
-        "within_10pct": share(0.10),
-        "within_25pct": share(0.25),
-        "median_error_pct": round(100 * err[len(err) // 2], 1),
-    }
-
-
-def _survey_sections(survey_dir: str | None) -> dict[str, int]:
-    out = {}
-    if survey_dir and os.path.isdir(survey_dir):
-        for name in os.listdir(survey_dir):
-            if name.endswith(".json"):
-                with open(os.path.join(survey_dir, name), encoding="utf-8") as fh:
-                    r = json.load(fh)
-                if "error" not in r:
-                    out[os.path.basename(r["file"])] = r["sections"]
-    return out
-
-
-def _scale(survey_dir: str | None) -> dict | None:
-    """Throughput over every plan set in the dataset (tools: survey run)."""
-    if not survey_dir or not os.path.isdir(survey_dir):
-        return None
-    recs = []
-    for name in sorted(os.listdir(survey_dir)):
-        if name.endswith(".json"):
-            with open(os.path.join(survey_dir, name), encoding="utf-8") as fh:
-                recs.append(json.load(fh))
-    ok = [r for r in recs if "error" not in r]
-    if not ok:
-        return None
-    pages = sum(r["pages"] for r in ok)
-    secs = sum(r["seconds"] for r in ok)
-    return {
-        "plan_sets": len(recs),
-        "plan_sets_processed": len(ok),
-        "pages": pages,
-        "cross_section_pages": sum(r["xs_pages"] for r in ok),
-        "sections": sum(r["sections"] for r in ok),
-        "seconds": round(secs),
-        "pages_per_minute": round(60 * pages / secs) if secs else None,
-    }
-
-
-# Which evaluation checks which scanned plan set, best reference first.
-PAIR_EVALS = {          # scan file -> evaluation against the CAD drawing of the same sheets
-    "19series.pdf": "s19_pair",
-    "SR 332  - MAINLINE.pdf": "sr332_pair",
-    "Florence RD.pdf": "florence_pair",
-    "PERRY CREEK RD- TAKEOFF EARTHWORK.pdf": "perry_pair",
-    "SR 70 - CROSS SECTION.pdf": "sr70_pair",
-    "WEEB CREEK - EARTHWORK.pdf": "webb_pair",
-}
-MARKUP_EVALS = ["markup", "mib_markup"]     # rows carry their file name
-
-
-def _stats(rows: list[dict]) -> dict:
-    """Totals and per-section shares for one plan set's checked sections."""
+def stats(rows: list[dict]) -> dict:
+    """Pipeline vs label over a set of labelled sections."""
     f, rf = sum(r["fill"] for r in rows), sum(r["ref_fill"] for r in rows)
     c, rc = sum(r["cut"] for r in rows), sum(r["ref_cut"] for r in rows)
     big = [r for r in rows if r["ref_fill"] + r["ref_cut"] >= MIN_AREA]
@@ -157,112 +41,78 @@ def _stats(rows: list[dict]) -> dict:
     pct = lambda a, b: round(100 * (a - b) / b, 1) if b >= MIN_AREA else None
     share = lambda t: round(100 * sum(e <= t for e in err) / len(err), 1) if err else None
     return {
-        "sections_checked": len(rows), "sections_scored": len(big),
+        "sections": len(rows), "sections_scored": len(big),
+        "fill_ft2": round(f, 1), "label_fill_ft2": round(rf, 1),
+        "cut_ft2": round(c, 1), "label_cut_ft2": round(rc, 1),
         "fill_error_pct": pct(f, rf), "cut_error_pct": pct(c, rc),
-        "volume_error_pct": pct(f + c, rf + rc),
+        "total_error_pct": pct(f + c, rf + rc),
         "within_10pct": share(0.10), "within_25pct": share(0.25),
         "median_error_pct": round(100 * err[len(err) // 2], 1) if err else None,
+        "p90_error_pct": round(100 * err[int(0.9 * (len(err) - 1))], 1) if err else None,
     }
 
 
-def _plan_sets(eval_dir: str, survey_dir: str | None) -> list[dict]:
-    """One entry per PDF the survey ran: what was found, and -- where a
-    reference exists -- how close the takeoff came."""
-    if not survey_dir or not os.path.isdir(survey_dir):
-        return []
-    rows_by_file: dict[str, tuple[str, list]] = {}
-    for name in MARKUP_EVALS:
-        path = os.path.join(eval_dir, f"{name}.json")
-        if os.path.exists(path):
-            with open(path, encoding="utf-8") as fh:
-                for r in json.load(fh)["rows"]:
-                    rows_by_file.setdefault(r["file"], ("estimator", []))[1].append(r)
-    for fname, ev in PAIR_EVALS.items():                    # CAD drawing beats an estimator
-        path = os.path.join(eval_dir, f"{ev}.json")
-        if os.path.exists(path):
-            with open(path, encoding="utf-8") as fh:
-                rows_by_file[fname] = ("cad", json.load(fh)["rows"])
-    out = []
-    for name in sorted(os.listdir(survey_dir)):
-        if not name.endswith(".json"):
-            continue
-        with open(os.path.join(survey_dir, name), encoding="utf-8") as fh:
-            r = json.load(fh)
-        fname = os.path.basename(r["file"])
-        entry = {"file": fname, "folder": os.path.dirname(r["file"]) or None}
-        if "error" in r:
-            entry["error"] = r["error"]
-            out.append(entry)
-            continue
-        vector = "vector" in r.get("kinds", []) and "raster" not in r.get("kinds", [])
-        entry.update({
-            "kind": "CAD drawing" if vector else "Scan",
-            "pages": r["pages"], "sections": r["sections"],
-            "stations_read": r["text"] + r["ocr"], "stations_inferred": r["inferred"],
-            "no_earthwork": r["zero"], "seconds": r["seconds"],
-        })
-        if fname in rows_by_file and not vector:
-            ref, rows = rows_by_file[fname]
-            entry["reference"] = ref
-            entry["check"] = _stats(rows)
-        out.append(entry)
-    order = {"cad": 0, "estimator": 1}
-    out.sort(key=lambda e: (order.get(e.get("reference"), 2), e.get("kind") != "Scan", e["file"].lower()))
-    return out
+def _coverage(files: list[dict]) -> float | None:
+    """Share of all labelled shading that lies inside sections the pipeline found."""
+    tot = sum(f.get("label_ft2_total") or 0 for f in files)
+    found = sum(f.get("label_ft2_in_found_sections") or 0 for f in files)
+    return round(100 * min(found, tot) / tot, 1) if tot else None
 
 
-KEEP = ("sections", "sections_scored", "median_error_pct", "p90_error_pct", "within_5pct",
-        "within_10pct", "total_fill_ft2", "ref_total_fill_ft2", "total_cut_ft2",
-        "ref_total_cut_ft2", "total_fill_error_pct", "total_cut_error_pct")
-
-
-def _load(eval_dir: str, name: str) -> dict | None:
-    path = os.path.join(eval_dir, f"{name}.json")
-    if not os.path.exists(path):
-        return None
-    with open(path, encoding="utf-8") as fh:
-        data = json.load(fh)
-    stats = {k: data["stats"].get(k) for k in KEEP}
-    rows = data.get("rows", [])
-    if rows and "label_source" in rows[0]:
-        stats["stations_read"] = sum(r.get("label_source") in ("ocr", "text") for r in rows)
-        stats["stations_inferred"] = sum(r.get("label_source") == "inferred" for r in rows)
-    return stats
-
-
-def build(eval_dir: str, survey_dir: str | None = None) -> dict:
+def build(labelled_dir: str) -> dict:
+    runs = []
+    for name in sorted(os.listdir(labelled_dir)):
+        if name.endswith(".json"):
+            with open(os.path.join(labelled_dir, name), encoding="utf-8") as fh:
+                runs.append(json.load(fh))
+    labelled = [r for r in runs if r["rows"]]
+    staged = lambda r: "STAGE" in r["file"].upper()
+    files = [{
+        "file": r["file"], "kind": "staged" if staged(r) else "mainline",
+        "pages": r.get("pages"), "labelled_pages": r.get("labelled_pages"),
+        "sections_found": r.get("sections_found"), "label_found_pct": _coverage([r]), **stats(r["rows"]),
+    } for r in labelled]
+    files.sort(key=lambda f: (f["kind"] != "mainline", f["file"].lower()))
+    rows_of = lambda runs_: [row for r in runs_ for row in r["rows"]]
+    by_file = {r["file"]: r for r in labelled}
     formats = []
-    for f in FORMATS:
-        m = _load(eval_dir, f["eval"])
-        if not m:
-            continue
-        card = {k: v for k, v in f.items() if k != "second"}
-        card["metrics"] = m
-        second = f.get("second")
-        if second and (m2 := _load(eval_dir, second["eval"])):
-            card["second"] = {"reference": second["reference"], "metrics": m2}
+    for fm in FORMATS:
+        card = dict(fm)
+        if fm["file"] in by_file:
+            card["metrics"] = stats(by_file[fm["file"]]["rows"])
         formats.append(card)
-    checks = []
-    for name, title, reference, note in CHECKS:
-        m = _load(eval_dir, name)
-        if m:
-            checks.append({"id": name, "title": title, "reference": reference, "note": note, "metrics": m})
-    return {"generated": dt.date.today().isoformat(), "headline": _headline(eval_dir, survey_dir),
-            "scale": _scale(survey_dir), "formats": formats, "checks": checks,
-            "plan_sets": _plan_sets(eval_dir, survey_dir)}
+    mainline, stages = [r for r in labelled if not staged(r)], [r for r in labelled if staged(r)]
+    return {
+        "generated": dt.date.today().isoformat(),
+        "basis": "estimator_labels",
+        "overall": {**stats(rows_of(labelled)), "files": len(labelled), "label_found_pct": _coverage(labelled)},
+        "groups": [
+            {"id": "mainline", "title": "Mainline sheets", **stats(rows_of(mainline)), "files": len(mainline),
+             "label_found_pct": _coverage(mainline),
+             "note": "The estimator shaded the whole section, as the pipeline measures it: the like-for-like comparison."},
+            {"id": "staged", "title": "Staged-construction sheets", **stats(rows_of(stages)), "files": len(stages),
+             "label_found_pct": _coverage(stages),
+             "note": "The estimator shaded only that stage's share of the work; the pipeline measures the whole "
+                     "section and does not yet separate construction stages."},
+        ],
+        "formats": formats,
+        "files": files,
+        "unlabelled": sorted(r["file"] for r in runs if not r["rows"]),
+    }
 
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("eval_dir")
-    ap.add_argument("--survey", help="directory of survey results (one JSON per plan set)")
+    ap.add_argument("labelled_dir")
     ap.add_argument("--out", default=os.path.join(os.path.dirname(__file__), "..", "accuracy.json"))
     a = ap.parse_args(argv)
-    report = build(a.eval_dir, a.survey)
+    report = build(a.labelled_dir)
     with open(a.out, "w", encoding="utf-8") as fh:
         json.dump(report, fh, indent=2)
         fh.write("\n")
-    print(f"wrote {os.path.normpath(a.out)}: {len(report['formats'])} formats, {len(report['checks'])} checks")
+    o = report["overall"]
+    print(f"wrote {os.path.normpath(a.out)}: {o['files']} labelled PDFs, {o['sections']} sections; "
+          f"total {o['total_error_pct']:+.1f}%, fill {o['fill_error_pct']:+.1f}%, cut {o['cut_error_pct']:+.1f}%")
     return 0
 
 

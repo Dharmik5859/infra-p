@@ -19,7 +19,7 @@ export const GRADES = [
 export const accuracy = (errPct) => (errPct == null ? null : Math.max(0, 100 - Math.abs(errPct)));
 
 export function grade(m) {
-  const worst = Math.max(Math.abs(m.total_fill_error_pct ?? 100), Math.abs(m.total_cut_error_pct ?? 100));
+  const worst = Math.max(Math.abs(m.fill_error_pct ?? 100), Math.abs(m.cut_error_pct ?? 100));
   const w10 = m.within_10pct ?? 0;
   return GRADES.find((g) => worst <= g.maxTotal && w10 >= g.minWithin10) || GRADES[GRADES.length - 1];
 }
@@ -29,9 +29,9 @@ const dir = (v) => (v > 0 ? 'over' : 'under');
 
 export function sentence(m) {
   const parts = [];
-  if (m.total_fill_error_pct != null && m.total_cut_error_pct != null) {
-    parts.push(`Total fill came out ${pct(m.total_fill_error_pct)} ${dir(m.total_fill_error_pct)} and total cut `
-      + `${pct(m.total_cut_error_pct)} ${dir(m.total_cut_error_pct)} the reference.`);
+  if (m.fill_error_pct != null && m.cut_error_pct != null) {
+    parts.push(`Total fill came out ${pct(m.fill_error_pct)} ${dir(m.fill_error_pct)} and total cut `
+      + `${pct(m.cut_error_pct)} ${dir(m.cut_error_pct)} the estimators' labels.`);
   }
   if (m.within_10pct != null) {
     parts.push(`${Math.round(m.within_10pct)} % of individual sections are within 10 %`

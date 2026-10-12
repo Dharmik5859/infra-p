@@ -24,16 +24,31 @@ export function Gauge({ value, tone, label, sub }) {
   );
 }
 
-const signedPct = (v) => (v == null ? '—' : `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(1)} %`);
-
 export function VerdictPill({ g }) {
   return <span className={`pill verdict t-${g.tone}`}><IconCheck width={16} height={16} />{g.label}</span>;
 }
 
 export function VerdictCard({ f }) {
   const m = f.metrics;
+  if (!m) {
+    return (
+      <article className="card verdict-card edge-neutral">
+        <header className="vc-head">
+          <div>
+            <span className="eyebrow">{f.format}</span>
+            <h2>{f.title}</h2>
+          </div>
+          <span className="pill verdict t-neutral">Not scored</span>
+        </header>
+        <p className="vc-verdict">
+          No estimator-labelled copy of this series is in the data, so there is nothing to score it against. Its
+          takeoffs run normally; each section's picture shows exactly what was measured.
+        </p>
+      </article>
+    );
+  }
   const g = grade(m);
-  const errText = (e) => (e == null ? '' : `${e > 0 ? '+' : e < 0 ? '−' : ''}${Math.abs(e).toFixed(1)} % vs reference`);
+  const errText = (e) => (e == null ? '' : `${e > 0 ? '+' : e < 0 ? '−' : ''}${Math.abs(e).toFixed(1)} % vs estimator`);
   return (
     <article className={`card verdict-card edge-${g.tone}`}>
       <header className="vc-head">
@@ -45,14 +60,14 @@ export function VerdictCard({ f }) {
       </header>
 
       <div className="gauges">
-        <Gauge value={accuracy(m.total_fill_error_pct)} tone="green" label="Fill accuracy" sub={errText(m.total_fill_error_pct)} />
-        <Gauge value={accuracy(m.total_cut_error_pct)} tone="red" label="Cut accuracy" sub={errText(m.total_cut_error_pct)} />
+        <Gauge value={accuracy(m.fill_error_pct)} tone="green" label="Fill accuracy" sub={errText(m.fill_error_pct)} />
+        <Gauge value={accuracy(m.cut_error_pct)} tone="red" label="Cut accuracy" sub={errText(m.cut_error_pct)} />
       </div>
 
       <p className="vc-verdict">{sentence(m)}</p>
 
       <dl className="vc-stats">
-        <div><dt>Sections checked</dt><dd className="num">{m.sections}</dd></div>
+        <div><dt>Labelled sections</dt><dd className="num">{m.sections}</dd></div>
         <div><dt>Within 10 %</dt><dd className="num">{m.within_10pct == null ? '—' : `${Math.round(m.within_10pct)} %`}</dd></div>
         <div><dt>Typical error</dt><dd className="num">{m.median_error_pct == null ? '—' : `${m.median_error_pct.toFixed(1)} %`}</dd></div>
         <div><dt>90% within</dt><dd className="num">{m.p90_error_pct == null ? '—' : `${m.p90_error_pct.toFixed(0)} %`}</dd></div>
@@ -60,12 +75,7 @@ export function VerdictCard({ f }) {
       <footer className="vc-ref">
         <IconInfo width={16} height={16} />
         <span>
-          Checked against: {f.reference}.
-          {f.second && (
-            <> Against {f.second.reference}: total fill {signedPct(f.second.metrics.total_fill_error_pct)},
-              total cut {signedPct(f.second.metrics.total_cut_error_pct)} — estimators measure by their own
-              conventions, so this is a looser check.</>
-          )}
+          Checked against {f.reference}.
         </span>
       </footer>
     </article>
@@ -134,8 +144,8 @@ export default function Dashboard({ report, job, onOpen, onNew, onAccuracy }) {
           <span className="eyebrow">Automated earthwork takeoff</span>
           <h2>Cut &amp; fill from cross-section plan sets, measured and verified</h2>
           <p className="muted">
-            Every result below was measured end to end and checked against an independent reference:
-            the exact CAD drawing of the same sheets.
+            Accuracy below is measured only against estimators' labelled takeoffs: the cut and fill they shaded
+            by hand on the same sheets.
           </p>
         </div>
         <button className="btn" onClick={onAccuracy}><IconAccuracy width={18} height={18} />Full accuracy report</button>
