@@ -11,6 +11,7 @@ HTTP API for the earthwork pipeline.
     GET  /api/jobs/{id}/sections/{n}.png     audit overlay for one cross-section
     GET  /api/jobs/{id}/sections/{n}/profile.json   its traced lines, in image pixels
     GET  /api/jobs/{id}/pages/{n}.png        a whole sheet of the original PDF, as an image
+    GET  /api/jobs/{id}/calibration          feet-to-pixel calibration per sheet + cut / fill shapes
     GET  /api/jobs/{id}/pages/{n}.json       the sections on that sheet, in its coordinates
     GET  /api/jobs/{id}/volumes.csv          volume table (respects ?exclude=road ids)
     GET  /api/jobs/{id}/sections.csv         per-section areas
@@ -46,6 +47,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from gdot_earthwork import __version__
+from gdot_earthwork import calibration as calib
 from gdot_earthwork.export import annotated_pdf
 from gdot_earthwork.plan_set import ZERO_REASONS, PlanSetResult, process_plan_set
 from gdot_earthwork.sides import current_sides, polygon_sides, removal_sides, road_side_volumes
@@ -83,6 +85,7 @@ class Job:
     payload: dict | None = None
     pdf_path: str | None = None       # the upload, kept while the job lives
     pages: dict = field(default_factory=dict)   # rendered sheet images, page -> PNG (a few kept)
+    calibration: dict | None = None             # the calibration response, built once
 
 
 JOBS: dict[str, Job] = {}
@@ -447,6 +450,24 @@ def page_sections(job_id: str, n: int):
         })
     return JSONResponse({"page": n, "size": size, "image": f"/api/jobs/{job.id}/pages/{n}.png", "sections": out},
                         headers={"Cache-Control": "private, max-age=86400"})
+
+
+@app.get("/api/jobs/{job_id}/calibration")
+def calibration(job_id: str):
+    """Feet-to-pixel calibration for every sheet of the plan set, and the cut /
+    fill areas found on each as page-space shapes (see gdot_earthwork.calibration
+    for the format). Built once per job: scale notes on scanned sheets are read
+    by OCR, which takes a few seconds."""
+    job = _job(job_id)
+    if job.status != "done" or job.result is None:
+        raise HTTPException(409, "Job is not finished.")
+    if job.calibration is None:
+        if not job.pdf_path or not os.path.exists(job.pdf_path):
+            raise HTTPException(410, "The original PDF is no longer available for this job.")
+        roads = {r["id"]: r["label"] for r in job.payload["roads"]}
+        labels = {s["id"]: roads.get(s["road"]) for s in job.payload["sections"]}
+        job.calibration = calib.build(job.result, job.pdf_path, job.filename, labels)
+    return job.calibration
 
 
 MAX_AREA_FT2 = 1e6

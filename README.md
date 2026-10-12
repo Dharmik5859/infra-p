@@ -96,6 +96,16 @@ A dashboard with a sidebar (Dashboard · New takeoff · Results · Accuracy) and
 * **Results** – roads (toggle which count toward the total), the cut/fill profile with
   mass curve, every cross-section with its audit overlay (← / → to step), the volume table,
   sections that need review, CSV export, and a switch between subgrade and finished grade.
+* **Calibration** – upload a whole plan set and press **Analyze**: the feet-to-pixel scale of
+  every sheet comes back as JSON (shown in a scrollable viewer with copy / download, and how
+  to call it from cURL, Python or JavaScript underneath). Each sheet's scale is measured from
+  its cross-section grid, or read from a scale note printed on it (1" = 20', HORIZ / VERT),
+  or from the document's scale note (often on the first page); pixels are PDF points as
+  displayed, i.e. a PDF viewer at 100 %. Every calibration follows the app's format
+  (`pixelLengthX/Y` = `realWorldLengthX/Y` ft, `scaleX/Y` ft per pixel), and the response
+  also lists every cut / fill area as a shape (`points` offsets from `position2D`, `side`,
+  `stationId`, `stage`, `streetName`, `areaSqFt`). On SR 70 the measured grid gives
+  36.00 px per 10 ft, exactly its printed 1" = 20'.
 * **Sheet view** – the results open on the whole sheet of the original PDF with every
   measured cross-section outlined, its cut / fill shaded and its station, fill and cut
   labelled. Click a section to select it (zoom with the wheel, drag to move, *Whole sheet* /
@@ -206,6 +216,7 @@ Writes `sections.csv`, `volumes.csv` and one overlay PNG per section.
 | `GET` | `/api/jobs/{id}/sections/{n}.png` | audit overlay of one section |
 | `GET` | `/api/jobs/{id}/sections/{n}/profile.json` | the section's traced lines in image pixels (the app shades fill/cut from them, following edits) |
 | `GET` | `/api/jobs/{id}/volumes.csv?surface=subgrade&exclude=r2` | volumes per road |
+| `GET` | `/api/jobs/{id}/calibration` | feet-to-pixel calibration of every sheet (grid, sheet note or document note) and the cut / fill areas as page-space shapes |
 | `GET` | `/api/jobs/{id}/pages/{n}.png` | a whole sheet of the original PDF, as an image |
 | `GET` | `/api/jobs/{id}/pages/{n}.json` | the measured sections on that sheet (frame, traced lines) in its coordinates |
 | `GET` | `/api/jobs/{id}/sections.csv` | areas per section, both surfaces, with left / right fill and cut and how the centreline was found (notes hand edits) |

@@ -303,3 +303,31 @@ def test_volumes_split_left_and_right(tmp_path):
             assert abs(lf + rf - f) <= 0.2 and abs(lc + rc - c) <= 0.2      # the two sides make the road total
             assert lf > 0 and rf > 0                                       # embankments straddle the centreline
     assert client.get(f"/api/jobs/{job_id}/annotated.pdf").status_code == 200
+
+
+def test_calibration_response(tmp_path):
+    from gdot_earthwork.calibration import parse_scale_notes
+    client = TestClient(main.app)
+    job_id, result = _finished_job(tmp_path, client)
+    body = client.get(f"/api/jobs/{job_id}/calibration").json()
+    assert body["document"]["sections"] == result["summary"]["sections"]
+    cal = {c["pageNumber"]: c for c in body["calibrations"]}
+    assert set(cal) == {s["page"] for s in result["sections"]}
+    for c in cal.values():
+        assert c["mode"] == "single" and c["unit"] == "feet" and c["source"] == "grid"
+        assert c["realWorldLengthX"] == 10 and abs(c["scaleX"] * c["pixelLengthX"] - 10) < 1e-6
+        # the synthetic sheets are drawn at a known scale: PT_PER_FT points per foot
+        from tests.synth import PT_PER_FT
+        assert abs(c["pixelLengthX"] - 10 * PT_PER_FT) < 0.02 * 10 * PT_PER_FT
+    # shapes: offsets from their top-left, adding up to each section's fill and cut
+    for sh in body["shapes"]:
+        xs, ys = sh["points"][0::2], sh["points"][1::2]
+        assert min(xs) == 0 and min(ys) == 0 and len(sh["points"]) >= 6
+        assert sh["crossSectionType"] in ("cut", "fill") and sh["side"] in ("left", "right")
+    for s in result["sections"]:
+        sf = result["summary"]["design_surface"]
+        got = sum(sh["areaSqFt"] for sh in body["shapes"] if sh["stationId"] == s["station"] and sh["crossSectionType"] == "fill")
+        assert abs(got - s["areas"][sf]["fill_ft2"]) <= max(1.0, 0.03 * s["areas"][sf]["fill_ft2"])
+    # scale notes as plans print them
+    notes = parse_scale_notes("HORIZ. 1\" = 20'  VERT. 1\" = 5'  SCALE: 1\"=50'-0\"")
+    assert [(n["axis"], n["feet_per_inch"]) for n in notes] == [("x", 20), ("y", 5), ("xy", 50)]
