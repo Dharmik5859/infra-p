@@ -67,13 +67,33 @@ def markup_areas(doc, sec) -> tuple[float, float] | None:
     if sec.rotation:      # the page was read turned; turn the markup the same way
         rgb, alpha = np.rot90(rgb, sec.rotation), np.rot90(alpha, sec.rotation)
     top, bottom, left, right = sec.bbox
-    hsv = cv2.cvtColor(np.ascontiguousarray(rgb[top:bottom, left:right]), cv2.COLOR_RGB2HSV)
-    h, s, v = hsv[..., 0], hsv[..., 1], hsv[..., 2]
-    on = alpha[top:bottom, left:right] > 30
-    red = on & (s > 60) & (v > 80) & ((h < 10) | (h > 165))
-    green = on & (s > 40) & (v > 60) & (h >= 35) & (h <= 100)
+    fill_px, cut_px = label_pixels(rgb[top:bottom, left:right], alpha[top:bottom, left:right])
     px = sec.px_per_ft[0] * sec.px_per_ft[1]
-    return float(green.sum() / px), float(red.sum() / px)
+    return float(fill_px / px), float(cut_px / px)
+
+
+def label_pixels(rgb, alpha) -> tuple[float, float]:
+    """Fill (green) and cut (red) area of an estimator's markup, in pixels.
+
+    Each shaded shape is drawn with a dark outline of its own colour, centred
+    on the shape's edge, so the shape's true area is its bright interior plus
+    half its outline. Outlines are told apart by hue alone; orange / brown
+    lines and other notes the estimator draws are neither red nor green and
+    are not counted."""
+    hsv = cv2.cvtColor(np.ascontiguousarray(rgb), cv2.COLOR_RGB2HSV)
+    h, s, v = hsv[..., 0], hsv[..., 1], hsv[..., 2]
+    on = alpha > 30
+    red_hue = (h < 5) | (h > 170)          # the orange corner brackets (h ~8) are not cut
+    green_hue = (h >= 35) & (h <= 100)
+    red = on & (s > 60) & (v > 80) & red_hue
+    green = on & (s > 40) & (v > 60) & green_hue
+    # outline: coloured but darker or duller than the interior, touching it
+    near_red = cv2.dilate(red.astype(np.uint8), np.ones((5, 5), np.uint8)) > 0
+    near_green = cv2.dilate(green.astype(np.uint8), np.ones((5, 5), np.uint8)) > 0
+    edge = on & ~red & ~green & (s > 25)
+    red_edge = edge & red_hue & near_red
+    green_edge = edge & green_hue & near_green
+    return green.sum() + 0.5 * green_edge.sum(), red.sum() + 0.5 * red_edge.sum()
 
 
 # ------------------------------------------------------------------ stats
