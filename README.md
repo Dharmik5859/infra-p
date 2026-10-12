@@ -96,6 +96,12 @@ A dashboard with a sidebar (Dashboard · New takeoff · Results · Accuracy) and
 * **Results** – roads (toggle which count toward the total), the cut/fill profile with
   mass curve, every cross-section with its audit overlay (← / → to step), the volume table,
   sections that need review, CSV export, and a switch between subgrade and finished grade.
+* **Sheet view** – the results open on the whole sheet of the original PDF with every
+  measured cross-section outlined, its cut / fill shaded and its station, fill and cut
+  labelled. Click a section to select it (zoom with the wheel, drag to move, *Whole sheet* /
+  *This section*). **All values** opens a table of every section's fill, cut, net and left /
+  right split (sortable, searchable, with totals); picking a row, a chart bar or ← / → moves
+  the view to that sheet and zooms onto the section. *Section* shows one section close up.
 * **Left / right of the centreline** – every section's fill and cut are also split at the
   centreline (offset 0): left fill, left cut, right fill, right cut, in the section viewer,
   the edit dialog, the *Edit areas* table, the sections CSV and on the annotated PDF. The
@@ -196,6 +202,8 @@ Writes `sections.csv`, `volumes.csv` and one overlay PNG per section.
 | `GET` | `/api/jobs/{id}/sections/{n}.png` | audit overlay of one section |
 | `GET` | `/api/jobs/{id}/sections/{n}/profile.json` | the section's traced lines in image pixels (the app shades fill/cut from them, following edits) |
 | `GET` | `/api/jobs/{id}/volumes.csv?surface=subgrade&exclude=r2` | volumes per road |
+| `GET` | `/api/jobs/{id}/pages/{n}.png` | a whole sheet of the original PDF, as an image |
+| `GET` | `/api/jobs/{id}/pages/{n}.json` | the measured sections on that sheet (frame, traced lines) in its coordinates |
 | `GET` | `/api/jobs/{id}/sections.csv` | areas per section, both surfaces, with left / right fill and cut and how the centreline was found (notes hand edits) |
 | `GET` | `/api/jobs/{id}/annotated.pdf?surface=&exclude=` | the original PDF, every page unchanged, with cut/fill shading and areas (edits included) drawn on each section, plus summary pages |
 | `PUT` | `/api/jobs/{id}/edits` | save hand-edited areas `{"surface": "subgrade", "edits": {"12": {"fill_ft2": 40, "cut_ft2": 3}, "13": null}}` (`null` = back to measured; an edit may carry `"marks": [{"kind": "fill", "pts": [[x, y], …]}]`, areas outlined on the section image); volumes are recomputed and the updated result returned |

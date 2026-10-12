@@ -279,7 +279,8 @@ export default function Results({ result, onResult }) {
         )}
 
         {section && (
-          <SectionViewer section={section} surface={surface} position={pos} count={roadSections.length}
+          <SectionViewer jobId={result.job_id} section={section} sections={sections} roads={roads} onSelect={selectSection}
+            surface={surface} position={pos} count={roadSections.length}
             onOpenEdit={() => setEditing(section.id)} onReset={() => resetArea(section.id)}
             onPrev={pos > 0 ? () => setSectionId(roadSections[pos - 1].id) : null}
             onNext={pos >= 0 && pos < roadSections.length - 1 ? () => setSectionId(roadSections[pos + 1].id) : null} />

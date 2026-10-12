@@ -116,6 +116,9 @@ export function getProfile(path) {
   return profiles.get(path);
 }
 
+/** A sheet's measured sections, in the sheet image's coordinates (cached). */
+export const getSheet = (jobId, page) => getProfile(`/api/jobs/${jobId}/pages/${page}.json`);
+
 export function assetUrl(path) {
   return `${BASE}${path}`;
 }

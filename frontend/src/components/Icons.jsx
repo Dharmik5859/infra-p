@@ -41,6 +41,19 @@ export const IconArrow = (p) => (
   <svg {...base} {...p}><path d="M5 12h14M13 6l6 6-6 6" /></svg>
 );
 
+export const IconTable = (p) => (
+  <svg {...base} {...p}><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 9h18M3 14h18M9 9v11M15 9v11" /></svg>
+);
+export const IconSheet = (p) => (
+  <svg {...base} {...p}><path d="M6 3h9l4 4v14H6z" /><path d="M15 3v4h4" /><rect x="8.5" y="10" width="8" height="3" rx="0.5" /><rect x="8.5" y="15" width="8" height="3" rx="0.5" /></svg>
+);
+export const IconSection = (p) => (
+  <svg {...base} {...p}><path d="M3 15c3-1 4-4 9-4s6 3 9 4" /><path d="M7 15l2-3h6l2 3" /><path d="M3 19h18" /></svg>
+);
+export const IconClose = (p) => (
+  <svg {...base} {...p}><path d="M6 6l12 12M18 6L6 18" /></svg>
+);
+
 export function Logo({ size = 30 }) {
   // a terrain profile over a cut/fill base line, in the four brand colours
   return (
