@@ -44,6 +44,7 @@ from fastapi.staticfiles import StaticFiles
 from gdot_earthwork import __version__
 from gdot_earthwork.export import annotated_pdf
 from gdot_earthwork.plan_set import ZERO_REASONS, PlanSetResult, process_plan_set
+from gdot_earthwork.sides import current_sides, polygon_sides, removal_sides
 from gdot_earthwork.volume import average_end_area_volume
 
 JOB_TTL_SECONDS = int(os.environ.get("JOB_TTL_SECONDS", 6 * 3600))
@@ -143,6 +144,13 @@ def serialize(job: Job, res: PlanSetResult) -> dict:
         "measured": areas(s),            # as traced from the drawing, never changed
         "marks": {res.design_surface: [], alt_surface: []},   # areas the user outlined on the image
         "zero_reason": s.zero_reason,
+        # left / right of the centreline, as traced; marks carry their own split
+        "sides_measured": {sf: s.sides[sf] for sf in (res.design_surface, alt_surface)} if s.sides else None,
+        "centreline": {
+            "source": s.centre_source,
+            "x": round(s.centre_ft * s.overlay_px_per_ft, 1)          # in the section image's pixels
+            if s.centre_ft is not None and s.overlay_px_per_ft else None,
+        },
         "method": s.method,
         "page_kind": s.page_kind,
         "road": road_of.get(i),
@@ -387,12 +395,22 @@ def _area(v) -> float:
 
 
 MAX_MARKS, MAX_MARK_POINTS = 50, 500
+CENTRE_TEXT = {"text": "read from the drawing", "scan": "read from the scan", "neighbour": "from the neighbouring section",
+               "assumed": "assumed at grid middle"}
+
+
+def section_sides(sec: dict, surface: str) -> dict | None:
+    """Left / right fill and cut of a section (API payload) for the areas in use."""
+    if not sec.get("sides_measured"):
+        return None
+    return current_sides(sec["sides_measured"][surface], sec["measured"][surface], sec["areas"][surface],
+                         sec.get("marks", {}).get(surface, []))
 
 
 MARK_KINDS = ("fill", "cut", "remove_fill", "remove_cut")
 
 
-def _marks(val, sec, measured: dict) -> list[dict]:
+def _marks(val, sec, measured: dict, surface: str) -> list[dict]:
     """Areas the user outlined on the section image: [{kind, pts}], pts in
     image pixels. fill / cut add the outlined area (measured here from the
     image scale); remove_fill / remove_cut take away the traced area inside
@@ -418,12 +436,17 @@ def _marks(val, sec, measured: dict) -> list[dict]:
         a = 0.0
         for (x1, y1), (x2, y2) in zip(clean, clean[1:] + clean[:1]):
             a += x1 * y2 - x2 * y1
+        cx = sec.centre_ft * ppf if sec.centre_ft is not None else w / 2
         if m["kind"].startswith("remove_"):
             base = m["kind"][len("remove_"):]
             ft2 = min(_area(m.get("ft2")), measured[f"{base}_ft2"])
+            sl, sr = removal_sides(prof, surface, base, clean, cx)
+            left, right = ft2 * sl, ft2 * sr
         else:
             ft2 = abs(a) / 2 / ppf ** 2
-        out.append({"kind": m["kind"], "pts": clean, "ft2": _round(ft2, 2)})
+            left, right = (v / ppf ** 2 for v in polygon_sides(clean, cx))
+        out.append({"kind": m["kind"], "pts": clean, "ft2": _round(ft2, 2),
+                    "sides": {"left": _round(left, 2), "right": _round(right, 2)}})
     for kind in ("fill", "cut"):
         if sum(m["ft2"] for m in out if m["kind"] == f"remove_{kind}") > measured[f"{kind}_ft2"] + 0.05:
             raise HTTPException(400, f"Removed {kind} is more than the measured {kind}.")
@@ -486,7 +509,7 @@ def save_edits(job_id: str, body: dict = Body(...)):
         elif isinstance(val, dict):
             parsed[i] = {"fill_ft2": _area(val.get("fill_ft2")), "cut_ft2": _area(val.get("cut_ft2")),
                          "marks": _marks(val.get("marks"), job.result.sections[i],
-                                         job.payload["sections"][i]["measured"][surface])}
+                                         job.payload["sections"][i]["measured"][surface], surface)}
         else:
             raise HTTPException(400, f"Section {key}: expected {{fill_ft2, cut_ft2}} or null.")
     with LOCK:
@@ -551,14 +574,24 @@ def sections_csv(job_id: str):
     a, b = job.payload["summary"]["surfaces"]
     edits = job.payload["edits"]
     rows = [["Page", "Station", "Station source", "Road",
-             f"Fill to {a} (sq ft)", f"Cut to {a} (sq ft)", f"Fill to {b} (sq ft)", f"Cut to {b} (sq ft)",
-             "Edited by hand", "Method", "Warnings"]]
+             f"Fill to {a} (sq ft)", f"Cut to {a} (sq ft)",
+             f"Left fill to {a} (sq ft)", f"Left cut to {a} (sq ft)",
+             f"Right fill to {a} (sq ft)", f"Right cut to {a} (sq ft)",
+             f"Fill to {b} (sq ft)", f"Cut to {b} (sq ft)",
+             f"Left fill to {b} (sq ft)", f"Left cut to {b} (sq ft)",
+             f"Right fill to {b} (sq ft)", f"Right cut to {b} (sq ft)",
+             "Centreline", "Edited by hand", "Method", "Warnings"]]
     for s in job.payload["sections"]:
         edited = [sf for sf in (a, b) if str(s["id"]) in edits[sf]]
         note = "; ".join(f"{sf} (measured fill {s['measured'][sf]['fill_ft2']}, cut {s['measured'][sf]['cut_ft2']})"
                          for sf in edited)
+        def cells(sf):
+            out, sd = [s["areas"][sf]["fill_ft2"], s["areas"][sf]["cut_ft2"]], section_sides(s, sf)
+            for side in ("left", "right"):
+                out += [sd[side]["fill_ft2"], sd[side]["cut_ft2"]] if sd else ["", ""]
+            return out
         rows.append([s["page"], s["station"] or "", s["label_source"] or "", roads.get(s["road"], ""),
-                     s["areas"][a]["fill_ft2"], s["areas"][a]["cut_ft2"], s["areas"][b]["fill_ft2"], s["areas"][b]["cut_ft2"],
+                     *cells(a), *cells(b), CENTRE_TEXT.get(s["centreline"]["source"], ""),
                      note, s["method"], " | ".join(s["warnings"])])
     return _csv(rows, f"{os.path.splitext(job.filename)[0]}-sections.csv")
 

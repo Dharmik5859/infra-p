@@ -104,6 +104,22 @@ def measure(s: Surfaces, surface: str = "subgrade") -> Area:
     return Area(float(d[d > 0].sum() * col_ft), float(-d[d < 0].sum() * col_ft))
 
 
+def area_strips(s: Surfaces, surface: str = "subgrade") -> tuple[np.ndarray, np.ndarray]:
+    """Fill and cut area (ft²) in each 1 ft wide strip across the section,
+    counted from the frame's left edge -- the same column integration as
+    `measure`, so the strips add up to its totals. Splitting them at the
+    centreline gives the left and right areas."""
+    top = s.surface(surface)
+    n = int(np.ceil(s.width / CANON_PPF))
+    ov = ~np.isnan(s.ground) & ~np.isnan(top)
+    if not ov.any():
+        return np.zeros(n), np.zeros(n)
+    cols = np.where(ov)[0]
+    d = (s.ground[cols] - top[cols]) / CANON_PPF / CANON_PPF     # ft² in each column, +ve = fill
+    strip = (cols // CANON_PPF).astype(int)
+    return (np.bincount(strip, np.where(d > 0, d, 0), n), np.bincount(strip, np.where(d < 0, -d, 0), n))
+
+
 # Design lines are solid: a stretch with no ink this long is a real break
 # (bridge end, drawing break), not a dash gap, and is never bridged.
 DESIGN_SPLIT_FT = 5.0

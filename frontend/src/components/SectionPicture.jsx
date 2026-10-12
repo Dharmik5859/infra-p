@@ -69,21 +69,42 @@ function spansAt(poly, x) {
 
 /**
  * Share of the traced fill (or cut) that lies inside a polygon, column by
- * column -- the same way areas are measured. Removing that share takes the
- * matching part of the measured area away.
+ * column -- the same way areas are measured -- and how that part divides
+ * left / right of the centreline (image x = cx). Removing it takes the
+ * matching part of the measured area away, from the side it lies on.
  */
-export function shareInside(prof, surface, kind, poly) {
+export function shareInside(prof, surface, kind, poly, cx) {
   const { x, ground: g } = prof;
   const t = prof[surface] || prof.finished;
-  let total = 0, inside = 0;
+  let total = 0;
+  const inside = [0, 0];
   for (let i = 0; i < x.length; i++) {
     if (g[i] == null || t[i] == null) continue;
     const [a, b] = kind === 'fill' ? [t[i], g[i]] : [g[i], t[i]];
     if (b - a <= 0.05) continue;
     total += b - a;
-    for (const [c, d] of spansAt(poly, x[i])) inside += Math.max(0, Math.min(b, d) - Math.max(a, c));
+    for (const [c, d] of spansAt(poly, x[i])) inside[x[i] < cx ? 0 : 1] += Math.max(0, Math.min(b, d) - Math.max(a, c));
   }
-  return total > 0 ? Math.min(1, inside / total) : 0;
+  const all = inside[0] + inside[1];
+  return {
+    share: total > 0 ? Math.min(1, all / total) : 0,
+    left: all > 0 ? inside[0] / all : 0.5,
+    right: all > 0 ? inside[1] / all : 0.5,
+  };
+}
+
+/** The centreline (offset 0) drawn on the section image, with the sides named. */
+export function Centreline({ x, height, scale = 1 }) {
+  if (x == null) return null;
+  const fs = 13 * scale;
+  return (
+    <g className="centreline" aria-hidden="true">
+      <line x1={x} x2={x} y1={0} y2={height} />
+      <text x={x} y={fs * 1.2} textAnchor="middle" className="cl" style={{ fontSize: fs }}>CL</text>
+      <text x={x - fs * 0.5} y={fs * 2.5} textAnchor="end" style={{ fontSize: fs * 0.85 }}>← LEFT</text>
+      <text x={x + fs * 0.5} y={fs * 2.5} textAnchor="start" style={{ fontSize: fs * 0.85 }}>RIGHT →</text>
+    </g>
+  );
 }
 
 /** A section's traced lines in its image's pixels, or null while loading. */
@@ -168,6 +189,7 @@ export default function SectionPicture({ section: s, surface, alt }) {
         {prof && (
           <svg className="pic-shade" viewBox={`0 0 ${prof.size[0]} ${prof.size[1]}`} preserveAspectRatio="none" aria-hidden="true">
             <Shading prof={prof} surface={surface} fill={s.fill_ft2} cut={s.cut_ft2} measured={measured} marks={s.marks || []} />
+            <Centreline x={s.centreline?.x} height={prof.size[1]} scale={prof.size[0] / 900} />
           </svg>
         )}
       </div>

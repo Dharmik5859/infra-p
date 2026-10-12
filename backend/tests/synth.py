@@ -40,6 +40,20 @@ def true_areas(spec: SectionSpec) -> tuple[float, float]:
     return float(np.clip(d, 0, None).sum() * dx), float(np.clip(-d, 0, None).sum() * dx)
 
 
+def true_side_areas(spec: SectionSpec) -> dict:
+    """Exact fill and cut (ft^2) left (offset < 0) and right of the centreline."""
+    x0 = max(spec.ground[0][0], spec.design[0][0])
+    x1 = min(spec.ground[-1][0], spec.design[-1][0])
+    x = np.linspace(x0, x1, 200001)
+    d = _interp(spec.design, x) - _interp(spec.ground, x)
+    dx = x[1] - x[0]
+    out = {}
+    for side, keep in (("left", x < 0), ("right", x >= 0)):
+        out[side] = {"fill_ft2": float(np.clip(d[keep], 0, None).sum() * dx),
+                     "cut_ft2": float(np.clip(-d[keep], 0, None).sum() * dx)}
+    return out
+
+
 def embankment(station: str, ground_elev: float, height: float, top_half: float = 18.0,
                slope: float = 2.0, tilt: float = 0.0) -> SectionSpec:
     """A road on fill: flat-ish ground, template with 2:1 side slopes."""

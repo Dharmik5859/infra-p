@@ -96,6 +96,16 @@ A dashboard with a sidebar (Dashboard · New takeoff · Results · Accuracy) and
 * **Results** – roads (toggle which count toward the total), the cut/fill profile with
   mass curve, every cross-section with its audit overlay (← / → to step), the volume table,
   sections that need review, CSV export, and a switch between subgrade and finished grade.
+* **Left / right of the centreline** – every section's fill and cut are also split at the
+  centreline (offset 0): left fill, left cut, right fill, right cut, in the section viewer,
+  the edit dialog, the *Edit areas* table, the sections CSV and on the annotated PDF. The
+  centreline is read from the section's own offset-axis labels (the PDF text on CAD sheets;
+  on scans from the labels' widths -- "0" is one digit, 10-90 two, 100+ three -- with OCR as
+  a fallback), drawn on the picture as **CL**. Checked on the 19-series against its CAD
+  drawing: the centreline matched on all 75 sections read, and the side totals agree within
+  1-3 % (left cut, a small total, 9 %). Where an axis cannot be read the neighbouring
+  section's centreline is used and the section is flagged. Edits keep their side: an
+  outlined area is split at the centreline, a removed area comes off the side it lies on.
 * **Editing areas** – **Edit** on any section opens it large: type the fill and cut, or
   click points around an area on the drawing (finish by clicking the first point again,
   double-clicking or pressing Enter) and press **Fill** or **Cut** to add it, or
@@ -186,7 +196,7 @@ Writes `sections.csv`, `volumes.csv` and one overlay PNG per section.
 | `GET` | `/api/jobs/{id}/sections/{n}.png` | audit overlay of one section |
 | `GET` | `/api/jobs/{id}/sections/{n}/profile.json` | the section's traced lines in image pixels (the app shades fill/cut from them, following edits) |
 | `GET` | `/api/jobs/{id}/volumes.csv?surface=subgrade&exclude=r2` | volumes per road |
-| `GET` | `/api/jobs/{id}/sections.csv` | areas per section, both surfaces (notes hand edits) |
+| `GET` | `/api/jobs/{id}/sections.csv` | areas per section, both surfaces, with left / right fill and cut and how the centreline was found (notes hand edits) |
 | `GET` | `/api/jobs/{id}/annotated.pdf?surface=&exclude=` | the original PDF, every page unchanged, with cut/fill shading and areas (edits included) drawn on each section, plus summary pages |
 | `PUT` | `/api/jobs/{id}/edits` | save hand-edited areas `{"surface": "subgrade", "edits": {"12": {"fill_ft2": 40, "cut_ft2": 3}, "13": null}}` (`null` = back to measured; an edit may carry `"marks": [{"kind": "fill", "pts": [[x, y], …]}]`, areas outlined on the section image); volumes are recomputed and the updated result returned |
 

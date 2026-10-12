@@ -46,6 +46,7 @@ export default function AreaEditor({ sections, selectedId, onSelect, onEdit, onR
               <th>Station</th><th>Page</th>
               <th>Fill (ft²)</th><th>Measured</th>
               <th>Cut (ft²)</th><th>Measured</th>
+              <th>Left fill / cut</th><th>Right fill / cut</th>
               <th>Net (ft²)</th><th />
             </tr>
           </thead>
@@ -61,6 +62,8 @@ export default function AreaEditor({ sections, selectedId, onSelect, onEdit, onR
                 <td><AreaInput value={s.cut_ft2} tone="cut" label={`Cut at ${s.station || `page ${s.page}`}`}
                   onChange={(v) => onEdit(s.id, { fill_ft2: s.fill_ft2, cut_ft2: v })} /></td>
                 <td className="num muted">{ft2(s.measured.cut_ft2)}</td>
+                <td className="num side-cell">{s.sides ? <><span className="fill-text">{ft2(s.sides.left.fill_ft2)}</span> / <span className="cut-text">{ft2(s.sides.left.cut_ft2)}</span></> : '—'}</td>
+                <td className="num side-cell">{s.sides ? <><span className="fill-text">{ft2(s.sides.right.fill_ft2)}</span> / <span className="cut-text">{ft2(s.sides.right.cut_ft2)}</span></> : '—'}</td>
                 <td className="num">{ft2(s.net_ft2)}</td>
                 <td>
                   <div className="row-actions">
