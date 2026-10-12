@@ -29,10 +29,10 @@ import pymupdf as fitz
 from .config import PipelineConfig, get_config
 from .frames import find_frames, label_frames
 from .pages import could_hold_sections, load_page, sideways_labels
-from .render import encode_png, overlay
+from .render import encode_png, overlay, overlay_scale
 from .roads import Road, StationEntry, group_into_roads
 from .stations import StationRead, repair
-from .surfaces import Surfaces, _canon_size, measure, raster_surfaces, vector_surfaces
+from .surfaces import CANON_PPF, Surfaces, _canon_size, measure, raster_surfaces, vector_surfaces
 from .volume import RoadVolumeResult, average_end_area_volume
 
 
@@ -56,6 +56,7 @@ class SectionResult:
     rotation: int                      # quarter turns the page was read at (np.rot90 k)
     warnings: list[str] = field(default_factory=list)
     overlay_png: bytes | None = None
+    overlay_px_per_ft: float | None = None  # overlay image pixels per ft (both axes), for marking areas on it
     geometry: dict | None = None       # page-space outline + traced lines, for the annotated PDF
     zero_reason: str | None = None     # why a section has no earthwork (see ZERO_REASONS)
 
@@ -172,7 +173,8 @@ def _measure_page(pdf_path: str, index: int, cfg: PipelineConfig, overlays: bool
                 alt_fill_ft2=round(alt.fill_ft2, 2), alt_cut_ft2=round(alt.cut_ft2, 2),
                 bbox=(f.top, f.bottom, f.left, f.right), page_kind=img.kind,
                 px_per_ft=(f.pitch_x / cfg.grid_ft, f.pitch_y / cfg.grid_ft), rotation=img.rot,
-                warnings=warnings, overlay_png=png, geometry=_geometry(surf, f, img, cfg),
+                warnings=warnings, overlay_png=png,
+                overlay_px_per_ft=round(CANON_PPF * overlay_scale(surf), 4) if png else None, geometry=_geometry(surf, f, img, cfg),
                 zero_reason=_zero_reason(surf, area),
             ))
         return out

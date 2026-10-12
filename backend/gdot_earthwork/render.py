@@ -14,6 +14,11 @@ from .pages import PageImage
 from .surfaces import Surfaces
 
 
+def overlay_scale(s: Surfaces, max_width: int = 1800) -> float:
+    """How much `overlay` shrinks the canonical frame (1 = not at all)."""
+    return min(1.0, max_width / s.width) if s.width else 1.0
+
+
 def overlay(s: Surfaces, frame: Frame, img: PageImage, cfg: PipelineConfig,
             max_width: int = 1800, surface: str = "subgrade") -> np.ndarray:
     gray = img.gray[frame.y0:frame.y1 + 1, frame.left:frame.right + 1]
@@ -54,8 +59,8 @@ def overlay(s: Surfaces, frame: Frame, img: PageImage, cfg: PipelineConfig,
         # subgrade only where it departs from finished grade (under pavement)
         sub = np.where(np.abs(s.subgrade - s.design) > 2, s.subgrade, np.nan)
         poly(sub, cfg.subgrade_line_bgr)
-    if out.shape[1] > max_width:
-        f = max_width / out.shape[1]
+    f = overlay_scale(s, max_width)
+    if f < 1:
         out = cv2.resize(out, None, fx=f, fy=f, interpolation=cv2.INTER_AREA)
     return out
 

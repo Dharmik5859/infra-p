@@ -146,6 +146,7 @@ def serialize(job: Job, res: PlanSetResult) -> dict:
         "road": road_of.get(i),
         "warnings": s.warnings,
         "overlay": f"/api/jobs/{job.id}/sections/{i}.png" if s.overlay_png else None,
+        "overlay_px_per_ft": s.overlay_px_per_ft,
     } for i, s in enumerate(res.sections)]
     return {
         "job_id": job.id,
