@@ -122,6 +122,12 @@ def _geometry(surf: Surfaces, f, img, cfg: PipelineConfig) -> dict | None:
     return {
         # top-left, top-right, bottom-left of the frame, as drawn on the sheet
         "frame": [corner(f.left, f.top), corner(f.right, f.top), corner(f.left, f.bottom)],
+        # the same corners of the section image (overlay), so areas the user
+        # marks on it can be drawn on the page: image (u, v) in 0..1 maps to
+        # canvas[0] + u (canvas[1] - canvas[0]) + v (canvas[2] - canvas[0])
+        "canvas": [corner(f.left, f.y0), corner(f.left + surf.width / sx, f.y0),
+                   corner(f.left, f.y0 + surf.height / sy)],
+        "image_size": [round(surf.width * overlay_scale(surf)), round(surf.height * overlay_scale(surf))],
         "ground": line(surf.ground),
         "finished": line(surf.design),
         "subgrade": line(surf.surface("subgrade")),

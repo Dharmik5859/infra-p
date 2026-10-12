@@ -141,6 +141,7 @@ def serialize(job: Job, res: PlanSetResult) -> dict:
         "label_source": s.label_source,
         "areas": areas(s),               # what volumes use: measured, or the user's edit
         "measured": areas(s),            # as traced from the drawing, never changed
+        "marks": {res.design_surface: [], alt_surface: []},   # areas the user outlined on the image
         "zero_reason": s.zero_reason,
         "method": s.method,
         "page_kind": s.page_kind,
@@ -385,6 +386,36 @@ def _area(v) -> float:
     return _round(v, 2)
 
 
+MAX_MARKS, MAX_MARK_POINTS = 50, 500
+
+
+def _marks(val, sec) -> list[dict]:
+    """Areas the user outlined on the section image: [{kind, pts}], pts in
+    image pixels. Each gets its area in ft² from the image scale."""
+    if val is None:
+        return []
+    ppf, prof = sec.overlay_px_per_ft, sec.profile
+    if not isinstance(val, list) or len(val) > MAX_MARKS or not ppf or not prof:
+        raise HTTPException(400, f"marks must be a list of at most {MAX_MARKS} outlined areas.")
+    w, h = prof["size"]
+    out = []
+    for m in val:
+        pts = m.get("pts") if isinstance(m, dict) else None
+        if m.get("kind") not in ("fill", "cut") or not isinstance(pts, list) or not 3 <= len(pts) <= MAX_MARK_POINTS:
+            raise HTTPException(400, f"Each mark needs kind fill|cut and 3 to {MAX_MARK_POINTS} points.")
+        clean = []
+        for p in pts:
+            if (not isinstance(p, list) or len(p) != 2
+                    or not all(isinstance(c, (int, float)) and not isinstance(c, bool) and math.isfinite(c) for c in p)):
+                raise HTTPException(400, "Mark points must be [x, y] pixel pairs.")
+            clean.append([round(min(max(p[0], 0), w), 1), round(min(max(p[1], 0), h), 1)])
+        a = 0.0
+        for (x1, y1), (x2, y2) in zip(clean, clean[1:] + clean[:1]):
+            a += x1 * y2 - x2 * y1
+        out.append({"kind": m["kind"], "pts": clean, "ft2": _round(abs(a) / 2 / ppf ** 2, 2)})
+    return out
+
+
 def _recompute_volumes(payload: dict, surface: str) -> None:
     """Rebuild every road's average-end-area volumes for `surface` from the
     sections' current (possibly edited) areas."""
@@ -416,6 +447,9 @@ def _recompute_volumes(payload: dict, surface: str) -> None:
 def save_edits(job_id: str, body: dict = Body(...)):
     """Save hand-edited areas for one surface, e.g.
     {"surface": "subgrade", "edits": {"12": {"fill_ft2": 40.5, "cut_ft2": 3}, "13": null}}.
+    An edit may carry "marks": [{"kind": "fill"|"cut", "pts": [[x, y], ...]}],
+    areas outlined on the section image (pixels); they are kept, measured and
+    drawn on the annotated PDF. The fill/cut totals are what volumes use.
     null puts a section back to its measured areas. Road volumes for that
     surface are recomputed; the updated result is returned."""
     job = _job(job_id)
@@ -436,14 +470,17 @@ def save_edits(job_id: str, body: dict = Body(...)):
         if val is None:
             parsed[i] = None
         elif isinstance(val, dict):
-            parsed[i] = {"fill_ft2": _area(val.get("fill_ft2")), "cut_ft2": _area(val.get("cut_ft2"))}
+            parsed[i] = {"fill_ft2": _area(val.get("fill_ft2")), "cut_ft2": _area(val.get("cut_ft2")),
+                         "marks": _marks(val.get("marks"), job.result.sections[i])}
         else:
             raise HTTPException(400, f"Section {key}: expected {{fill_ft2, cut_ft2}} or null.")
     with LOCK:
         saved = job.payload["edits"][surface]
         for i, val in parsed.items():
             sec = job.payload["sections"][i]
-            if val is None or val == sec["measured"][surface]:
+            marks = val.pop("marks") if val else []
+            sec.setdefault("marks", {})[surface] = marks
+            if val is None or (val == sec["measured"][surface] and not marks):
                 saved.pop(str(i), None)
                 sec["areas"][surface] = dict(sec["measured"][surface])
             else:

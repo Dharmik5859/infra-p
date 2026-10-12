@@ -4,7 +4,7 @@ import { ft2 } from '../format';
 
 /**
  * Fill and cut zones between the existing ground and the proposed surface,
- * from the traced lines (overlay pixels). Each point keeps its depth d
+ * from the traced lines (image pixels). Each point keeps its depth d
  * (ground row minus surface row: + = fill), so a zone can be drawn at any
  * scale of that depth -- the same column-wise rule the areas are measured by.
  */
@@ -39,35 +39,74 @@ function zones(prof, surface) {
   return out;
 }
 
-const pt = (x, y) => `${x.toFixed(1)},${y.toFixed(1)}`;
+const pt = ([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`;
 
-/**
- * The section drawing with fill and cut shaded on top. The shading follows
- * the areas in use -- measured, or typed in by the user -- by stretching each
- * traced zone's depth in proportion, so the shaded area always matches the
- * numbers next to it.
- */
-export default function SectionPicture({ section: s, surface, alt }) {
+/** Area of a polygon of image pixels, in ft². */
+export function polygonFt2(pts, pxPerFt) {
+  let a = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const [x1, y1] = pts[i], [x2, y2] = pts[(i + 1) % pts.length];
+    a += x1 * y2 - x2 * y1;
+  }
+  return Math.abs(a) / 2 / (pxPerFt * pxPerFt);
+}
+
+const markSum = (marks, kind) => marks.filter((m) => m.kind === kind).reduce((n, m) => n + m.ft2, 0);
+
+/** A section's traced lines in its image's pixels, or null while loading. */
+export function useProfile(url) {
   const [prof, setProf] = useState(null);
   useEffect(() => {
     let live = true;
     setProf(null);
-    if (s.profile) getProfile(s.profile).then((p) => { if (live) setProf(p); }).catch(() => {});
+    if (url) getProfile(url).then((p) => { if (live) setProf(p); }).catch(() => {});
     return () => { live = false; };
-  }, [s.profile]);
+  }, [url]);
+  return prof;
+}
 
+/**
+ * Solid fill / cut shading for an SVG laid over the section image. The
+ * traced zones carry whatever the outlined areas (marks) don't: each zone's
+ * depth is stretched by (area − marked) / measured, so the shaded area always
+ * equals the numbers in use.
+ */
+export function Shading({ prof, surface, fill, cut, measured, marks = [], selected = -1, onMarkClick }) {
   const zs = useMemo(() => (prof ? zones(prof, surface) : []), [prof, surface]);
-  const m = s.measured || { fill_ft2: s.fill_ft2, cut_ft2: s.cut_ft2 };
   const k = {
-    fill: m.fill_ft2 > 0 ? s.fill_ft2 / m.fill_ft2 : 1,
-    cut: m.cut_ft2 > 0 ? s.cut_ft2 / m.cut_ft2 : 1,
+    fill: measured.fill_ft2 > 0 ? Math.max(0, fill - markSum(marks, 'fill')) / measured.fill_ft2 : 1,
+    cut: measured.cut_ft2 > 0 ? Math.max(0, cut - markSum(marks, 'cut')) / measured.cut_ft2 : 1,
   };
-  // areas typed in where the drawing has no zone of that kind to stretch
-  const unplaced = [
-    s.fill_ft2 > 0 && !(m.fill_ft2 > 0) && `fill ${ft2(s.fill_ft2)} ft²`,
-    s.cut_ft2 > 0 && !(m.cut_ft2 > 0) && `cut ${ft2(s.cut_ft2)} ft²`,
-  ].filter(Boolean);
+  return (
+    <>
+      {zs.map((z, i) => {
+        if (k[z.kind] === 0) return null;
+        const top = z.pts.map(([x, g, d]) => [x, g - d * k[z.kind]]);
+        return <polygon key={`z${i}`} className={`zone ${z.kind}`}
+          points={[...top, ...z.pts.slice().reverse()].map(pt).join(' ')} />;
+      })}
+      {marks.map((m, i) => (
+        <polygon key={`m${i}`} className={`zone mark ${m.kind} ${i === selected ? 'selected' : ''}`}
+          points={m.pts.map(pt).join(' ')}
+          onClick={onMarkClick ? (e) => { e.stopPropagation(); onMarkClick(i); } : undefined} />
+      ))}
+    </>
+  );
+}
 
+/** Fill / cut typed in where nothing on the drawing can be shaded for it. */
+export function unplacedText(fill, cut, measured, marks) {
+  const out = [];
+  if (fill - markSum(marks, 'fill') > 0.05 && !(measured.fill_ft2 > 0)) out.push(`fill ${ft2(fill - markSum(marks, 'fill'))} ft²`);
+  if (cut - markSum(marks, 'cut') > 0.05 && !(measured.cut_ft2 > 0)) out.push(`cut ${ft2(cut - markSum(marks, 'cut'))} ft²`);
+  return out.length ? `${out.join(' and ')} typed in with no such zone on the drawing to shade: counted, not drawn. Outline it with the area tool to show it.` : null;
+}
+
+/** The section drawing with fill and cut shaded from the areas in use. */
+export default function SectionPicture({ section: s, surface, alt }) {
+  const prof = useProfile(s.profile);
+  const measured = s.measured || { fill_ft2: s.fill_ft2, cut_ft2: s.cut_ft2 };
+  const note = unplacedText(s.fill_ft2, s.cut_ft2, measured, s.marks || []);
   return (
     <div className="viewer-img">
       <div className="pic-areas">
@@ -79,25 +118,11 @@ export default function SectionPicture({ section: s, surface, alt }) {
         <img src={assetUrl(s.overlay)} alt={alt} />
         {prof && (
           <svg className="pic-shade" viewBox={`0 0 ${prof.size[0]} ${prof.size[1]}`} preserveAspectRatio="none" aria-hidden="true">
-            {zs.map((z, i) => {
-              const top = z.pts.map(([x, g, d]) => [x, g - d * k[z.kind]]);
-              const poly = [...top.map(([x, y]) => pt(x, y)), ...z.pts.slice().reverse().map(([x, g]) => pt(x, g))].join(' ');
-              return (
-                <g key={i} className={`zone ${z.kind}`}>
-                  <polygon points={poly} />
-                  {s.edited && k[z.kind] !== 1 && <polyline points={top.map(([x, y]) => pt(x, y)).join(' ')} />}
-                </g>
-              );
-            })}
+            <Shading prof={prof} surface={surface} fill={s.fill_ft2} cut={s.cut_ft2} measured={measured} marks={s.marks || []} />
           </svg>
         )}
       </div>
-      {unplaced.length > 0 && (
-        <div className="pic-note">
-          Typed in: {unplaced.join(' and ')}. The drawing has no such zone at this station to shade, so it is counted
-          but not drawn.
-        </div>
-      )}
+      {note && <div className="pic-note">{note}</div>}
     </div>
   );
 }

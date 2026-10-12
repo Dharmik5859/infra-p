@@ -131,10 +131,13 @@ A dashboard with a sidebar (Dashboard · New takeoff · Results · Accuracy) and
 * **Results** – roads (toggle which count toward the total), the cut/fill profile with
   mass curve, every cross-section with its audit overlay (← / → to step), the volume table,
   sections that need review, CSV export, and a switch between subgrade and finished grade.
-* **Editing areas** – any section's fill and cut can be corrected, in the section viewer or
-  in the *Edit areas* table. The chart, mass curve, volumes and totals update as you type;
-  **Save changes** stores the edits on the server (volumes recomputed by average end area,
-  CSV exports and the PDF use them, and the measured values are kept so any edit can be reset).
+* **Editing areas** – **Edit** on any section opens it large: type the fill and cut, or
+  click points around an area on the drawing and press **Fill** or **Cut** (**Reset** goes
+  back to the measurement). The green / red shading on the picture follows every change,
+  and **Save** stores it. Areas can also be typed in the *Edit areas* table. The chart, mass
+  curve, volumes and totals update as you type; saved edits are kept on the server (volumes
+  recomputed by average end area, CSV exports and the PDF use them, outlined areas are drawn
+  on the PDF, and the measured values are kept so any edit can be reset).
 * **Download PDF** – your original plan set back, page for page, with the cut/fill
   shading, the traced lines and a label (station, fill, cut, edits) on every section,
   and summary pages with the volumes per road.
@@ -217,7 +220,7 @@ Writes `sections.csv`, `volumes.csv` and one overlay PNG per section.
 | `GET` | `/api/jobs/{id}/volumes.csv?surface=subgrade&exclude=r2` | volumes per road |
 | `GET` | `/api/jobs/{id}/sections.csv` | areas per section, both surfaces (notes hand edits) |
 | `GET` | `/api/jobs/{id}/annotated.pdf?surface=&exclude=` | the original PDF, every page unchanged, with cut/fill shading and areas (edits included) drawn on each section, plus summary pages |
-| `PUT` | `/api/jobs/{id}/edits` | save hand-edited areas `{"surface": "subgrade", "edits": {"12": {"fill_ft2": 40, "cut_ft2": 3}, "13": null}}` (`null` = back to measured); volumes are recomputed and the updated result returned |
+| `PUT` | `/api/jobs/{id}/edits` | save hand-edited areas `{"surface": "subgrade", "edits": {"12": {"fill_ft2": 40, "cut_ft2": 3}, "13": null}}` (`null` = back to measured; an edit may carry `"marks": [{"kind": "fill", "pts": [[x, y], …]}]`, areas outlined on the section image); volumes are recomputed and the updated result returned |
 
 Environment: `ALLOWED_ORIGINS` (CORS, comma separated), `MAX_CONCURRENT_JOBS` (default 1), `MAX_UPLOAD_MB`
 (default 2048), `UPLOAD_CHUNK_MB` (default 8), `JOB_TTL_SECONDS` (default 6 h), `FRONTEND_DIST`, `ACCURACY_FILE`.

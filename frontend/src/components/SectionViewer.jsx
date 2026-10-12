@@ -1,8 +1,7 @@
 import { SOURCE_TEXT, ft2 } from '../format';
-import { AreaInput } from './AreaEditor';
 import SectionPicture from './SectionPicture';
 
-export default function SectionViewer({ section: s, surface, position, count, onPrev, onNext, onEdit, onReset }) {
+export default function SectionViewer({ section: s, surface, position, count, onPrev, onNext, onOpenEdit, onReset }) {
   const sourceTag = s.label_source === 'inferred' ? 'warn' : 'neutral';
   return (
     <section className="panel">
@@ -21,18 +20,15 @@ export default function SectionViewer({ section: s, surface, position, count, on
           <span className="tag neutral">page {s.page}</span>
           <span className="tag info">{s.method === 'vector' ? 'traced from CAD linework' : 'traced from scan'}</span>
           <span className="spacer" style={{ flex: 1 }} />
-          <label className="stat edit-stat"><span>Fill ft²</span>
-            <AreaInput key={`f${s.id}`} value={s.fill_ft2} tone="fill" label="Fill area, square feet"
-              onChange={(v) => onEdit({ fill_ft2: v, cut_ft2: s.cut_ft2 })} /></label>
-          <label className="stat edit-stat"><span>Cut ft²</span>
-            <AreaInput key={`c${s.id}`} value={s.cut_ft2} tone="cut" label="Cut area, square feet"
-              onChange={(v) => onEdit({ fill_ft2: s.fill_ft2, cut_ft2: v })} /></label>
+          <div className="stat"><span>Fill</span><b className="num fill-text">{ft2(s.fill_ft2)} ft²</b></div>
+          <div className="stat"><span>Cut</span><b className="num cut-text">{ft2(s.cut_ft2)} ft²</b></div>
           <div className="stat"><span>Net</span><b className="num">{ft2(s.net_ft2)} ft²</b></div>
+          <button className="btn primary" onClick={onOpenEdit}>Edit</button>
         </div>
         {s.zero && (
           <div className="zero-note" role="note">
             <b>No earthwork here: {s.zero.short.toLowerCase()}.</b> {s.zero.text} If the drawing does show work at this
-            station, type the areas above.
+            station, press Edit to enter or outline it.
           </div>
         )}
         {s.edited && (

@@ -63,7 +63,11 @@ def _text_rotate(ex) -> int:
     return int(round(-ang / 90.0)) % 4 * 90
 
 
-def _shade(page: fitz.Page, geom: dict, surface: str) -> None:
+def _shade(page: fitz.Page, geom: dict, surface: str, k_fill: float = 1.0, k_cut: float = 1.0,
+           marks: list[dict] = ()) -> None:
+    """Fill/cut between the traced lines -- each zone's depth stretched by
+    k (areas in use / measured, so the shading matches hand-edited areas) --
+    plus any areas the user outlined on the section image."""
     ground, top = geom["ground"], geom[surface]
     _, _, ey, _, _ = _frame_axes(geom)
     up = (-ey[0], -ey[1])
@@ -73,7 +77,10 @@ def _shade(page: fitz.Page, geom: dict, surface: str) -> None:
 
     def flush():
         if len(run) >= 2:
-            pts = [fitz.Point(top[i]) for i in run] + [fitz.Point(ground[i]) for i in reversed(run)]
+            k = k_fill if run_sign > 0 else k_cut
+            pts = [fitz.Point(ground[i][0] + (top[i][0] - ground[i][0]) * k,
+                              ground[i][1] + (top[i][1] - ground[i][1]) * k) for i in run]
+            pts += [fitz.Point(ground[i]) for i in reversed(run)]
             shape.draw_polyline(pts)
             shape.finish(color=None, fill=FILL if run_sign > 0 else CUT, fill_opacity=0.38, closePath=True)
 
@@ -100,6 +107,15 @@ def _shade(page: fitz.Page, geom: dict, surface: str) -> None:
                 seg = []
             else:
                 seg.append(p)
+
+    if marks and geom.get("canvas") and geom.get("image_size"):
+        (ox, oy), (ax, ay), (bx, by) = geom["canvas"]
+        w, h = geom["image_size"]
+        for m in marks:
+            pts = [fitz.Point(ox + (ax - ox) * x / w + (bx - ox) * y / h,
+                              oy + (ay - oy) * x / w + (by - oy) * y / h) for x, y in m["pts"]]
+            shape.draw_polyline(pts)
+            shape.finish(color=None, fill=FILL if m["kind"] == "fill" else CUT, fill_opacity=0.38, closePath=True)
 
     polyline(ground, GROUND, 0.7)
     polyline(top, DESIGN, 0.6)
@@ -231,7 +247,14 @@ def annotated_pdf(src_path: str, geometries: list[dict | None], payload: dict, s
         if not geom or not 1 <= sec["page"] <= len(doc):
             continue
         page = doc[sec["page"] - 1]
-        _shade(page, geom, surface if geom.get(surface) else "finished")
+        area, measured = sec["areas"][surface], sec["measured"][surface]
+        marks = sec.get("marks", {}).get(surface, [])
+        k = {}
+        for kind in ("fill", "cut"):
+            # the traced zones carry what the outlined areas don't
+            base = max(0.0, area[f"{kind}_ft2"] - sum(m["ft2"] for m in marks if m["kind"] == kind))
+            k[kind] = base / measured[f"{kind}_ft2"] if measured[f"{kind}_ft2"] > 0 else 1.0
+        _shade(page, geom, surface if geom.get(surface) else "finished", k["fill"], k["cut"], marks)
         _label(page, geom, sec, surface, str(sec["id"]) in edits)
 
     roads = []
