@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { assetUrl } from '../api';
 import { ft2 } from '../format';
 import { AreaInput } from './AreaEditor';
-import { Shading, isRemoval, polygonFt2, shareInside, unplacedText, useProfile } from './SectionPicture';
+import { CENTRE_NOTE, currentSides, polygonSides, removalSides } from '../sides';
+import { Centreline, Shading, isRemoval, polygonFt2, shareInside, unplacedText, useProfile } from './SectionPicture';
+import SideTable from './SideTable';
 
 const MARK_LABEL = { fill: 'Added fill', cut: 'Added cut', remove_fill: 'Removed fill', remove_cut: 'Removed cut' };
 const r2 = (v) => Math.round(Math.max(0, v) * 100) / 100;
@@ -59,6 +61,8 @@ export default function EditSectionModal({ section: s, surface, onClose, onSave 
   const svg = useRef(null);
 
   const pendingFt2 = pending.length >= 3 && ppf ? polygonFt2(pending, ppf) : 0;
+  const cx = s.centreline?.x ?? (prof ? prof.size[0] / 2 : 0);
+  const sides = currentSides(s.sides_measured?.[surface], measured, { fill_ft2: fill, cut_ft2: cut }, marks);
   const clearSelection = () => { setPending([]); setClosed(false); };
   const markedFill = marks.filter((m) => m.kind === 'fill').reduce((n, m) => n + m.ft2, 0);
   const markedCut = marks.filter((m) => m.kind === 'cut').reduce((n, m) => n + m.ft2, 0);
@@ -72,20 +76,20 @@ export default function EditSectionModal({ section: s, surface, onClose, onSave 
     if (pending.length >= 3) {
       const pts = pending.map(([x, y]) => [Math.round(x * 10) / 10, Math.round(y * 10) / 10]);
       if (kind === 'fill' || kind === 'cut') {
-        const ft = r2(polygonFt2(pending, ppf));
-        setMarks((m) => [...m, { kind, pts, ft2: ft }]);
+        const ft = r2(polygonFt2(pts, ppf));        // the stored (rounded) points, as the server measures them
+        setMarks((m) => [...m, { kind, pts, ft2: ft, sides: polygonSides(pts, cx, ppf) }]);
         if (kind === 'fill') setFill((v) => r2(v + ft)); else setCut((v) => r2(v + ft));
       } else {
         // take away the traced fill/cut that lies inside the outline
         const base = kind === 'remove_fill' ? 'fill' : 'cut';
         const already = marks.filter((m) => m.kind === kind).reduce((n, m) => n + m.ft2, 0);
-        const ft = r2(Math.min(measured[`${base}_ft2`] * shareInside(prof, surface, base, pending),
-          measured[`${base}_ft2`] - already));
+        const inside = shareInside(prof, surface, base, pending, cx);
+        const ft = r2(Math.min(measured[`${base}_ft2`] * inside.share, measured[`${base}_ft2`] - already));
         if (ft < 0.05) {
           setNotice(`There is no measured ${base} inside this selection to remove.`);
           return;
         }
-        setMarks((m) => [...m, { kind, pts, ft2: ft }]);
+        setMarks((m) => [...m, { kind, pts, ft2: ft, sides: removalSides(ft, inside) }]);
         if (base === 'fill') setFill((v) => r2(v - ft)); else setCut((v) => r2(v - ft));
       }
       clearSelection();
@@ -132,11 +136,17 @@ export default function EditSectionModal({ section: s, surface, onClose, onSave 
   }
 
   // ------------------------------------------------------------- drawing
-  function toImage(e) {
-    const m = svg.current.getScreenCTM();
+  // image pixels under the pointer, kept on the drawing (the server keeps
+  // outlines to the image the same way, so both measure the same shape)
+  function rawPoint(e) {
+    const m = svg.current?.getScreenCTM();
     if (!m) return null;
     const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse());
     return [p.x, p.y];
+  }
+  function toImage(e) {
+    const p = rawPoint(e);
+    return p && prof ? [Math.min(Math.max(p[0], 0), prof.size[0]), Math.min(Math.max(p[1], 0), prof.size[1])] : null;
   }
 
   const nearFirst = (p) => pending.length >= 3 && p && Math.hypot(p[0] - pending[0][0], p[1] - pending[0][1]) < 10 * upp;
@@ -216,7 +226,7 @@ export default function EditSectionModal({ section: s, surface, onClose, onSave 
     function onWheel(e) {
       if (!svg.current) return;
       e.preventDefault();
-      const p = toImage(e);
+      const p = rawPoint(e);
       if (p) zoomAt(Math.exp(e.deltaY * 0.0015), p[0], p[1]);
     }
     el.addEventListener('wheel', onWheel, { passive: false });
@@ -278,6 +288,7 @@ export default function EditSectionModal({ section: s, surface, onClose, onSave 
                 <image href={assetUrl(s.overlay)} x="0" y="0" width={prof.size[0]} height={prof.size[1]} preserveAspectRatio="none" />
                 <Shading prof={prof} surface={surface} fill={fill} cut={cut} measured={measured} marks={marks}
                   selected={selected} onMarkClick={pending.length ? undefined : (i) => setSelected(i)} />
+                <Centreline x={s.centreline?.x} height={prof.size[1]} scale={upp} />
                 {pending.length > 0 && (
                   <g className={`outline ${closed ? 'closed' : ''}`}>
                     {pending.length >= 3 && <polygon points={pending.map((p) => p.join(',')).join(' ')} />}
@@ -307,6 +318,7 @@ export default function EditSectionModal({ section: s, surface, onClose, onSave 
               Measured from the drawing: fill {ft2(measured.fill_ft2)} ft², cut {ft2(measured.cut_ft2)} ft². Net now{' '}
               <b className={fill - cut >= 0 ? 'fill-text' : 'cut-text'}>{ft2(fill - cut)} ft²</b>.
             </div>
+            <SideTable sides={sides} note={CENTRE_NOTE[s.centreline?.source]} />
             {(fill < markedFill - 0.05 || cut < markedCut - 0.05) && (
               <div className="pic-note warn-text">Lower than the areas outlined below; remove an outline to go lower.</div>
             )}

@@ -7,8 +7,9 @@ cross-section the export draws, as real PDF vector graphics:
 
 * fill (green) and cut (red) shading between existing ground and the
   proposed surface, with the traced lines,
-* a label with the station and the fill / cut areas in use -- hand-edited
-  values marked as such, with the measured values alongside.
+* a label with the station, the fill / cut areas in use and their split
+  left / right of the centreline -- hand-edited values marked as such, with
+  the measured values alongside.
 
 Summary pages are appended at the end, the same size as the first page:
 totals, volumes per road and every hand edit.
@@ -19,6 +20,8 @@ import math
 import time
 
 import pymupdf as fitz
+
+from .sides import current_sides
 
 FILL = (30 / 255, 142 / 255, 62 / 255)       # #1E8E3E
 CUT = (217 / 255, 48 / 255, 37 / 255)        # #D93025
@@ -173,12 +176,16 @@ def _shade(page: fitz.Page, geom: dict, surface: str, k_fill: float = 1.0, k_cut
     shape.commit(overlay=True)
 
 
-def _label(page: fitz.Page, geom: dict, sec: dict, surface: str, edited: bool) -> None:
+def _label(page: fitz.Page, geom: dict, sec: dict, surface: str, edited: bool, sides: dict | None = None) -> None:
     origin, ex, ey, w, h = _frame_axes(geom)
     fs = max(4.5, min(10.0, h * 0.04))
     area = sec["areas"][surface]
     lines = [(f"STA {sec['station'] or '?'}", "hebo", INK),
              (f"FILL {area['fill_ft2']:,.1f} ft²   CUT {area['cut_ft2']:,.1f} ft²", "helv", INK)]
+    if sides:
+        for side in ("left", "right"):
+            lines.append((f"{side.upper()}: FILL {sides[side]['fill_ft2']:,.1f}   CUT {sides[side]['cut_ft2']:,.1f}",
+                          "helv", MUTED))
     if edited:
         m = sec["measured"][surface]
         lines.append((f"EDITED - measured fill {m['fill_ft2']:,.1f}, cut {m['cut_ft2']:,.1f}", "helv", EDITED))
@@ -307,7 +314,9 @@ def annotated_pdf(src_path: str, geometries: list[dict | None], payload: dict, s
             left = measured[f"{kind}_ft2"] - sum(m["ft2"] for m in marks if m["kind"] == f"remove_{kind}")
             k[kind] = (base / left if left > 0.005 else 0.0) if measured[f"{kind}_ft2"] > 0 else 1.0
         _shade(page, geom, surface if geom.get(surface) else "finished", k["fill"], k["cut"], marks)
-        _label(page, geom, sec, surface, str(sec["id"]) in edits)
+        sides = (current_sides(sec["sides_measured"][surface], measured, area, marks)
+                 if sec.get("sides_measured") else None)
+        _label(page, geom, sec, surface, str(sec["id"]) in edits, sides)
 
     roads = []
     tf = tc = 0.0

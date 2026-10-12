@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { annotatedPdfUrl, saveEdits, sectionsCsvUrl, volumesCsvUrl } from '../api';
 import { cy, signed } from '../format';
+import { currentSides } from '../sides';
 import { roadVolumes } from '../volumes';
 import ProfileChart from './ProfileChart';
 import RoadList from './RoadList';
@@ -40,6 +41,8 @@ export default function Results({ result, onResult }) {
     return {
       ...s, fill_ft2: area.fill_ft2, cut_ft2: area.cut_ft2, net_ft2: area.fill_ft2 - area.cut_ft2,
       measured, marks, edited: edited || marks.length > 0, dirty: Boolean(drafts[surface]?.[s.id]), zero,
+      // left / right of the centreline for the areas in use
+      sides: currentSides(s.sides_measured?.[surface], measured, area, marks),
     };
   }), [result.sections, result.zero_reasons, surface, drafts]);
 

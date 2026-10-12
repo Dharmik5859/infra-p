@@ -631,3 +631,18 @@ tr.total td { font-weight: 500; background: var(--surface-2); }
 .kind-tag { display: inline-block; margin-left: 6px; }
 @media (max-width: 900px) { .group-grid { grid-template-columns: minmax(0, 1fr); } .group-card dl { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .verdict-card.edge-neutral { align-content: start; }
+
+/* left / right of the centreline */
+.side-table table { border-collapse: collapse; width: 100%; font-size: 13px; }
+.side-table th, .side-table td { padding: 5px 8px; text-align: right; border-bottom: 1px solid var(--line); }
+.side-table thead th { font-size: 11.5px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 500; }
+.side-table tbody th { text-align: left; font-weight: 500; }
+.side-table .fill-row th, .side-table .fill-row td:not(:last-child) { color: var(--green-ink); }
+.side-table .cut-row th, .side-table .cut-row td:not(:last-child) { color: var(--red-ink); }
+.side-table td:last-child { color: var(--text-3); }
+.side-note { font-size: 12px; margin-top: 6px; }
+.side-table.compact { min-width: 260px; }
+.centreline line { stroke: #1a73e8; stroke-width: 1.6; vector-effect: non-scaling-stroke; }
+.centreline text { fill: #1967d2; font-family: var(--sans); font-weight: 500; letter-spacing: 0.04em; }
+.centreline text.cl { font-weight: 700; }
+.side-cell { white-space: nowrap; }

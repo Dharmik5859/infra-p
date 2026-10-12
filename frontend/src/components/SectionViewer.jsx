@@ -1,5 +1,7 @@
 import { SOURCE_TEXT, ft2 } from '../format';
 import SectionPicture from './SectionPicture';
+import SideTable from './SideTable';
+import { CENTRE_NOTE } from '../sides';
 
 export default function SectionViewer({ section: s, surface, position, count, onPrev, onNext, onOpenEdit, onReset }) {
   const sourceTag = s.label_source === 'inferred' ? 'warn' : 'neutral';
@@ -25,6 +27,7 @@ export default function SectionViewer({ section: s, surface, position, count, on
           <div className="stat"><span>Net</span><b className="num">{ft2(s.net_ft2)} ft²</b></div>
           <button className="btn primary" onClick={onOpenEdit}>Edit</button>
         </div>
+        <SideTable sides={s.sides} note={CENTRE_NOTE[s.centreline?.source]} compact />
         {s.zero && (
           <div className="zero-note" role="note">
             <b>No earthwork here: {s.zero.short.toLowerCase()}.</b> {s.zero.text} If the drawing does show work at this

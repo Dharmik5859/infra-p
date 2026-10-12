@@ -253,7 +253,9 @@ def test_removed_areas_take_away_measured_area_and_shading(tmp_path):
     assert r.status_code == 200
     saved = r.json()["sections"][sec["id"]]
     assert saved["areas"][surface]["fill_ft2"] == 0
-    assert saved["marks"][surface] == [{"kind": "remove_fill", "pts": everything, "ft2": m["fill_ft2"]}]
+    mark = saved["marks"][surface][0]
+    assert (mark["kind"], mark["pts"], mark["ft2"]) == ("remove_fill", everything, m["fill_ft2"])
+    assert abs(mark["sides"]["left"] + mark["sides"]["right"] - m["fill_ft2"]) < 0.05
 
     out = fitz.open(stream=client.get(f"/api/jobs/{job_id}/annotated.pdf").content, filetype="pdf")
     page = out[sec["page"] - 1]

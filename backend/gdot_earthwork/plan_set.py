@@ -27,12 +27,13 @@ import numpy as np
 import pymupdf as fitz
 
 from .config import PipelineConfig, get_config
-from .frames import find_frames, label_frames
+from .frames import find_centreline, find_frames, label_frames
 from .pages import could_hold_sections, load_page, sideways_labels
 from .render import encode_png, overlay, overlay_scale, profile
 from .roads import Road, StationEntry, group_into_roads
 from .stations import StationRead, repair
-from .surfaces import CANON_PPF, Surfaces, _canon_size, measure, raster_surfaces, vector_surfaces
+from .sides import measured_sides
+from .surfaces import CANON_PPF, Surfaces, area_strips, _canon_size, measure, raster_surfaces, vector_surfaces
 from .volume import RoadVolumeResult, average_end_area_volume
 
 
@@ -60,6 +61,10 @@ class SectionResult:
     profile: dict | None = None        # traced lines in overlay pixels (render.profile)
     geometry: dict | None = None       # page-space outline + traced lines, for the annotated PDF
     zero_reason: str | None = None     # why a section has no earthwork (see ZERO_REASONS)
+    centre_ft: float | None = None     # centreline (offset 0), ft from the frame's left edge
+    centre_source: str | None = None   # "text" / "scan" (read off the offset axis), "neighbour", "assumed"
+    strips: dict | None = None         # surface -> (fill, cut) ft² per 1 ft strip from the left edge
+    sides: dict | None = None          # surface -> {"left"|"right": {"fill_ft2", "cut_ft2"}}, as traced
 
     @property
     def net_ft2(self) -> float:
@@ -171,6 +176,9 @@ def _measure_page(pdf_path: str, index: int, cfg: PipelineConfig, overlays: bool
                 warnings.append(
                     f"design line from {st['x_from']:+.0f} to {st['x_to']:+.0f} ft hangs above the ground "
                     f"at both ends (bridge deck or structure) -- not counted as fill")
+            centre = find_centreline(f, img, cfg.ink_thresh, cfg.grid_ft)
+            strips = {sf: tuple([round(float(v), 3) for v in a] for a in area_strips(surf, sf))
+                      for sf in ("subgrade", "finished")}
             png = encode_png(overlay(surf, f, img, cfg, surface=cfg.design_surface,
                                      shade=overlays != "lines")) if overlays else None
             out.append(SectionResult(
@@ -185,6 +193,8 @@ def _measure_page(pdf_path: str, index: int, cfg: PipelineConfig, overlays: bool
                 overlay_px_per_ft=round(CANON_PPF * overlay_scale(surf), 4) if png else None,
                 profile=profile(surf) if png else None, geometry=_geometry(surf, f, img, cfg),
                 zero_reason=_zero_reason(surf, area),
+                centre_ft=round((centre[0] - f.left) / (f.pitch_x / cfg.grid_ft), 2) if centre else None,
+                centre_source=centre[1] if centre else None, strips=strips,
             ))
         return out
     finally:
@@ -259,6 +269,8 @@ def process_plan_set(
             f"{len(unlabelled)} cross-section(s) had no readable station and could not be placed "
             f"along a road: " + ", ".join(f"page {s.page}" for s in unlabelled[:10]))
 
+    _place_centrelines(sections)
+
     entries = [StationEntry(s.station_label, s.station_ft, s.page, s)
                for s in sections if s.station_ft is not None]
     roads = group_into_roads(entries)
@@ -278,6 +290,30 @@ def process_plan_set(
         sections=sections, roads=roads, volumes=volumes, alt_volumes=alt_volumes,
         warnings=warnings, timing=timing, design_surface=cfg.design_surface,
     )
+
+
+def _place_centrelines(sections: list[SectionResult]) -> None:
+    """Every section gets a centreline and its left / right areas. Where the
+    offset axis could not be read, the nearest section in document order with
+    a read centreline and the same frame width lends its own (sheets of one
+    series share the axis layout); failing that, the middle of the grid."""
+    width = lambda s: s.bbox[3] - s.bbox[2]
+    read = [i for i, s in enumerate(sections) if s.centre_ft is not None]
+    for i, s in enumerate(sections):
+        if s.centre_ft is None:
+            near = sorted((j for j in read if abs(width(sections[j]) - width(s)) <= 0.02 * width(s)),
+                          key=lambda j: abs(j - i))
+            if near:
+                s.centre_ft, s.centre_source = sections[near[0]].centre_ft, "neighbour"
+                s.warnings.append("the offset axis could not be read here -- the centreline (left / right "
+                                  "split) is taken from the neighbouring section")
+            else:
+                s.centre_ft = round((width(s)) / (s.px_per_ft[0]) / 2, 2)
+                s.centre_source = "assumed"
+                s.warnings.append("the offset axis could not be read -- the centreline (left / right split) "
+                                  "is assumed at the middle of the grid")
+        if s.strips:
+            s.sides = {sf: measured_sides(fill, cut, s.centre_ft) for sf, (fill, cut) in s.strips.items()}
 
 
 class _AltArea:

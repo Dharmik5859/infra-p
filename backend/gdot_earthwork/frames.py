@@ -486,6 +486,174 @@ def _ocr_region(frame: Frame, img: PageImage, ink_thresh: int, x0: int, y0: int,
     return best
 
 
+# ------------------------------------------------------------ centreline
+
+_AXIS_NUM_RE = re.compile(r"^-?(\d{1,3})$")
+
+
+def _vline_index(frame: Frame, x: float) -> int | None:
+    """The grid line a centred axis label belongs to, or None if it sits between lines."""
+    centres = [(a + b) / 2 for a, b in frame.vlines]
+    k = min(range(len(centres)), key=lambda i: abs(centres[i] - x))
+    return k if abs(centres[k] - x) < 0.3 * frame.pitch_x else None
+
+
+def _vote_centre(frame: Frame, reads: list[tuple[int, int, bool]], grid_ft: float) -> float | None:
+    """Offset labels are centred on the grid lines and step `grid_ft` per line,
+    so each read label names where offset 0 is: (line k, value v) puts it at
+    line k - v / grid_ft -- or, when the sign could not be read (a scan's
+    minus is too small to OCR reliably), at k + v / grid_ft as well. The line
+    named by the most words wins, if at least two and most of them agree."""
+    votes: Counter = Counter()
+    for k, v, signed in reads:
+        if v % grid_ft:
+            continue
+        steps = int(v // grid_ft)
+        votes.update({k - steps} if signed else {k - steps, k + steps})
+    if not votes:
+        return None
+    k0, n = votes.most_common(1)[0]
+    # a misread can agree with another by chance: most of what was read must
+    # fit the winning line, not just two words
+    if n < 2 or n < 0.6 * len(reads) or not 0 <= k0 < len(frame.vlines) or list(votes.values()).count(n) > 1:
+        return None
+    a, b = frame.vlines[k0]
+    return (a + b) / 2
+
+
+def _axis_row(frame: Frame, ink: np.ndarray) -> tuple[int, int]:
+    """The offset axis among the frame's horizontal lines: the one with the
+    comb of tick marks (usually the bottom line, but not on every sheet)."""
+    x0, x1 = frame.left + 2, frame.right - 2
+    reach = max(6, int(0.15 * frame.pitch_y))
+    def ticks(line):
+        a, b = line
+        return max(_tick_count(ink, max(0, a - reach), a - 1, x0, x1), _tick_count(ink, b + 2, b + 1 + reach, x0, x1))
+    best = max(frame.hlines, key=ticks) if frame.hlines else (frame.bottom, frame.bottom)
+    return best if ticks(best) >= 2 * len(frame.vlines) else (frame.bottom, frame.bottom)
+
+
+def find_centreline(frame: Frame, img: PageImage, ink_thresh: int = 200,
+                    grid_ft: float = 10.0) -> tuple[float, str] | None:
+    """Image x of the centreline (offset 0), read from the section's offset
+    axis labels: from the PDF text layer when there is one ("text"), otherwise
+    from the scan ("scan"): first by the labels' widths, failing that by OCR
+    of the labels. None when they cannot be read."""
+    if img.spans:
+        lo, hi = frame.bottom - 0.5 * frame.pitch_y, frame.bottom + 0.6 * frame.pitch_y
+        reads = []
+        for sp in img.spans:
+            t = sp.text.strip()
+            if _AXIS_NUM_RE.match(t) and lo <= sp.y <= hi \
+                    and frame.left - 0.3 * frame.pitch_x <= sp.x <= frame.right + 0.3 * frame.pitch_x:
+                k = _vline_index(frame, sp.x)
+                if k is not None:
+                    reads.append((k, int(t), True))
+        got = _vote_centre(frame, reads, grid_ft)
+        if got is not None:
+            return got, "text"
+    if not shutil.which("tesseract"):
+        return None
+    H, W = img.gray.shape
+    page_ink = (img.gray < ink_thresh).astype(np.uint8)
+    a, b = _axis_row(frame, page_ink)
+    y0, y1 = max(0, int(a - 0.5 * frame.pitch_y)), min(H, int(b + 0.6 * frame.pitch_y))
+    x0, x1 = max(0, int(frame.left - 0.3 * frame.pitch_x)), min(W, int(frame.right + 0.3 * frame.pitch_x))
+    crop = img.gray[y0:y1, x0:x1].copy()
+    # erase the grid where it is known: each label straddles a vertical grid
+    # line, which would otherwise join its glyphs into one tall stroke
+    for ha, hb in frame.hlines:
+        crop[max(0, ha - y0):max(0, hb - y0 + 1), :] = 255
+    for va, vb in frame.vlines:
+        crop[:, max(0, va - x0):max(0, vb - x0 + 1)] = 255
+    clean = _clean_for_ocr(crop, ink_thresh)
+    ink = (clean < 128).astype(np.uint8)
+    n, lab, st, _ = cv2.connectedComponentsWithStats(ink, 8)
+    p = frame.pitch_y
+    comps = [k for k in range(1, n) if st[k, 3] <= 0.45 * p and st[k, 2] < 0.4 * p and st[k, 4] >= 6]
+    glyph_h = np.median([st[k, 3] for k in comps if st[k, 2] > 0.05 * p] or [0.2 * p])
+    # the axis' tick marks: thin, solid, upright strokes clearly shorter than a digit
+    tick = lambda k: st[k, 2] <= max(4, 0.035 * p) and st[k, 3] < 0.75 * glyph_h and st[k, 4] >= 0.8 * st[k, 2] * st[k, 3]
+    groups: dict[int, list[int]] = {}
+    for k in comps:
+        if tick(k) or st[k, 3] < 0.5 * glyph_h:          # ticks; minus signs and specks carry no digits
+            continue
+        line = _vline_index(frame, x0 + st[k, 0] + st[k, 2] / 2)
+        if line is not None:
+            groups.setdefault(line, []).append(k)
+    words = []
+    for line, ks in groups.items():
+        gx0 = min(st[k, 0] for k in ks); gy0 = min(st[k, 1] for k in ks)
+        gx1 = max(st[k, 0] + st[k, 2] for k in ks); gy1 = max(st[k, 1] + st[k, 3] for k in ks)
+        words.append((line, [gx0, gy0, gx1 - gx0, gy1 - gy0], ks))
+    by_width = _centre_from_widths(frame, {line: box[2] for line, box, _ in words}, grid_ft)
+    if by_width is not None:
+        return by_width, "scan"
+    mid = len(frame.vlines) / 2
+    words.sort(key=lambda w: abs(w[0] - mid))            # labels near the middle are short and read best
+    glyphs = np.where(np.isin(lab, [k for _, _, ks in words for k in ks]), 0, 255).astype(np.uint8)
+    reads: list[tuple[int, int, bool]] = []
+    for line, box, _ in words[:16]:
+        got = _ocr_number(glyphs, box, p)
+        if got:
+            reads.append((line, got[0], False))
+            centre = _vote_centre(frame, reads, grid_ft)
+            if centre is not None and len(reads) >= 3:
+                return centre, "scan"
+    centre = _vote_centre(frame, reads, grid_ft)
+    return (centre, "scan") if centre is not None else None
+
+
+def _centre_from_widths(frame: Frame, widths: dict[int, float], grid_ft: float) -> float | None:
+    """Offset 0 from the WIDTHS of the axis labels, no reading needed: "0" is
+    one digit wide, 10-90 two, 100 and up three (a minus sign is too small to
+    be counted). Each candidate line for 0 predicts that pattern along the
+    axis; the one that fits the measured widths best wins, if clearly."""
+    lines = sorted(k for k in widths if 0 < k < len(frame.vlines) - 1)   # end labels collide with elevations
+    if len(lines) < 8:
+        return None
+    y = np.array([widths[k] for k in lines], float)
+    fits = []
+    for k0 in range(len(frame.vlines)):
+        digits = np.array([len(str(int(abs(k - k0) * grid_ft))) for k in lines], float)
+        if len(set(digits)) < 2:
+            continue
+        A = np.stack([digits, np.ones_like(digits)], 1)
+        coef, *_ = np.linalg.lstsq(A, y, rcond=None)
+        if coef[0] <= 0.3 * np.median(y) / 3:           # a digit must add real width
+            continue
+        rms = float(np.sqrt(np.mean((A @ coef - y) ** 2)))
+        fits.append((rms / coef[0], k0))
+    if not fits:
+        return None
+    fits.sort()
+    best, k0 = fits[0]
+    if best > 0.25 or (len(fits) > 1 and fits[1][0] < 1.6 * best):
+        return None
+    a, b = frame.vlines[k0]
+    return (a + b) / 2
+
+
+def _ocr_number(clean: np.ndarray, box, pitch: float) -> list[int]:
+    """An axis label's digits (sign ignored), when two renderings agree."""
+    x, y, w, h = box
+    word = _glyph_only(clean, box, pitch, int(0.1 * pitch))
+    reads: list[int] = []
+    for height, shear in ((40, True), (40, False), (64, True)):
+        f = height / max(1, h)
+        im = cv2.resize(word, None, fx=f, fy=f, interpolation=cv2.INTER_CUBIC)
+        if shear:
+            Hh, Ww = im.shape
+            im = cv2.warpAffine(im, np.float32([[1, 0.25, 0], [0, 1, 0]]), (int(Ww + 0.25 * Hh), Hh), borderValue=255)
+        im = cv2.copyMakeBorder(im, 20, 20, 20, 20, cv2.BORDER_CONSTANT, value=255)
+        m = _AXIS_NUM_RE.match(_tesseract(im, "7").strip().replace("+", "").replace(".", ""))
+        if m:
+            reads.append(int(m.group(1)))
+            if reads.count(reads[-1]) >= 2:
+                return [reads[-1]]
+    return []
+
+
 def label_frames(frames: list[Frame], img: PageImage, ink_thresh: int = 200) -> list[Frame]:
     """Attach a station to every frame.
 
