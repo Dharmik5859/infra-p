@@ -533,3 +533,79 @@ tr.total td { font-weight: 500; background: var(--surface-2); }
 
 .upload-progress { width: min(420px, 100%); display: grid; gap: 6px; justify-items: center; margin-top: 6px; }
 .upload-progress .bar { width: 100%; margin: 0; }
+
+/* accuracy by plan set */
+.table-intro { margin: 0 0 12px; font-size: 13px; max-width: 110ch; }
+.table-intro:last-child { margin: 12px 0 0; }
+.plan-table td:nth-child(1) { white-space: normal; min-width: 220px; }
+.plan-table th:nth-child(4), .plan-table td:nth-child(4) { text-align: left; }
+.plan-table th, .plan-table td { padding-left: 10px; padding-right: 10px; }
+.acc-pill { display: inline-block; min-width: 54px; padding: 2px 8px; border-radius: 11px; font-weight: 500; text-align: center; }
+.acc-pill.g-green { background: var(--green-soft); color: var(--green-ink); }
+.acc-pill.g-blue { background: var(--blue-soft); color: var(--blue-ink); }
+.acc-pill.g-yellow { background: var(--yellow-soft); color: var(--yellow-ink); }
+.acc-pill.g-red { background: var(--red-soft); color: var(--red-ink); }
+
+/* section picture: the drawing with fill/cut shaded live from the areas in use */
+.pic { position: relative; min-width: 720px; }
+.pic img { min-width: 0; }
+.pic-shade { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.zone { fill-opacity: 0.45; stroke: none; }
+.zone.fill { fill: #1e8e3e; }
+.zone.cut { fill: #d93025; }
+.zone.mark { fill-opacity: 0.5; }
+.zone.mark.selected { stroke: #1a73e8; stroke-width: 3; vector-effect: non-scaling-stroke; fill-opacity: 0.6; }
+.pic-areas { position: sticky; left: 0; padding: 8px 10px; border-bottom: 1px solid var(--line); background: var(--surface); display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { padding: 3px 9px; border-radius: 999px; font-size: 12.5px; font-weight: 500; background: var(--surface); border: 1px solid var(--line-strong); font-variant-numeric: tabular-nums; }
+.chip.fill { color: var(--green-ink); border-color: var(--green); }
+.chip.cut { color: var(--red-ink); border-color: var(--red); }
+.chip.warn { color: var(--yellow-ink); border-color: var(--yellow); }
+.chip.edited { color: var(--blue-ink); border-color: var(--blue); }
+.pic-note { padding: 8px 12px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--text-2); background: var(--surface); }
+.small-text { font-size: 12.5px; }
+
+/* edit dialog */
+.modal-backdrop { position: fixed; inset: 0; z-index: 100; background: rgba(32, 33, 36, 0.55); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.modal { background: var(--surface); color: var(--text); border-radius: var(--radius); box-shadow: var(--shadow-lg); display: flex; flex-direction: column; max-height: 100%; }
+.edit-modal { width: min(1500px, 100%); height: min(920px, 100%); }
+.modal-h { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+.modal-h h3 { margin: 2px 0 0; font-size: 20px; }
+.modal-f { display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-top: 1px solid var(--line); }
+.zoom { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-3); }
+.zoom .num { min-width: 44px; text-align: center; }
+.edit-body { flex: 1; min-height: 0; display: flex; }
+.edit-canvas { flex: 1; min-width: 0; position: relative; overflow: hidden; background: #fff; border-right: 1px solid var(--line); }
+.edit-svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; user-select: none; }
+.edit-svg.drawing { cursor: crosshair; }
+.edit-svg.panning { cursor: grabbing; }
+.canvas-hint { position: absolute; left: 10px; bottom: 8px; padding: 3px 8px; border-radius: 6px; background: rgba(255, 255, 255, 0.9); color: #5f6368; font-size: 12px; pointer-events: none; }
+.edit-svg .zone.mark { cursor: pointer; }
+.edit-svg .outline polygon { fill: #1a73e8; fill-opacity: 0.18; stroke: none; }
+.edit-svg .outline polyline { fill: none; stroke: #1a73e8; stroke-width: 2; vector-effect: non-scaling-stroke; }
+.edit-svg .outline circle { fill: #fff; stroke: #1a73e8; stroke-width: 2; vector-effect: non-scaling-stroke; }
+.edit-svg .outline circle.first { fill: #1a73e8; }
+.edit-side { width: 320px; flex: none; overflow: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+.edit-fields { display: flex; gap: 12px; }
+.edit-fields .area-input { width: 120px; font-size: 16px; }
+.edit-tool { border-top: 1px solid var(--line); padding-top: 12px; }
+.edit-side h4 { margin: 0 0 6px; font-size: 14px; font-weight: 500; }
+.edit-side p { margin: 0 0 10px; }
+.edit-buttons { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.edit-buttons .btn:not(.small) { flex: 1; }
+.btn.fill-btn { background: var(--green); border-color: var(--green); color: #fff; }
+.btn.cut-btn { background: var(--red); border-color: var(--red); color: #fff; }
+.btn.fill-btn:hover, .btn.cut-btn:hover { filter: brightness(1.08); }
+.mark-list { border-top: 1px solid var(--line); padding-top: 12px; }
+.mark-row { display: flex; align-items: center; gap: 6px; border-radius: var(--radius-sm); padding: 2px 4px; }
+.mark-row.on { background: var(--blue-soft); }
+.mark-pick { flex: 1; text-align: left; background: none; border: 0; padding: 6px 2px; color: inherit; font: inherit; font-size: 13px; cursor: pointer; }
+.mark-pick i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; }
+.mark-pick i.fill { background: var(--green); }
+.mark-pick i.cut { background: var(--red); }
+@media (max-width: 860px) {
+  .edit-body { flex-direction: column; }
+  .edit-canvas { flex: none; height: 45vh; border-right: 0; border-bottom: 1px solid var(--line); }
+  .edit-side { width: auto; }
+  .modal-backdrop { padding: 0; }
+  .edit-modal { height: 100%; border-radius: 0; }
+}

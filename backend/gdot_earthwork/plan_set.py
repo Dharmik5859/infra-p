@@ -29,10 +29,10 @@ import pymupdf as fitz
 from .config import PipelineConfig, get_config
 from .frames import find_frames, label_frames
 from .pages import could_hold_sections, load_page, sideways_labels
-from .render import encode_png, overlay
+from .render import encode_png, overlay, overlay_scale, profile
 from .roads import Road, StationEntry, group_into_roads
 from .stations import StationRead, repair
-from .surfaces import Surfaces, _canon_size, measure, raster_surfaces, vector_surfaces
+from .surfaces import CANON_PPF, Surfaces, _canon_size, measure, raster_surfaces, vector_surfaces
 from .volume import RoadVolumeResult, average_end_area_volume
 
 
@@ -56,6 +56,8 @@ class SectionResult:
     rotation: int                      # quarter turns the page was read at (np.rot90 k)
     warnings: list[str] = field(default_factory=list)
     overlay_png: bytes | None = None
+    overlay_px_per_ft: float | None = None  # overlay image pixels per ft (both axes)
+    profile: dict | None = None        # traced lines in overlay pixels (render.profile)
     geometry: dict | None = None       # page-space outline + traced lines, for the annotated PDF
     zero_reason: str | None = None     # why a section has no earthwork (see ZERO_REASONS)
 
@@ -120,13 +122,19 @@ def _geometry(surf: Surfaces, f, img, cfg: PipelineConfig) -> dict | None:
     return {
         # top-left, top-right, bottom-left of the frame, as drawn on the sheet
         "frame": [corner(f.left, f.top), corner(f.right, f.top), corner(f.left, f.bottom)],
+        # the same corners of the section image (overlay), so areas the user
+        # marks on it can be drawn on the page: image (u, v) in 0..1 maps to
+        # canvas[0] + u (canvas[1] - canvas[0]) + v (canvas[2] - canvas[0])
+        "canvas": [corner(f.left, f.y0), corner(f.left + surf.width / sx, f.y0),
+                   corner(f.left, f.y0 + surf.height / sy)],
+        "image_size": [round(surf.width * overlay_scale(surf)), round(surf.height * overlay_scale(surf))],
         "ground": line(surf.ground),
         "finished": line(surf.design),
         "subgrade": line(surf.surface("subgrade")),
     }
 
 
-def _measure_page(pdf_path: str, index: int, cfg: PipelineConfig, overlays: bool) -> list[SectionResult]:
+def _measure_page(pdf_path: str, index: int, cfg: PipelineConfig, overlays: bool | str) -> list[SectionResult]:
     doc = fitz.open(pdf_path)
     try:
         if not could_hold_sections(doc, index):
@@ -163,7 +171,8 @@ def _measure_page(pdf_path: str, index: int, cfg: PipelineConfig, overlays: bool
                 warnings.append(
                     f"design line from {st['x_from']:+.0f} to {st['x_to']:+.0f} ft hangs above the ground "
                     f"at both ends (bridge deck or structure) -- not counted as fill")
-            png = encode_png(overlay(surf, f, img, cfg, surface=cfg.design_surface)) if overlays else None
+            png = encode_png(overlay(surf, f, img, cfg, surface=cfg.design_surface,
+                                     shade=overlays != "lines")) if overlays else None
             out.append(SectionResult(
                 page=img.number, index=i, station_label=f.station_label, station_ft=f.station_ft,
                 label_source=f.label_source, label_confidence=f.label_confidence,
@@ -172,7 +181,9 @@ def _measure_page(pdf_path: str, index: int, cfg: PipelineConfig, overlays: bool
                 alt_fill_ft2=round(alt.fill_ft2, 2), alt_cut_ft2=round(alt.cut_ft2, 2),
                 bbox=(f.top, f.bottom, f.left, f.right), page_kind=img.kind,
                 px_per_ft=(f.pitch_x / cfg.grid_ft, f.pitch_y / cfg.grid_ft), rotation=img.rot,
-                warnings=warnings, overlay_png=png, geometry=_geometry(surf, f, img, cfg),
+                warnings=warnings, overlay_png=png,
+                overlay_px_per_ft=round(CANON_PPF * overlay_scale(surf), 4) if png else None,
+                profile=profile(surf) if png else None, geometry=_geometry(surf, f, img, cfg),
                 zero_reason=_zero_reason(surf, area),
             ))
         return out
@@ -201,7 +212,7 @@ def process_plan_set(
     pdf_path: str,
     cfg: PipelineConfig | str | None = None,
     workers: int | None = None,
-    overlays: bool = True,
+    overlays: bool | str = True,       # True: shaded audit images; "lines": traced lines only
     progress: Callable[[int, int], None] | None = None,
     pages: list[int] | None = None,
 ) -> PlanSetResult:

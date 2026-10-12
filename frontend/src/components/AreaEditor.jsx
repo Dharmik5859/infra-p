@@ -30,13 +30,14 @@ export function AreaInput({ value, onChange, label, tone }) {
 }
 
 /** Every section of the road with editable fill and cut areas. */
-export default function AreaEditor({ sections, selectedId, onSelect, onEdit, onReset, surfaceLabel }) {
+export default function AreaEditor({ sections, selectedId, onSelect, onEdit, onReset, onOpen, surfaceLabel }) {
   if (sections.length === 0) return <div className="empty">No sections on this road.</div>;
   return (
     <>
       <div className="editor-hint muted">
         Type over any area to correct it (square feet, measured to {surfaceLabel.toLowerCase()}). The chart, volumes and
-        totals update as you type; press <b>Save changes</b> to keep them.
+        totals update as you type; press <b>Save changes</b> to keep them. <b>Edit</b> opens the section large, to outline
+        areas on the drawing.
       </div>
       <div className="table-wrap">
         <table className="edit-table">
@@ -67,6 +68,7 @@ export default function AreaEditor({ sections, selectedId, onSelect, onEdit, onR
                     {s.dirty && <span className="tag warn">unsaved</span>}
                     {s.edited && !s.dirty && <span className="tag edited">edited</span>}
                     {s.edited && <button className="btn ghost small" onClick={() => onReset(s.id)}>Reset</button>}
+                    {s.overlay && <button className="btn small" onClick={() => onOpen(s.id)}>Edit</button>}
                   </div>
                 </td>
               </tr>

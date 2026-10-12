@@ -12,8 +12,8 @@ export default function Headline({ report, compact = false }) {
   const tiles = [
     {
       tone: 'blue', value: fmtPct(found, 0),
-      label: 'Cross-sections found & stationed',
-      sub: `${h.sections_found_and_stationed} of ${h.sections_checked} sections located on the sheet with the correct station`,
+      label: 'Sections found with the right station',
+      sub: `${h.sections_found_and_stationed} of ${h.sections_checked} sections located and matched to the drawing's station`,
     },
     {
       tone: 'green', value: fmtPct(100 - Math.abs(h.volume_error_pct)),
@@ -45,9 +45,10 @@ export default function Headline({ report, compact = false }) {
       </div>
       {!compact && (
         <p className="headline-basis">
-          Measured on {h.sections_checked} cross-sections from scanned 19-series and 23-series plan sets, each compared with the
-          exact CAD drawing of the same sheet. Per-section shares leave out {h.sections_checked - h.sections_scored} sections
-          under 10 ft², where a few square feet would swing the percentage.
+          Measured on {h.sections_checked} cross-sections from {h.plan_sets?.length || 'several'} scanned plan sets
+          (the 19-series, the 23-series layout and others), each compared with the exact CAD drawing of the same
+          sheet. Sections that could not be matched to the drawing by station count against the first figure.
+          Per-section shares leave out sections under 10 ft², where a few square feet would swing the percentage.
         </p>
       )}
     </section>

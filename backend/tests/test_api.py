@@ -36,6 +36,13 @@ def test_job_lifecycle(tmp_path):
 
     png = client.get(section["overlay"])
     assert png.status_code == 200 and png.content[:4] == b"\x89PNG"
+    # the overlay's scale and traced lines let the browser shade fill/cut on it
+    assert 0 < section["overlay_px_per_ft"] <= 14.4
+    prof = client.get(section["profile"]).json()
+    assert len(prof["x"]) == len(prof["ground"]) == len(prof["subgrade"]) > 10
+    assert prof["size"][0] > 0 and prof["size"][1] > 0
+    # the overlay's scale lets the browser turn a region drawn on it into ft²
+    assert 0 < section["overlay_px_per_ft"] <= 14.4
     csv = client.get(f"/api/jobs/{job_id}/volumes.csv?surface=finished")
     assert csv.status_code == 200 and "ALL ROADS" in csv.text
     assert client.get(f"/api/jobs/{job_id}/sections.csv").status_code == 200
@@ -196,3 +203,34 @@ def test_chunked_upload_rejects_bad_sequences(tmp_path, monkeypatch):
     assert client.post("/api/uploads", json={"filename": "a.txt", "size": 10}).status_code == 400
     monkeypatch.setattr(main, "MAX_UPLOAD_MB", 1)
     assert client.post("/api/uploads", json={"filename": "a.pdf", "size": 2 << 20}).status_code == 413
+
+
+def test_marked_areas_are_measured_kept_and_drawn(tmp_path):
+    import pymupdf as fitz
+    client = TestClient(main.app)
+    job_id, result = _finished_job(tmp_path, client)
+    surface = result["summary"]["design_surface"]
+    sec = result["sections"][result["roads"][0]["sections"][0]]
+    ppf = sec["overlay_px_per_ft"]
+    # a 10 ft x 4 ft rectangle outlined on the image, marked as cut
+    box = [[100, 100], [100 + 10 * ppf, 100], [100 + 10 * ppf, 100 + 4 * ppf], [100, 100 + 4 * ppf]]
+    m = sec["measured"][surface]
+    edit = {"fill_ft2": m["fill_ft2"], "cut_ft2": round(m["cut_ft2"] + 40, 2), "marks": [{"kind": "cut", "pts": box}]}
+    r = client.put(f"/api/jobs/{job_id}/edits", json={"surface": surface, "edits": {str(sec["id"]): edit}})
+    assert r.status_code == 200
+    saved = r.json()["sections"][sec["id"]]
+    assert saved["marks"][surface][0]["kind"] == "cut"
+    assert abs(saved["marks"][surface][0]["ft2"] - 40) < 0.5
+    assert saved["areas"][surface]["cut_ft2"] == edit["cut_ft2"]
+    assert str(sec["id"]) in r.json()["edits"][surface]
+
+    before = fitz.open(main.JOBS[job_id].pdf_path)[sec["page"] - 1].get_drawings()
+    out = fitz.open(stream=client.get(f"/api/jobs/{job_id}/annotated.pdf").content, filetype="pdf")
+    assert len(out[sec["page"] - 1].get_drawings()) > len(before)
+
+    # bad marks are refused; null clears the edit and its marks
+    for marks in ([{"kind": "x", "pts": box}], [{"kind": "fill", "pts": box[:2]}], [{"kind": "fill", "pts": [["a", 1]] * 3}]):
+        bad = {str(sec["id"]): {**edit, "marks": marks}}
+        assert client.put(f"/api/jobs/{job_id}/edits", json={"surface": surface, "edits": bad}).status_code == 400
+    r = client.put(f"/api/jobs/{job_id}/edits", json={"surface": surface, "edits": {str(sec["id"]): None}})
+    assert r.json()["sections"][sec["id"]]["marks"][surface] == []

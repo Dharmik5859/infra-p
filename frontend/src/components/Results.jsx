@@ -8,6 +8,7 @@ import SectionViewer from './SectionViewer';
 import SegmentsTable from './SegmentsTable';
 import ReviewList from './ReviewList';
 import AreaEditor from './AreaEditor';
+import EditSectionModal from './EditSectionModal';
 
 function needsReview(s) {
   return s.label_source === 'inferred' || s.warnings.length > 0 || !s.station;
@@ -35,9 +36,10 @@ export default function Results({ result, onResult }) {
     // a section with no earthwork says why (bridge, nothing proposed, resurfacing) -- unless the user typed areas in
     const zero = s.zero_reason && !edited && area.fill_ft2 + area.cut_ft2 < 0.5
       ? { short: ZERO_SHORT[s.zero_reason] || 'No earthwork', text: result.zero_reasons?.[s.zero_reason] || '' } : null;
+    const marks = s.marks?.[surface] || [];
     return {
       ...s, fill_ft2: area.fill_ft2, cut_ft2: area.cut_ft2, net_ft2: area.fill_ft2 - area.cut_ft2,
-      measured, edited, dirty: Boolean(drafts[surface]?.[s.id]), zero,
+      measured, marks, edited: edited || marks.length > 0, dirty: Boolean(drafts[surface]?.[s.id]), zero,
     };
   }), [result.sections, result.zero_reasons, surface, drafts]);
 
@@ -52,6 +54,7 @@ export default function Results({ result, onResult }) {
   const [roadId, setRoadId] = useState(roads[0]?.id ?? null);
   const [sectionId, setSectionId] = useState(roads[0]?.sections[0] ?? sections[0]?.id ?? null);
   const [tab, setTab] = useState('segments');
+  const [editing, setEditing] = useState(null);       // section id open in the edit dialog
 
   const road = roads.find((r) => r.id === roadId) || null;
   const roadSections = useMemo(() => (road ? road.sections.map((i) => sections[i]) : sections), [road, sections]);
@@ -93,7 +96,9 @@ export default function Results({ result, onResult }) {
         const edits = {};
         for (const id of ids) {
           const measured = (result.sections[id].measured || result.sections[id].areas)[sf];
-          edits[id] = same(d[id], measured) ? null : d[id];
+          const marks = result.sections[id].marks?.[sf] || [];
+          edits[id] = same(d[id], measured) && !marks.length ? null
+            : { ...d[id], marks: marks.map(({ kind, pts }) => ({ kind, pts })) };
         }
         latest = await saveEdits(result.job_id, sf, edits);
       }
@@ -105,6 +110,20 @@ export default function Results({ result, onResult }) {
     } finally {
       setSaving(false);
     }
+  }
+
+  // the edit dialog saves its section straight away (areas + outlined shapes)
+  async function saveSection(id, area, marks) {
+    const measured = (result.sections[id].measured || result.sections[id].areas)[surface];
+    const latest = await saveEdits(result.job_id, surface,
+      { [id]: same(area, measured) && !marks.length ? null : { ...area, marks } });
+    setDrafts((prev) => {
+      const mine = { ...(prev[surface] || {}) };
+      delete mine[id];
+      return { ...prev, [surface]: mine };
+    });
+    onResult(latest);
+    setSaveMsg({ ok: true, text: `Saved ${result.sections[id].station || 'the section'}. The picture, chart, totals, PDF and CSV now use these areas.` });
   }
 
   // don't lose unsaved edits to a closed tab
@@ -131,7 +150,7 @@ export default function Results({ result, onResult }) {
   // ← / → step through the selected road's sections
   useEffect(() => {
     function onKey(e) {
-      if (e.target.closest('input, textarea, select')) return;
+      if (editing != null || e.target.closest('input, textarea, select')) return;
       if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
       const ids = roadSections.map((s) => s.id);
       const i = ids.indexOf(sectionId);
@@ -140,7 +159,7 @@ export default function Results({ result, onResult }) {
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [roadSections, sectionId]);
+  }, [roadSections, sectionId, editing]);
 
   const excluded = roads.filter((r) => !included.has(r.id)).map((r) => r.id);
   const section = sectionId != null ? sections[sectionId] : null;
@@ -257,11 +276,8 @@ export default function Results({ result, onResult }) {
         )}
 
         {section && (
-          <SectionViewer section={section} position={pos} count={roadSections.length}
-            onEdit={(area) => setArea(section.id, area)} onReset={() => resetArea(section.id)}
-            shadingNote={surface !== summary.design_surface || section.edited
-              ? `Shading in the drawing shows the measured ${SURFACE_LABEL[summary.design_surface].toLowerCase()} areas; the numbers follow your selection${section.edited ? ' and edits' : ''}.`
-              : null}
+          <SectionViewer section={section} surface={surface} position={pos} count={roadSections.length}
+            onOpenEdit={() => setEditing(section.id)} onReset={() => resetArea(section.id)}
             onPrev={pos > 0 ? () => setSectionId(roadSections[pos - 1].id) : null}
             onNext={pos >= 0 && pos < roadSections.length - 1 ? () => setSectionId(roadSections[pos + 1].id) : null} />
         )}
@@ -281,10 +297,14 @@ export default function Results({ result, onResult }) {
           {tab === 'segments' && <SegmentsTable road={road} sections={sections} onSelect={selectSection} />}
           {tab === 'edit' && (
             <AreaEditor sections={roadSections} selectedId={sectionId} onSelect={setSectionId}
-              onEdit={setArea} onReset={resetArea} surfaceLabel={SURFACE_LABEL[surface] || surface} />
+              onEdit={setArea} onReset={resetArea} onOpen={(id) => { setSectionId(id); setEditing(id); }} surfaceLabel={SURFACE_LABEL[surface] || surface} />
           )}
           {tab === 'review' && <ReviewList items={review} onSelect={selectSection} />}
         </section>
+        {editing != null && sections[editing] && (
+          <EditSectionModal key={`${editing}-${surface}`} section={sections[editing]} surface={surface}
+            onClose={() => setEditing(null)} onSave={(area, marks) => saveSection(editing, area, marks)} />
+        )}
       </div>
     </div>
   );

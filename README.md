@@ -59,15 +59,20 @@ Details worth knowing:
 
 ## Accuracy
 
-**At a glance** (scanned 19-series and 23-series plan sets, every cross-section
-compared with the exact CAD drawing of the same sheet):
+**At a glance** (6 scanned plan sets -- 19-series, SR 332 in the 23-series layout,
+Perry Creek, SR 70, Webb Creek, Florence -- every cross-section compared with the
+exact CAD drawing of the same sheet):
 
 | | |
 |---|---|
-| Cross-sections found and correctly stationed | **100 %** (179 of 179) |
-| Total earthwork volume accuracy (cut + fill) | **98.3 %** (fill 99.3 %, cut 94.4 %) |
-| Sections within 25 % / within 10 % | **76 %** / 58 % (typical section error 6.7 %) |
+| Sections found with the right station | **97 %** (351 of 361) |
+| Total earthwork volume accuracy (cut + fill) | **98.9 %** (fill 99.7 %, cut 95.9 %) |
+| Sections within 25 % / within 10 % | **76 %** / 52 % (typical section error 9.5 %) |
 | Plan sets processed without failure | **36 of 36** (858 pages, 2,101 sections) |
+
+The app's **Accuracy** page also lists every PDF with what was found in it and,
+where a reference exists (the CAD drawing of the same sheets, or an estimator's
+hand takeoff), its volume, fill and cut accuracy -- 14 plan sets in all.
 
 Measured with `backend/tools/evaluate.py` against two independent references:
 
@@ -126,10 +131,13 @@ A dashboard with a sidebar (Dashboard · New takeoff · Results · Accuracy) and
 * **Results** – roads (toggle which count toward the total), the cut/fill profile with
   mass curve, every cross-section with its audit overlay (← / → to step), the volume table,
   sections that need review, CSV export, and a switch between subgrade and finished grade.
-* **Editing areas** – any section's fill and cut can be corrected, in the section viewer or
-  in the *Edit areas* table. The chart, mass curve, volumes and totals update as you type;
-  **Save changes** stores the edits on the server (volumes recomputed by average end area,
-  CSV exports and the PDF use them, and the measured values are kept so any edit can be reset).
+* **Editing areas** – **Edit** on any section opens it large: type the fill and cut, or
+  click points around an area on the drawing and press **Fill** or **Cut** (**Reset** goes
+  back to the measurement). The green / red shading on the picture follows every change,
+  and **Save** stores it. Areas can also be typed in the *Edit areas* table. The chart, mass
+  curve, volumes and totals update as you type; saved edits are kept on the server (volumes
+  recomputed by average end area, CSV exports and the PDF use them, outlined areas are drawn
+  on the PDF, and the measured values are kept so any edit can be reset).
 * **Download PDF** – your original plan set back, page for page, with the cut/fill
   shading, the traced lines and a label (station, fill, cut, edits) on every section,
   and summary pages with the volumes per road.
@@ -208,10 +216,11 @@ Writes `sections.csv`, `volumes.csv` and one overlay PNG per section.
 | `POST` | `/api/uploads/{id}/complete` | assemble the PDF and start the job → `{job_id}` |
 | `GET` | `/api/jobs/{id}` | status, progress, and the result when done |
 | `GET` | `/api/jobs/{id}/sections/{n}.png` | audit overlay of one section |
+| `GET` | `/api/jobs/{id}/sections/{n}/profile.json` | the section's traced lines in image pixels (the app shades fill/cut from them, following edits) |
 | `GET` | `/api/jobs/{id}/volumes.csv?surface=subgrade&exclude=r2` | volumes per road |
 | `GET` | `/api/jobs/{id}/sections.csv` | areas per section, both surfaces (notes hand edits) |
 | `GET` | `/api/jobs/{id}/annotated.pdf?surface=&exclude=` | the original PDF, every page unchanged, with cut/fill shading and areas (edits included) drawn on each section, plus summary pages |
-| `PUT` | `/api/jobs/{id}/edits` | save hand-edited areas `{"surface": "subgrade", "edits": {"12": {"fill_ft2": 40, "cut_ft2": 3}, "13": null}}` (`null` = back to measured); volumes are recomputed and the updated result returned |
+| `PUT` | `/api/jobs/{id}/edits` | save hand-edited areas `{"surface": "subgrade", "edits": {"12": {"fill_ft2": 40, "cut_ft2": 3}, "13": null}}` (`null` = back to measured; an edit may carry `"marks": [{"kind": "fill", "pts": [[x, y], …]}]`, areas outlined on the section image); volumes are recomputed and the updated result returned |
 
 Environment: `ALLOWED_ORIGINS` (CORS, comma separated), `MAX_CONCURRENT_JOBS` (default 1), `MAX_UPLOAD_MB`
 (default 2048), `UPLOAD_CHUNK_MB` (default 8), `JOB_TTL_SECONDS` (default 6 h), `FRONTEND_DIST`, `ACCURACY_FILE`.
