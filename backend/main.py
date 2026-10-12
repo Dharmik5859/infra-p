@@ -389,9 +389,15 @@ def _area(v) -> float:
 MAX_MARKS, MAX_MARK_POINTS = 50, 500
 
 
-def _marks(val, sec) -> list[dict]:
+MARK_KINDS = ("fill", "cut", "remove_fill", "remove_cut")
+
+
+def _marks(val, sec, measured: dict) -> list[dict]:
     """Areas the user outlined on the section image: [{kind, pts}], pts in
-    image pixels. Each gets its area in ft² from the image scale."""
+    image pixels. fill / cut add the outlined area (measured here from the
+    image scale); remove_fill / remove_cut take away the traced area inside
+    the outline -- the browser measures that share of the traced zones and
+    sends it as ft2, kept within what was measured."""
     if val is None:
         return []
     ppf, prof = sec.overlay_px_per_ft, sec.profile
@@ -401,8 +407,8 @@ def _marks(val, sec) -> list[dict]:
     out = []
     for m in val:
         pts = m.get("pts") if isinstance(m, dict) else None
-        if m.get("kind") not in ("fill", "cut") or not isinstance(pts, list) or not 3 <= len(pts) <= MAX_MARK_POINTS:
-            raise HTTPException(400, f"Each mark needs kind fill|cut and 3 to {MAX_MARK_POINTS} points.")
+        if m.get("kind") not in MARK_KINDS or not isinstance(pts, list) or not 3 <= len(pts) <= MAX_MARK_POINTS:
+            raise HTTPException(400, f"Each mark needs a kind ({'|'.join(MARK_KINDS)}) and 3 to {MAX_MARK_POINTS} points.")
         clean = []
         for p in pts:
             if (not isinstance(p, list) or len(p) != 2
@@ -412,7 +418,15 @@ def _marks(val, sec) -> list[dict]:
         a = 0.0
         for (x1, y1), (x2, y2) in zip(clean, clean[1:] + clean[:1]):
             a += x1 * y2 - x2 * y1
-        out.append({"kind": m["kind"], "pts": clean, "ft2": _round(abs(a) / 2 / ppf ** 2, 2)})
+        if m["kind"].startswith("remove_"):
+            base = m["kind"][len("remove_"):]
+            ft2 = min(_area(m.get("ft2")), measured[f"{base}_ft2"])
+        else:
+            ft2 = abs(a) / 2 / ppf ** 2
+        out.append({"kind": m["kind"], "pts": clean, "ft2": _round(ft2, 2)})
+    for kind in ("fill", "cut"):
+        if sum(m["ft2"] for m in out if m["kind"] == f"remove_{kind}") > measured[f"{kind}_ft2"] + 0.05:
+            raise HTTPException(400, f"Removed {kind} is more than the measured {kind}.")
     return out
 
 
@@ -471,7 +485,8 @@ def save_edits(job_id: str, body: dict = Body(...)):
             parsed[i] = None
         elif isinstance(val, dict):
             parsed[i] = {"fill_ft2": _area(val.get("fill_ft2")), "cut_ft2": _area(val.get("cut_ft2")),
-                         "marks": _marks(val.get("marks"), job.result.sections[i])}
+                         "marks": _marks(val.get("marks"), job.result.sections[i],
+                                         job.payload["sections"][i]["measured"][surface])}
         else:
             raise HTTPException(400, f"Section {key}: expected {{fill_ft2, cut_ft2}} or null.")
     with LOCK:

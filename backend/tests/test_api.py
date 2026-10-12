@@ -234,3 +234,37 @@ def test_marked_areas_are_measured_kept_and_drawn(tmp_path):
         assert client.put(f"/api/jobs/{job_id}/edits", json={"surface": surface, "edits": bad}).status_code == 400
     r = client.put(f"/api/jobs/{job_id}/edits", json={"surface": surface, "edits": {str(sec["id"]): None}})
     assert r.json()["sections"][sec["id"]]["marks"][surface] == []
+
+
+def test_removed_areas_take_away_measured_area_and_shading(tmp_path):
+    import pymupdf as fitz
+    client = TestClient(main.app)
+    job_id, result = _finished_job(tmp_path, client)
+    surface = result["summary"]["design_surface"]
+    sec = next(result["sections"][i] for i in result["roads"][0]["sections"]
+               if result["sections"][i]["measured"][surface]["fill_ft2"] > 50)
+    m = sec["measured"][surface]
+    prof = client.get(sec["profile"]).json()
+    w, h = prof["size"]
+    everything = [[0, 0], [w, 0], [w, h], [0, h]]        # outline the whole image: remove all the fill
+    edit = {"fill_ft2": 0, "cut_ft2": m["cut_ft2"],
+            "marks": [{"kind": "remove_fill", "pts": everything, "ft2": m["fill_ft2"]}]}
+    r = client.put(f"/api/jobs/{job_id}/edits", json={"surface": surface, "edits": {str(sec["id"]): edit}})
+    assert r.status_code == 200
+    saved = r.json()["sections"][sec["id"]]
+    assert saved["areas"][surface]["fill_ft2"] == 0
+    assert saved["marks"][surface] == [{"kind": "remove_fill", "pts": everything, "ft2": m["fill_ft2"]}]
+
+    out = fitz.open(stream=client.get(f"/api/jobs/{job_id}/annotated.pdf").content, filetype="pdf")
+    page = out[sec["page"] - 1]
+    frame = fitz.Rect(fitz.Point(main.JOBS[job_id].result.sections[sec["id"]].geometry["frame"][0]),
+                      fitz.Point(main.JOBS[job_id].result.sections[sec["id"]].geometry["frame"][2]))
+    frame |= fitz.Point(main.JOBS[job_id].result.sections[sec["id"]].geometry["frame"][1])
+    green = [d for d in page.get_drawings() if d.get("fill") and abs(d["fill"][1] - 142 / 255) < 0.01
+             and d["rect"].intersects(frame)]
+    assert not green                                     # no fill left shaded on this section
+
+    # removing more than was measured is refused
+    too_much = {**edit, "marks": [{"kind": "remove_fill", "pts": everything, "ft2": m["fill_ft2"] + 50}]}
+    r = client.put(f"/api/jobs/{job_id}/edits", json={"surface": surface, "edits": {str(sec["id"]): too_much}})
+    assert r.status_code == 200 and r.json()["sections"][sec["id"]]["marks"][surface][0]["ft2"] == m["fill_ft2"]
