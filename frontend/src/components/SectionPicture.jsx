@@ -125,17 +125,25 @@ export function useProfile(url) {
  * depth is stretched by (area − marked) / measured, so the shaded area always
  * equals the numbers in use.
  */
-export function Shading({ prof, surface, fill, cut, measured, marks = [], selected = -1, onMarkClick }) {
-  const zs = useMemo(() => (prof ? zones(prof, surface) : []), [prof, surface]);
-  const maskId = `rm${useId().replace(/:/g, '')}`;
-  // the traced zones carry what outlined areas don't; removed parts are cut out of them
+/**
+ * How far each traced zone's depth is stretched so the shading matches the
+ * areas in use: the traced zones carry what outlined areas don't, and
+ * removed parts are cut out of them. 1 = as measured, 0 = nothing left.
+ */
+export function zoneScale(measured, fill, cut, marks = []) {
   const scale = (kind) => {
     const left = measured[`${kind}_ft2`] - markSum(marks, `remove_${kind}`);
     const base = Math.max(0, (kind === 'fill' ? fill : cut) - markSum(marks, kind));
     if (!(measured[`${kind}_ft2`] > 0)) return 1;
     return left > 0.005 ? base / left : 0;
   };
-  const k = { fill: scale('fill'), cut: scale('cut') };
+  return { fill: scale('fill'), cut: scale('cut') };
+}
+
+export function Shading({ prof, surface, fill, cut, measured, marks = [], selected = -1, onMarkClick }) {
+  const zs = useMemo(() => (prof ? zones(prof, surface) : []), [prof, surface]);
+  const maskId = `rm${useId().replace(/:/g, '')}`;
+  const k = zoneScale(measured, fill, cut, marks);
   const removals = marks.filter(isRemoval);
   return (
     <>

@@ -1,10 +1,18 @@
+import { useState } from 'react';
 import { SOURCE_TEXT, ft2 } from '../format';
+import AllValuesTable from './AllValuesTable';
+import { IconSection, IconSheet, IconTable } from './Icons';
 import SectionPicture from './SectionPicture';
+import SheetView from './SheetView';
 import SideTable from './SideTable';
 import { CENTRE_NOTE } from '../sides';
 
-export default function SectionViewer({ section: s, surface, position, count, onPrev, onNext, onOpenEdit, onReset }) {
+export default function SectionViewer({ jobId, section: s, sections, roads, surface, position, count, onPrev, onNext,
+  onSelect, onOpenEdit, onReset }) {
   const sourceTag = s.label_source === 'inferred' ? 'warn' : 'neutral';
+  // the whole PDF sheet with every section marked, or this section close up
+  const [mode, setMode] = useState('sheet');
+  const [table, setTable] = useState(false);
   return (
     <section className="panel viewer">
       <div className="viewer-head">
@@ -18,19 +26,39 @@ export default function SectionViewer({ section: s, surface, position, count, on
           </div>
         </div>
         <span className="spacer" />
+        <div className="viewer-tools">
+        <div className="segmented" role="radiogroup" aria-label="View">
+          <button role="radio" aria-checked={mode === 'sheet'} className={mode === 'sheet' ? 'on' : ''} onClick={() => setMode('sheet')}>
+            <IconSheet width={16} height={16} />Sheet</button>
+          <button role="radio" aria-checked={mode === 'section'} className={mode === 'section' ? 'on' : ''} onClick={() => setMode('section')}>
+            <IconSection width={16} height={16} />Section</button>
+        </div>
+        <button className={`btn ${table ? 'tonal' : ''}`} onClick={() => setTable((t) => !t)} aria-pressed={table}
+          title="All cut and fill values"><IconTable width={18} height={18} />All values</button>
         <div className="stepper" role="group" aria-label="Step through sections">
           <button className="btn icon-btn" onClick={onPrev} disabled={!onPrev} aria-label="Previous section" title="Previous (←)">‹</button>
           <button className="btn icon-btn" onClick={onNext} disabled={!onNext} aria-label="Next section" title="Next (→)">›</button>
         </div>
         <button className="btn primary" onClick={onOpenEdit}>Edit section</button>
+        </div>
       </div>
 
-      <div className="viewer-grid">
+      <div className={`viewer-grid ${mode === 'sheet' ? 'sheet-mode' : ''}`}>
         <div className="viewer-main">
-          {s.overlay ? (
+          {mode === 'sheet' ? (
+            <SheetView jobId={jobId} section={s} sections={sections} surface={surface} onSelect={onSelect} />
+          ) : s.overlay ? (
             <SectionPicture section={s} surface={surface}
               alt={`Cross-section ${s.station || ''} on page ${s.page}: existing ground in blue, finished grade in black, subgrade in yellow, fill shaded green, cut shaded red`} />
           ) : <div className="empty">No overlay image for this section.</div>}
+          {mode === 'sheet' ? (
+            <div className="legend">
+              <span><i style={{ background: 'var(--fill)' }} />fill</span>
+              <span><i style={{ background: 'var(--cut)' }} />cut</span>
+              <span><i className="legend-frame" />measured section (click to select)</span>
+              <span><i className="legend-frame sel" />selected section</span>
+            </div>
+          ) : (
           <div className="legend">
             <span><i style={{ background: '#1a73e8' }} />existing ground</span>
             <span><i style={{ background: '#1e1e1e' }} />finished grade</span>
@@ -38,6 +66,7 @@ export default function SectionViewer({ section: s, surface, position, count, on
             <span><i style={{ background: 'var(--fill)' }} />fill</span>
             <span><i style={{ background: 'var(--cut)' }} />cut</span>
           </div>
+          )}
         </div>
 
         <aside className="viewer-areas" aria-label="Areas of this section">
@@ -56,6 +85,10 @@ export default function SectionViewer({ section: s, surface, position, count, on
           )}
         </aside>
       </div>
+
+      {table && (
+        <AllValuesTable sections={sections} roads={roads} selectedId={s.id} onSelect={onSelect} onClose={() => setTable(false)} />
+      )}
 
       {(s.zero || s.warnings.length > 0) && (
         <div className="viewer-foot">

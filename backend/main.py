@@ -10,6 +10,8 @@ HTTP API for the earthwork pipeline.
     GET  /api/jobs/{id}                      status, progress, and (when done) the result
     GET  /api/jobs/{id}/sections/{n}.png     audit overlay for one cross-section
     GET  /api/jobs/{id}/sections/{n}/profile.json   its traced lines, in image pixels
+    GET  /api/jobs/{id}/pages/{n}.png        a whole sheet of the original PDF, as an image
+    GET  /api/jobs/{id}/pages/{n}.json       the sections on that sheet, in its coordinates
     GET  /api/jobs/{id}/volumes.csv          volume table (respects ?exclude=road ids)
     GET  /api/jobs/{id}/sections.csv         per-section areas
     GET  /api/jobs/{id}/annotated.pdf        the original PDF with the takeoff drawn on it
@@ -35,6 +37,8 @@ import threading
 import time
 import uuid
 from dataclasses import dataclass, field
+
+import pymupdf as fitz
 
 from fastapi import Body, FastAPI, File, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -78,6 +82,7 @@ class Job:
     result: PlanSetResult | None = None
     payload: dict | None = None
     pdf_path: str | None = None       # the upload, kept while the job lives
+    pages: dict = field(default_factory=dict)   # rendered sheet images, page -> PNG (a few kept)
 
 
 JOBS: dict[str, Job] = {}
@@ -383,6 +388,65 @@ def section_profile(job_id: str, n: int):
     if prof is None:
         raise HTTPException(404, "No profile for this section.")
     return JSONResponse(prof, headers={"Cache-Control": "private, max-age=86400"})
+
+
+PAGE_PX = 2400          # longest side of a rendered sheet image
+PAGE_CACHE = 12         # rendered sheets kept per job
+
+
+def _sheet(job: Job, n: int) -> "fitz.Page":
+    if job.result is None or not job.pdf_path or not os.path.exists(job.pdf_path):
+        raise HTTPException(404, "The original PDF is no longer available for this job.")
+    doc = fitz.open(job.pdf_path)
+    if not 1 <= n <= len(doc):
+        doc.close()
+        raise HTTPException(404, "No such page.")
+    return doc[n - 1]
+
+
+@app.get("/api/jobs/{job_id}/pages/{n}.png")
+def page_png(job_id: str, n: int):
+    """The original sheet as an image, as it is displayed (rotation applied)."""
+    job = _job(job_id)
+    png = job.pages.get(n)
+    if png is None:
+        page = _sheet(job, n)
+        z = PAGE_PX / max(page.rect.width, page.rect.height)
+        png = page.get_pixmap(matrix=fitz.Matrix(z, z), alpha=False).tobytes("png")
+        page.parent.close()
+        with LOCK:
+            if len(job.pages) >= PAGE_CACHE:
+                job.pages.pop(next(iter(job.pages)))
+            job.pages[n] = png
+    return Response(png, media_type="image/png", headers={"Cache-Control": "private, max-age=86400"})
+
+
+@app.get("/api/jobs/{job_id}/pages/{n}.json")
+def page_sections(job_id: str, n: int):
+    """Every measured cross-section on a sheet, in the sheet image's own
+    coordinates (PDF points, as displayed): its frame corners, the traced
+    ground and proposed surfaces, and where its section image sits -- so the
+    app can shade cut / fill and outline each section on the whole sheet."""
+    job = _job(job_id)
+    page = _sheet(job, n)
+    rot = page.rotation_matrix
+    size = [round(page.rect.width, 2), round(page.rect.height, 2)]
+    page.parent.close()
+    pt = lambda p: None if p is None else [round(q, 1) for q in (fitz.Point(p) * rot)]
+    out = []
+    for i, s in enumerate(job.result.sections):
+        g = s.geometry
+        if s.page != n or not g:
+            continue
+        thin = lambda line: [pt(p) for p in line[::2]]      # ~0.5 ft apart: plenty on a whole sheet
+        out.append({
+            "id": i, "frame": [pt(p) for p in g["frame"]],
+            "ground": thin(g["ground"]), "finished": thin(g["finished"]), "subgrade": thin(g["subgrade"]),
+            "canvas": [pt(p) for p in g["canvas"]] if g.get("canvas") else None,
+            "image_size": g.get("image_size"),
+        })
+    return JSONResponse({"page": n, "size": size, "image": f"/api/jobs/{job.id}/pages/{n}.png", "sections": out},
+                        headers={"Cache-Control": "private, max-age=86400"})
 
 
 MAX_AREA_FT2 = 1e6

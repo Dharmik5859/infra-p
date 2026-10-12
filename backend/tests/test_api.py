@@ -270,3 +270,19 @@ def test_removed_areas_take_away_measured_area_and_shading(tmp_path):
     too_much = {**edit, "marks": [{"kind": "remove_fill", "pts": everything, "ft2": m["fill_ft2"] + 50}]}
     r = client.put(f"/api/jobs/{job_id}/edits", json={"surface": surface, "edits": {str(sec["id"]): too_much}})
     assert r.status_code == 200 and r.json()["sections"][sec["id"]]["marks"][surface][0]["ft2"] == m["fill_ft2"]
+
+
+def test_whole_sheet_and_its_sections(tmp_path):
+    client = TestClient(main.app)
+    job_id, result = _finished_job(tmp_path, client)
+    sheet = client.get(f"/api/jobs/{job_id}/pages/1.json").json()
+    on_page = [s["id"] for s in result["sections"] if s["page"] == 1]
+    assert sorted(s["id"] for s in sheet["sections"]) == sorted(on_page) and on_page
+    w, h = sheet["size"]
+    for s in sheet["sections"]:
+        assert len(s["frame"]) == 3
+        assert all(0 <= x <= w and 0 <= y <= h for x, y in s["frame"])     # frames lie on the sheet
+        assert sum(p is not None for p in s["ground"]) > 10
+    png = client.get(sheet["image"])
+    assert png.status_code == 200 and png.content[:4] == b"\x89PNG"
+    assert client.get(f"/api/jobs/{job_id}/pages/99.json").status_code == 404

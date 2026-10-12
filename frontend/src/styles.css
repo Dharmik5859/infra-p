@@ -736,3 +736,54 @@ tr.total td { font-weight: 500; background: var(--surface-2); }
 .viewer-main .legend { gap: 6px 14px; }
 .centreline text { paint-order: stroke; stroke: #fff; stroke-linejoin: round; }
 @media (max-width: 640px) { .hero { padding: 20px; } .hero h2 { font-size: 21px; } .viewer-head { padding: 14px 16px; } .viewer-grid { padding: 14px 16px; } }
+
+/* whole-sheet view */
+.sheet-card { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface); }
+.sheet-frame { position: relative; height: clamp(360px, 62vh, 640px); background: #e9ecf1; overflow: hidden; }
+.sheet-svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; user-select: none; }
+.sheet-svg.panning { cursor: grabbing; }
+.sheet-svg image { image-rendering: auto; }
+.on-sheet .zone { fill-opacity: 0.5; }
+.on-sheet .frame-hit { fill: transparent; stroke: #1a73e8; stroke-opacity: 0.45; stroke-width: 1.2; vector-effect: non-scaling-stroke; cursor: pointer; }
+.on-sheet .frame-hit:hover { fill: rgba(26, 115, 232, 0.06); stroke-opacity: 0.9; }
+.on-sheet.selected .frame-hit { stroke: #1a73e8; stroke-opacity: 1; stroke-width: 3; fill: rgba(26, 115, 232, 0.05); }
+.sheet-label { font-family: var(--sans); font-weight: 600; paint-order: stroke; stroke: #fff; stroke-linejoin: round; pointer-events: none; }
+.sheet-label .st { fill: #174ea6; }
+.sheet-label .f { fill: #137333; }
+.sheet-label .c { fill: #a50e0e; }
+.on-sheet:not(.selected) .sheet-label { opacity: 0.85; }
+.pager { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; }
+.btn.icon-btn.small { width: 30px; height: 30px; }
+.btn.tonal { background: var(--blue-soft); border-color: var(--blue-soft); color: var(--blue-ink); }
+.btn svg { flex: none; }
+.segmented button { display: inline-flex; align-items: center; gap: 6px; }
+.legend-frame { border: 1.5px solid rgba(26, 115, 232, 0.55); background: transparent !important; }
+.legend-frame.sel { border: 2.5px solid #1a73e8; }
+
+/* all values table */
+.values-drawer { margin: 0 20px 18px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface); }
+.values-head { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.values-head h3 { margin: 2px 0 0; font-size: 16px; }
+.values-head .spacer { flex: 1; }
+.values-search { height: 34px; border: 1px solid var(--line-strong); border-radius: 17px; padding: 0 14px; background: var(--surface); color: var(--text); font: inherit; min-width: 200px; }
+.values-search:focus { outline: 2px solid var(--blue); outline-offset: -1px; }
+.values-scroll { max-height: 380px; overflow: auto; }
+.values-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
+.values-table th, .values-table td { padding: 7px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.values-table td.num, .values-table th.num { text-align: right; }
+.values-table thead th { position: sticky; top: 0; background: var(--surface-2); z-index: 1; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-3); font-weight: 500; }
+.values-table thead button { all: unset; cursor: pointer; }
+.values-table thead button:focus-visible { outline: 2px solid var(--blue); }
+.values-table tbody tr { cursor: pointer; }
+.values-table tbody tr:hover { background: var(--surface-2); }
+.values-table tbody tr.sel-row { background: var(--blue-soft); box-shadow: inset 3px 0 0 var(--blue); }
+.values-table tbody tr:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
+.values-table tfoot th, .values-table tfoot td { position: sticky; bottom: 0; background: var(--surface-2); font-weight: 500; border-top: 1px solid var(--line-strong); }
+.values-table .tag { margin-left: 6px; }
+.viewer-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; margin-left: auto; }
+/* on the whole sheet the drawing needs the width: areas go underneath, side by side */
+.viewer-grid.sheet-mode { grid-template-columns: minmax(0, 1fr); }
+.viewer-grid.sheet-mode .viewer-areas { grid-template-columns: minmax(0, 340px) minmax(0, 1fr) auto; align-items: center; }
+.viewer-grid.sheet-mode .viewer-areas .edit-note { grid-column: 1 / -1; }
+@media (max-width: 900px) { .viewer-grid.sheet-mode .viewer-areas { grid-template-columns: minmax(0, 1fr); } }
+.sheet-frame { height: clamp(340px, 56vh, 600px); }
