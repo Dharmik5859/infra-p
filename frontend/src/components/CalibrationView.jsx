@@ -2,13 +2,19 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createJob, getCalibration, getCrossSections, getJob, getSchema } from '../api';
 import { IconCopy, IconDownload, IconFile, IconRuler, IconUpload } from './Icons';
 import JsonView, { pretty } from './JsonView';
+import { Disclosure, InfoTip, Meter } from './Ui';
 
 const SHOW_SHAPES = 40;           // shapes rendered in the viewer; Copy / Download carry all of them
 const mb = (b) => `${(b / 1048576).toFixed(b < 10485760 ? 1 : 0)} MB`;
 const fmt = (v, d = 2) => Number(v).toFixed(d);
 const SOURCE = {
-  grid: 'measured grid', sheet_note: 'scale note on the sheet', document_note: 'document scale note',
+  grid: 'grid', sheet_note: 'sheet note', document_note: 'document note',
 };
+const SOURCE_TIP = {
+  grid: 'Measured from the cross-section grid on the sheet', sheet_note: 'Read from the scale note printed on the sheet',
+  document_note: 'The document\u2019s scale note (often on the first page)',
+};
+const SOURCE_TONE = { grid: 'ok', sheet_note: 'info', document_note: 'neutral' };
 
 function codeSamples(origin) {
   return {
@@ -246,10 +252,14 @@ export default function CalibrationView({ openJob }) {
         <section className="card calib-input">
           <span className="eyebrow">Calibration module</span>
           <h2>Feet to pixels, sheet by sheet</h2>
-          <p className="muted">
-            Upload the whole plan set. Each sheet&apos;s scale is measured from its cross-section grid, or read from its
-            printed scale note, or from the document&apos;s scale (often on the first page).
-          </p>
+          <div className="chips">
+            <span className="muted small-text">Scale from</span>
+            {Object.keys(SOURCE).map((k) => <span key={k} className={`tag ${SOURCE_TONE[k]}`} title={SOURCE_TIP[k]}>{SOURCE[k]}</span>)}
+            <InfoTip label="Where each scale comes from">
+              Upload the whole plan set. Each sheet&apos;s scale is measured from its cross-section grid, or read from its
+              printed scale note, or from the document&apos;s scale (often on the first page).
+            </InfoTip>
+          </div>
 
           <div className={`dropzone compact ${over ? 'over' : ''} ${file ? 'has-file' : ''}`} role="button" tabIndex={0}
             aria-label="Choose a plan set PDF"
@@ -270,7 +280,7 @@ export default function CalibrationView({ openJob }) {
           </button>
           {openJob && (
             <button className="btn ghost small use-open" onClick={useOpen} disabled={busy}>
-              or calibrate the open takeoff ({openJob.filename})
+              <span className="ellipsis">or use the open takeoff · {openJob.filename}</span>
             </button>
           )}
 
@@ -292,22 +302,28 @@ export default function CalibrationView({ openJob }) {
               {data.xs && (
                 <div className="calib-stats conf-stats">
                   <div><b className="num">{data.xs.summary.crossSections}</b><span>cross-sections</span></div>
-                  <div><b className="num fill-text">{data.xs.summary.passed}</b><span>pass {data.xs.passScore}% confidence</span></div>
+                  <div><b className="num fill-text">{data.xs.summary.passed}</b><span>pass ≥ {data.xs.passScore}%</span></div>
                   <div><b className={`num ${data.xs.summary.alerts ? 'cut-text' : ''}`}>{data.xs.summary.alerts}</b><span>alerts</span></div>
                 </div>
               )}
-              <div className="calib-scale">
-                <span className="muted">Document scale</span>
-                <b>{data.documentScale ? `${data.documentScale.text} (page ${data.documentScale.pageNumber})` : 'none printed'}</b>
-              </div>
-              {data.printScale && data.printScale.ratio !== 1 && (
-                <div className="calib-scale">
-                  <span className="muted">Printed at</span>
-                  <b title={data.printScale.meaning}>
-                    {data.printScale.ratio === 0.5 ? 'half size' : `${Math.round(data.printScale.ratio * 100)} %`} — the grid is measured, so areas are right
-                  </b>
-                </div>
+              {data.xs && data.xs.summary.crossSections > 0 && (
+                <Meter value={(100 * data.xs.summary.passed) / data.xs.summary.crossSections} tone={data.xs.summary.alerts ? 'yellow' : 'green'}
+                  label={`${data.xs.summary.passed} of ${data.xs.summary.crossSections} cross-sections pass`} />
               )}
+              <div className="calib-scale chips">
+                <span className="muted small-text">Document scale</span>
+                <span className={`tag ${data.documentScale ? 'info' : 'neutral'}`}>
+                  {data.documentScale ? `${data.documentScale.text} · p. ${data.documentScale.pageNumber}` : 'none printed'}</span>
+                {data.printScale && data.printScale.ratio !== 1 && (
+                  <>
+                    <span className="tag warn" title={data.printScale.meaning}>
+                      printed {data.printScale.ratio === 0.5 ? 'half size' : `at ${Math.round(data.printScale.ratio * 100)} %`}</span>
+                    <InfoTip label="About the print scale">
+                      {data.printScale.meaning} The grid is measured, so areas are right.
+                    </InfoTip>
+                  </>
+                )}
+              </div>
               {data.uncalibratedPages.length > 0 && (
                 <div className="warning">No scale found for sheet{data.uncalibratedPages.length > 1 ? 's' : ''} {data.uncalibratedPages.join(', ')}.</div>
               )}
@@ -318,12 +334,12 @@ export default function CalibrationView({ openJob }) {
                     {data.calibrations.map((c) => (
                       <tr key={c.id}>
                         <td className="num">{c.pageNumber}</td>
-                        <td><span className={`tag ${c.source === 'grid' ? 'fill' : 'info'}`}>{SOURCE[c.source] || c.source}</span></td>
+                        <td><span className={`tag ${SOURCE_TONE[c.source] || 'warn'}`} title={SOURCE_TIP[c.source]}>{SOURCE[c.source] || c.source}</span></td>
                         <td className="num">{fmt(c.pixelsPerFootX ?? c.pixelLengthX / 10, 3)}</td>
                         <td className={`num ${c.verticalDiffers ? 'warn-text' : ''}`}>{fmt(c.pixelsPerFootY ?? c.pixelLengthY / 10, 3)}</td>
                         <td title={c.gridScale ? `across: ${SCALE_SRC[c.gridScale.sourceX]}, up: ${SCALE_SRC[c.gridScale.sourceY]}` : ''}>
                           {c.gridScale ? `${c.gridScale.ftPerSquareX} × ${c.gridScale.ftPerSquareY} ft` : '—'}
-                          {c.gridScale && <small className="muted"> {SCALE_SRC[c.gridScale.sourceX]}</small>}
+                          {c.gridScale && c.gridScale.sourceX === 'assumed' && <span className="tag warn" style={{ marginLeft: 6 }}>assumed</span>}
                         </td>
                         <td className="num">{fmt(c.scaleX, 4)}</td>
                       </tr>
@@ -359,7 +375,7 @@ export default function CalibrationView({ openJob }) {
               <div className="json-empty">
                 <IconRuler width={36} height={36} />
                 <b>{busy ? statusText : 'No response yet'}</b>
-                <span className="muted">Upload a plan set and press Analyze. The calibration of every sheet appears here.</span>
+                <span className="muted">Upload a plan set, then Analyze.</span>
               </div>
             )}
           </section>
@@ -380,9 +396,11 @@ export default function CalibrationView({ openJob }) {
                 <IconCopy width={16} height={16} />{copied === 'code' ? 'Copied' : 'Copy'}</button>
             </div>
             <pre className="code-block"><code>{samples[lang]}</code></pre>
-            <dl className="field-guide">
-              {FIELDS.map(([k, v]) => <div key={k}><dt><code>{k}</code></dt><dd>{v}</dd></div>)}
-            </dl>
+            <Disclosure title="Field reference" meta={`${FIELDS.length} fields`} className="flush">
+              <dl className="field-guide">
+                {FIELDS.map(([k, v]) => <div key={k}><dt><code>{k}</code></dt><dd>{v}</dd></div>)}
+              </dl>
+            </Disclosure>
           </section>
         </div>
       </div>

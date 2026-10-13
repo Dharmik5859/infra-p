@@ -11,6 +11,8 @@ import SegmentsTable from './SegmentsTable';
 import ReviewList from './ReviewList';
 import AreaEditor from './AreaEditor';
 import EditSectionModal from './EditSectionModal';
+import { IconBalance, IconDownload, IconLayers, IconTrendDown, IconTrendUp } from './Icons';
+import { InfoTip, NoteList, StatCard } from './Ui';
 
 function needsReview(s) {
   return s.label_source === 'inferred' || s.warnings.length > 0 || !s.station || (s.confidence && !s.confidence.passed);
@@ -191,11 +193,13 @@ export default function Results({ result, onResult }) {
         <section className="panel">
           <div className="panel-h"><h3>Export</h3></div>
           <div className="export-list">
-            <a className="btn primary" href={annotatedPdfUrl(result.job_id, excluded, surface)}>Plan set PDF with takeoff</a>
-            <span className="export-note">Your original PDF, every page unchanged, with cut/fill shading and areas drawn on each
-              section and a volume summary at the end.</span>
-            <a className="btn" href={volumesCsvUrl(result.job_id, excluded, surface)}>Volumes by road (CSV)</a>
-            <a className="btn" href={sectionsCsvUrl(result.job_id)}>Areas by section (CSV)</a>
+            <div className="export-row">
+              <a className="btn primary" href={annotatedPdfUrl(result.job_id, excluded, surface)}><IconDownload width={18} height={18} />Plan set PDF</a>
+              <InfoTip label="What the PDF contains">Your original PDF, every page unchanged, with cut/fill shading and areas drawn on each
+                section and a volume summary at the end.</InfoTip>
+            </div>
+            <a className="btn" href={volumesCsvUrl(result.job_id, excluded, surface)}>Volumes by road · CSV</a>
+            <a className="btn" href={sectionsCsvUrl(result.job_id)}>Areas by section · CSV</a>
             {dirtyCount > 0 && <span className="export-note warn-text">Save your edits first: downloads use saved areas only.</span>}
           </div>
         </section>
@@ -223,7 +227,7 @@ export default function Results({ result, onResult }) {
         )}
 
         <div className="surface-bar">
-          <span className="muted">Earthwork measured to</span>
+          <span className="muted surface-lead">Measured to</span>
           <div className="segmented" role="radiogroup" aria-label="Proposed surface used for earthwork">
             {summary.surfaces.map((sf) => (
               <button key={sf} role="radio" aria-checked={surface === sf}
@@ -232,60 +236,53 @@ export default function Results({ result, onResult }) {
               </button>
             ))}
           </div>
-          <span className="muted hint">
-            {surface === 'subgrade'
-              ? 'bottom of the pavement structure — standard earthwork practice'
-              : 'top of pavement — includes the pavement layer in fill'}
-          </span>
+          <InfoTip label="About the surface">
+            <b>Subgrade:</b> bottom of the pavement structure — standard earthwork practice.<br />
+            <b>Finished grade:</b> top of pavement — includes the pavement layer in fill.
+          </InfoTip>
           <span className="spacer" />
           <a className="btn" href={annotatedPdfUrl(result.job_id, excluded, surface)}
-            title="Your original PDF with cut/fill and areas drawn on every section">Download PDF</a>
+            title="Your original PDF with cut/fill and areas drawn on every section"><IconDownload width={18} height={18} />PDF</a>
         </div>
-        <div className="kpis">
-          <div className="kpi">
-            <div className="label">Cut</div>
-            <div className="value num cut-text">{cy(totals.cut)}<small>cy</small></div>
-            <div className="sub lr">left {cy(totals.side.left.cut)} · right {cy(totals.side.right.cut)} cy</div>
-            <div className="balance" aria-hidden="true">
+        <div className="stat-grid">
+          <StatCard icon={IconTrendDown} tone="red" label="Cut" value={cy(totals.cut)} unit="cy">
+            <div className="lr-mini num"><span><i>L</i>{cy(totals.side.left.cut)}</span><span><i>R</i>{cy(totals.side.right.cut)}</span></div>
+            <div className="balance" role="img" aria-label={`Cut is ${Math.round((totals.cut / balanceTotal) * 100)}% of cut plus fill`}>
               <div className="c" style={{ width: `${(totals.cut / balanceTotal) * 100}%` }} />
               <div className="f" style={{ width: `${(totals.fill / balanceTotal) * 100}%` }} />
             </div>
-          </div>
-          <div className="kpi">
-            <div className="label">Fill</div>
-            <div className="value num fill-text">{cy(totals.fill)}<small>cy</small></div>
-            <div className="sub lr">left {cy(totals.side.left.fill)} · right {cy(totals.side.right.fill)} cy</div>
-            <div className="sub">{included.size} of {roads.length} road{roads.length === 1 ? '' : 's'} counted</div>
-          </div>
-          <div className="kpi">
-            <div className="label">Net</div>
-            <div className={`value num ${totals.net >= 0 ? 'fill-text' : 'cut-text'}`}>{signed(totals.net)}<small>cy</small></div>
-            <div className="sub">{totals.net >= 0 ? 'import (fill exceeds cut)' : 'export (cut exceeds fill)'}</div>
-          </div>
-          <div className="kpi">
-            <div className="label">Cross-sections</div>
-            <div className="value num">{summary.sections}</div>
-            <div className="sub">
-              {summary.cross_section_pages} of {summary.pages} pages · {review.length} to review
-              {lowCount > 0 && <> · <span className="cut-text">{lowCount} below {85}% confidence</span></>}
-              {zeroCount > 0 && <> · {zeroCount} with no earthwork</>}
-              {editedCount > 0 && <> · <span className="edited-text">{editedCount} edited</span></>}
+          </StatCard>
+          <StatCard icon={IconTrendUp} tone="green" label="Fill" value={cy(totals.fill)} unit="cy">
+            <div className="lr-mini num"><span><i>L</i>{cy(totals.side.left.fill)}</span><span><i>R</i>{cy(totals.side.right.fill)}</span></div>
+            <div className="chips"><span className="tag neutral" title="Roads counted in the totals">{included.size}/{roads.length} road{roads.length === 1 ? '' : 's'} counted</span></div>
+          </StatCard>
+          <StatCard icon={IconBalance} tone={totals.net >= 0 ? 'green' : 'red'} label="Net" value={signed(totals.net)} unit="cy"
+            tip={totals.net >= 0 ? 'Import: fill exceeds cut.' : 'Export: cut exceeds fill.'}>
+            <div className="chips"><span className={`tag ${totals.net >= 0 ? 'info' : 'warn'}`}>{totals.net >= 0 ? 'import' : 'export'}</span></div>
+          </StatCard>
+          <StatCard icon={IconLayers} tone="yellow" label="Sections" value={summary.sections} className="v-plain">
+            <div className="chips">
+              <span className="tag neutral" title={`${summary.cross_section_pages} of ${summary.pages} pages have cross-sections`}>{summary.cross_section_pages}/{summary.pages} pages</span>
+              {review.length > 0 && <span className="tag warn" title="Sections flagged for review">{review.length} to review</span>}
+              {lowCount > 0 && <span className="tag bad" title={`Below ${85}% confidence`}>{lowCount} &lt;{85}%</span>}
+              {zeroCount > 0 && <span className="tag neutral" title="Sections with no earthwork">{zeroCount} no earthwork</span>}
+              {editedCount > 0 && <span className="tag edited">{editedCount} edited</span>}
             </div>
-          </div>
+          </StatCard>
         </div>
 
-        {result.warnings.length > 0 && (
-          <div className="warnings">{result.warnings.map((w, i) => <div className="warning" key={i}>{w}</div>)}</div>
-        )}
+        {result.warnings.length > 0 && <NoteList items={result.warnings} label="plan-set warning" />}
 
         {road && (
           <section className="panel">
             <div className="panel-h">
-              <h3>{road.label} profile</h3>
-              <span className="muted">{road.station_from} → {road.station_to}</span>
+              <div className="profile-title">
+                <h3 className="ellipsis" title={road.label}>{road.label}</h3>
+                <span className="muted mono small-text">{road.station_from} → {road.station_to}</span>
+              </div>
               <span className="spacer" />
-              <span className="num cut-text">{cy(road.cut_cy)} cy cut</span>
-              <span className="num fill-text">{cy(road.fill_cy)} cy fill</span>
+              <span className="tag cut num">{cy(road.cut_cy)} cy cut</span>
+              <span className="tag fill num">{cy(road.fill_cy)} cy fill</span>
             </div>
             <ProfileChart sections={roadSections} selectedId={sectionId} onSelect={setSectionId} />
             <RoadSides road={road} />

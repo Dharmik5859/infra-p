@@ -1,8 +1,11 @@
 import { annotatedPdfUrl } from '../api';
 import { cy, signed } from '../format';
 import { GRADES, accuracy, grade, sentence } from '../verdict';
-import { IconAccuracy, IconArrow, IconCheck, IconInfo, IconUpload } from './Icons';
+import {
+  IconAccuracy, IconArrow, IconBalance, IconChevron, IconCheck, IconDownload, IconInfo, IconLayers, IconTrendDown, IconTrendUp, IconUpload,
+} from './Icons';
 import Headline from './Headline';
+import { InfoTip, StatCard } from './Ui';
 
 /** Ring gauge: value 0-100 drawn as an arc in the given colour token. */
 export function Gauge({ value, tone, label, sub }) {
@@ -25,7 +28,7 @@ export function Gauge({ value, tone, label, sub }) {
 }
 
 export function VerdictPill({ g }) {
-  return <span className={`pill verdict t-${g.tone}`}><IconCheck width={16} height={16} />{g.label}</span>;
+  return <span className={`pill verdict t-${g.tone}`} title={g.meaning}><IconCheck width={16} height={16} />{g.label}</span>;
 }
 
 export function VerdictCard({ f }) {
@@ -40,9 +43,13 @@ export function VerdictCard({ f }) {
           </div>
           <span className="pill verdict t-neutral">Not scored</span>
         </header>
-        <p className="vc-verdict">
-          No estimator-labelled copy of this series is in the data, so there is nothing to score it against. Its
-          takeoffs run normally; each section's picture shows exactly what was measured.
+        <p className="vc-verdict vc-short">
+          <IconInfo width={18} height={18} />
+          <span>No labelled copy to score against</span>
+          <InfoTip label="Why this series is not scored">
+            No estimator-labelled copy of this series is in the data, so there is nothing to score it against. Its
+            takeoffs run normally; each section&apos;s picture shows exactly what was measured.
+          </InfoTip>
         </p>
       </article>
     );
@@ -56,7 +63,12 @@ export function VerdictCard({ f }) {
           <span className="eyebrow">{f.format}</span>
           <h2>{f.title}</h2>
         </div>
-        <VerdictPill g={g} />
+        <span className="vc-pill">
+          <VerdictPill g={g} />
+          <InfoTip label="What this verdict means">
+            <b>{g.label}:</b> {g.meaning}<br /><br />{sentence(m)}
+          </InfoTip>
+        </span>
       </header>
 
       <div className="gauges">
@@ -64,19 +76,15 @@ export function VerdictCard({ f }) {
         <Gauge value={accuracy(m.cut_error_pct)} tone="red" label="Cut accuracy" sub={errText(m.cut_error_pct)} />
       </div>
 
-      <p className="vc-verdict">{sentence(m)}</p>
-
       <dl className="vc-stats">
         <div><dt>Labelled sections</dt><dd className="num">{m.sections}</dd></div>
         <div><dt>Within 10 %</dt><dd className="num">{m.within_10pct == null ? '—' : `${Math.round(m.within_10pct)} %`}</dd></div>
         <div><dt>Typical error</dt><dd className="num">{m.median_error_pct == null ? '—' : `${m.median_error_pct.toFixed(1)} %`}</dd></div>
         <div><dt>90% within</dt><dd className="num">{m.p90_error_pct == null ? '—' : `${m.p90_error_pct.toFixed(0)} %`}</dd></div>
       </dl>
-      <footer className="vc-ref">
+      <footer className="vc-ref" title={`Checked against ${f.reference}.`}>
         <IconInfo width={16} height={16} />
-        <span>
-          Checked against {f.reference}.
-        </span>
+        <span className="ellipsis">Checked against {f.reference}</span>
       </footer>
     </article>
   );
@@ -89,7 +97,10 @@ function LatestTakeoff({ job, onOpen, onNew }) {
         <div className="cta-icon"><IconUpload /></div>
         <div>
           <h3>Run a takeoff</h3>
-          <p className="muted">Upload a 19-series, 23-series or CAD-exported cross-section PDF. Cover, plan and profile sheets are skipped automatically.</p>
+          <div className="chips" style={{ marginTop: 6 }}>
+            <span className="tag info">19-series</span><span className="tag ok">23-series</span><span className="tag warn">CAD PDF</span>
+            <InfoTip label="Which PDFs work">Upload a 19-series, 23-series or CAD-exported cross-section PDF. Cover, plan and profile sheets are skipped automatically.</InfoTip>
+          </div>
         </div>
         <button className="btn primary" onClick={onNew}>Upload plan set</button>
       </section>
@@ -101,8 +112,9 @@ function LatestTakeoff({ job, onOpen, onNew }) {
       <section className="card cta">
         <div className="cta-icon spin"><IconUpload /></div>
         <div>
-          <h3>Processing {job.filename}</h3>
-          <p className="muted">{total ? `${done} of ${total} pages read` : 'Starting…'}</p>
+          <h3 className="ellipsis" title={job.filename}>Processing {job.filename}</h3>
+          <div className="mini-bar" style={{ maxWidth: 360 }}><div className={total ? '' : 'indet'} style={total ? { width: `${(done / total) * 100}%` } : undefined} /></div>
+          <p className="muted num small-text">{total ? `${done} / ${total} pages` : 'Starting…'}</p>
         </div>
         <button className="btn" onClick={onOpen}>View progress</button>
       </section>
@@ -119,18 +131,25 @@ function LatestTakeoff({ job, onOpen, onNew }) {
       <div className="card-h">
         <div>
           <span className="eyebrow">Latest takeoff</span>
-          <h3>{job.filename}</h3>
+          <h3 className="ellipsis" title={job.filename}>{job.filename}</h3>
         </div>
         <div className="card-actions">
-          <a className="btn" href={annotatedPdfUrl(job.job_id, roads.filter((r) => r.repeat_of).map((r) => r.id), surf)}>Download PDF</a>
+          <a className="btn" href={annotatedPdfUrl(job.job_id, roads.filter((r) => r.repeat_of).map((r) => r.id), surf)}><IconDownload width={18} height={18} />PDF</a>
           <button className="btn primary" onClick={onOpen}>Open results <IconArrow width={18} height={18} /></button>
         </div>
       </div>
-      <div className="stat-tiles">
-        <div className="tile t-red"><span>Cut</span><b className="num">{cy(cut)}</b><small>cubic yards</small></div>
-        <div className="tile t-green"><span>Fill</span><b className="num">{cy(fill)}</b><small>cubic yards</small></div>
-        <div className="tile t-blue"><span>Net</span><b className="num">{signed(net)}</b><small>{net >= 0 ? 'import needed' : 'surplus to export'}</small></div>
-        <div className="tile t-yellow"><span>Sections</span><b className="num">{summary.sections}</b><small>{counted.length} road{counted.length === 1 ? '' : 's'} · {summary.cross_section_pages} sheets</small></div>
+      <div className="stat-grid">
+        <StatCard icon={IconTrendDown} tone="red" label="Cut" value={cy(cut)} unit="cy" />
+        <StatCard icon={IconTrendUp} tone="green" label="Fill" value={cy(fill)} unit="cy" />
+        <StatCard icon={IconBalance} tone="blue" label="Net" value={signed(net)} unit="cy" className="v-plain">
+          <div className="chips"><span className={`tag ${net >= 0 ? 'info' : 'warn'}`}>{net >= 0 ? 'import' : 'export'}</span></div>
+        </StatCard>
+        <StatCard icon={IconLayers} tone="yellow" label="Sections" value={summary.sections} className="v-plain">
+          <div className="chips">
+            <span className="tag neutral">{counted.length} road{counted.length === 1 ? '' : 's'}</span>
+            <span className="tag neutral">{summary.cross_section_pages} sheets</span>
+          </div>
+        </StatCard>
       </div>
     </section>
   );
@@ -142,13 +161,16 @@ export default function Dashboard({ report, job, onOpen, onNew, onAccuracy }) {
       <section className="hero">
         <div>
           <span className="eyebrow">Automated earthwork takeoff</span>
-          <h2>Cut &amp; fill from cross-section plan sets, measured and verified</h2>
-          <p className="muted">
-            Accuracy below is measured only against estimators' labelled takeoffs: the cut and fill they shaded
-            by hand on the same sheets.
-          </p>
+          <h2>Cut &amp; fill, measured and verified</h2>
+          <div className="chips">
+            <span className="tag ok"><IconCheck width={14} height={14} />Scored vs estimator labels</span>
+            <InfoTip label="How accuracy is measured">
+              Accuracy below is measured only against estimators&apos; labelled takeoffs: the cut and fill they shaded
+              by hand on the same sheets.
+            </InfoTip>
+          </div>
         </div>
-        <button className="btn" onClick={onAccuracy}><IconAccuracy width={18} height={18} />Full accuracy report</button>
+        <button className="btn" onClick={onAccuracy}><IconAccuracy width={18} height={18} />Accuracy report</button>
       </section>
 
       {report && <Headline report={report} compact />}
@@ -165,14 +187,20 @@ export default function Dashboard({ report, job, onOpen, onNew, onAccuracy }) {
 
       <LatestTakeoff job={job} onOpen={onOpen} onNew={onNew} />
 
-      <section className="card scale">
-        <h3>What the verdicts mean</h3>
+      <details className="card scale disclosure-card">
+        <summary>
+          <span className="scale-title">Verdict scale</span>
+          <span className="chips">
+            {GRADES.map((g) => <span key={g.id} className={`pill verdict t-${g.tone}`} title={g.meaning}>{g.label}</span>)}
+          </span>
+          <IconChevron className="chev" width={16} height={16} />
+        </summary>
         <ul>
           {GRADES.map((g) => (
             <li key={g.id}><span className={`pill verdict t-${g.tone}`}>{g.label}</span><span className="muted">{g.meaning}</span></li>
           ))}
         </ul>
-      </section>
+      </details>
     </div>
   );
 }

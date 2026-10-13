@@ -1,4 +1,5 @@
 import { ft2 } from '../format';
+import { InfoTip } from './Ui';
 
 /**
  * Fill and cut left and right of the centreline as bars growing out from
@@ -31,12 +32,16 @@ export default function SideTable({ sides, note, compact = false }) {
           </div>
         );
       })}
-      {unplaced > 0.005 && (
-        <div className="split-note warn-text">
-          {ft2(unplaced)} ft² was typed in where nothing is traced, so it is on neither side; outline it on the drawing to place it.
+      {(unplaced > 0.005 || note) && (
+        <div className="split-note chips">
+          {unplaced > 0.005 && (
+            <span className="tag warn num" title="Typed in where nothing is traced, so it is on neither side; outline it on the drawing to place it.">
+              {ft2(unplaced)} ft² unplaced</span>
+          )}
+          {note && <><span className="tag neutral">centreline estimated</span><InfoTip label="About the centreline">{note}</InfoTip></>}
+          {unplaced > 0.005 && <InfoTip label="About unplaced area">{ft2(unplaced)} ft² was typed in where nothing is traced, so it is on neither side; outline it on the drawing to place it.</InfoTip>}
         </div>
       )}
-      {note && <div className="split-note muted">{note}</div>}
     </div>
   );
 }

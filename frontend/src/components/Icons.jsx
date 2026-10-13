@@ -87,6 +87,37 @@ export const IconChevron = (p) => (
   <svg {...base} {...p}><path d="M9 6l6 6-6 6" /></svg>
 );
 
+export const IconTrendUp = (p) => (
+  <svg {...base} {...p}><path d="M3 17l6-6 4 4 8-8" /><path d="M15 7h6v6" /></svg>
+);
+export const IconTrendDown = (p) => (
+  <svg {...base} {...p}><path d="M3 7l6 6 4-4 8 8" /><path d="M15 17h6v-6" /></svg>
+);
+export const IconBalance = (p) => (
+  <svg {...base} {...p}><path d="M12 4v16M8 20h8M5 8h14" /><path d="M5 8l-3 6a3 3 0 0 0 6 0zM19 8l-3 6a3 3 0 0 0 6 0z" /></svg>
+);
+export const IconLayers = (p) => (
+  <svg {...base} {...p}><path d="M12 3l9 5-9 5-9-5z" /><path d="M3 13l9 5 9-5" /></svg>
+);
+export const IconPencil = (p) => (
+  <svg {...base} {...p}><path d="M4 20h4L19 9l-4-4L4 16z" /><path d="M13.5 6.5l4 4" /></svg>
+);
+export const IconGrid = (p) => (
+  <svg {...base} {...p}><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M3 15h18M9 3v18M15 3v18" /></svg>
+);
+export const IconFlag = (p) => (
+  <svg {...base} {...p}><path d="M5 21V4M5 4h11l-2 4 2 4H5" /></svg>
+);
+export const IconScan = (p) => (
+  <svg {...base} {...p}><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3" /><path d="M7 12h10" /></svg>
+);
+export const IconClock = (p) => (
+  <svg {...base} {...p}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+);
+export const IconBook = (p) => (
+  <svg {...base} {...p}><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z" /><path d="M4 19V5M8 7h7" /></svg>
+);
+
 export function Logo({ size = 30 }) {
   // a terrain profile over a cut/fill base line, in the four brand colours
   return (

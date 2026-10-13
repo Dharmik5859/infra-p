@@ -7,6 +7,7 @@ import SheetView from './SheetView';
 import SideTable from './SideTable';
 import { CENTRE_NOTE } from '../sides';
 import { ConfidenceBadge, ConfidencePanel } from './Confidence';
+import { InfoTip, NoteList } from './Ui';
 
 const SCALE_SOURCE = { labels: 'read off the axis labels', label_widths: 'from the axis labels', ocr: 'read off the scan',
   assumed: 'assumed (labels not read)' };
@@ -27,12 +28,12 @@ export default function SectionViewer({ jobId, section: s, sections, roads, surf
     <section className="panel viewer">
       <div className="viewer-head">
         <div className="viewer-title">
-          <span className="eyebrow">Cross-section {position >= 0 ? `${position + 1} of ${count}` : ''}</span>
+          <span className="eyebrow">Cross-section {position >= 0 ? `${position + 1} / ${count}` : ''}</span>
           <div className="viewer-station">
             <span className="station mono">{s.station || 'no station'}</span>
             <span className={`tag ${sourceTag}`}>{SOURCE_TEXT[s.label_source] || 'station not read'}</span>
-            <span className="tag neutral">page {s.page}</span>
-            <span className="tag info">{s.method === 'vector' ? 'CAD linework' : 'scan'}</span>
+            <span className="tag neutral">p. {s.page}</span>
+            <span className="tag info" title={s.method === 'vector' ? 'Measured from the CAD linework' : 'Traced from a scan'}>{s.method === 'vector' ? 'vector' : 'scan'}</span>
             {s.scale && (
               <span className={`tag ${s.scale.verticalDiffers ? 'warn' : 'neutral'}`}
                 title={`Horizontal: ${s.scale.ftPerSquareX} ft per square, ${SCALE_SOURCE[s.scale.sourceX] || s.scale.sourceX}\nVertical: ${s.scale.ftPerSquareY} ft per square, ${SCALE_SOURCE[s.scale.sourceY] || s.scale.sourceY}\n${s.scale.pixelsPerFootX.toFixed(2)} × ${s.scale.pixelsPerFootY.toFixed(2)} page px per ft`}>
@@ -72,14 +73,14 @@ export default function SectionViewer({ jobId, section: s, sections, roads, surf
             <div className="legend">
               <span><i style={{ background: 'var(--fill)' }} />fill</span>
               <span><i style={{ background: 'var(--cut)' }} />cut</span>
-              <span><i className="legend-frame" />measured section (click to select)</span>
-              <span><i className="legend-frame sel" />selected section</span>
+              <span title="Click a section on the sheet to select it"><i className="legend-frame" />measured section</span>
+              <span><i className="legend-frame sel" />selected</span>
             </div>
           ) : (
           <div className="legend">
             <span><i style={{ background: '#1a73e8' }} />existing ground</span>
             <span><i style={{ background: '#1e1e1e' }} />finished grade</span>
-            <span><i style={{ background: '#f9ab00' }} />subgrade (under pavement)</span>
+            <span title="Under the pavement"><i style={{ background: '#f9ab00' }} />subgrade</span>
             <span><i style={{ background: 'var(--fill)' }} />fill</span>
             <span><i style={{ background: 'var(--cut)' }} />cut</span>
           </div>
@@ -112,12 +113,14 @@ export default function SectionViewer({ jobId, section: s, sections, roads, surf
           {s.confidence && !s.confidence.passed && <ConfidencePanel confidence={s.confidence} />}
           {s.zero && (
             <div className="zero-note" role="note">
-              <b>No earthwork here: {s.zero.short.toLowerCase()}.</b> {s.zero.text} If the drawing does show work at this
-              station, press Edit section to enter or outline it.
+              <span className="tag info">No earthwork</span>
+              <b>{s.zero.short}</b>
+              <InfoTip label="Why no earthwork">{s.zero.text} If the drawing does show work at this
+                station, press Edit section to enter or outline it.</InfoTip>
             </div>
           )}
           {s.warnings.length > 0 && (
-            <div className="warnings">{s.warnings.map((w, i) => <div className="warning" key={i}>{w}</div>)}</div>
+            <NoteList items={s.warnings} label="warning" />
           )}
         </div>
       )}

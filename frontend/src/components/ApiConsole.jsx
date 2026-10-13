@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { getOpenApi, V1, v1Request } from '../api';
 import {
-  IconAlert, IconArrow, IconCode, IconCopy, IconExternal, IconFile, IconKey, IconPlay, IconUpload,
+  IconAlert, IconArrow, IconChevron, IconCode, IconCopy, IconExternal, IconFile, IconKey, IconPlay, IconUpload,
 } from './Icons';
 import { JsonTree } from './JsonView';
+import { InfoTip } from './Ui';
 
 /*
  * API console: the public v1 endpoints as an outside client sees them. Upload
@@ -54,9 +55,8 @@ function CalibrationSummary({ body }) {
         <div><b className="num">{cals.length}{body.document && <small>/{body.document.crossSectionPages}</small>}</b><span>cross-section sheets calibrated</span></div>
         <div><b className="num">{ppf.length ? (lo === hi ? lo.toFixed(2) : `${lo.toFixed(1)}–${hi.toFixed(1)}`) : '—'}</b><span>pixels per foot (X)</span></div>
         <div><b className="num">{(body.shapes || []).length}</b><span>cut / fill shapes</span></div>
-        <div><b className="api-scale" title={scaleNote}>{scale}</b><span>print scale</span></div>
+        <div><b className="api-scale" title={scaleNote}>{scale}</b><span>print scale <InfoTip label="About the print scale">{scaleNote}</InfoTip></span></div>
       </div>
-      {body.printScale && <p className="api-note muted">{body.printScale.meaning}</p>}
       {body.uncalibratedPages?.length > 0 && (
         <div className="warning">No scale found for page{body.uncalibratedPages.length > 1 ? 's' : ''} {body.uncalibratedPages.join(', ')}.</div>
       )}
@@ -82,10 +82,11 @@ function CrossSectionSummary({ body }) {
           <span>pass {body.passScore ?? 85} confidence{summary.alerts ? ` · ${summary.alerts} alert${summary.alerts > 1 ? 's' : ''}` : ''}</span>
         </div>
       </div>
-      <p className="api-note muted">
-        Measured to the {body.document?.surface || 'subgrade'}. Areas summed over every section (not volumes)
-        {edited ? `; ${edited} edited by hand in the app` : ''}.
-      </p>
+      <div className="chips">
+        <span className="tag info" title="Measured to">{body.document?.surface || 'subgrade'}</span>
+        <span className="tag neutral" title="Areas summed over every section (not volumes)">Σ section areas</span>
+        {edited > 0 && <span className="tag edited" title="Edited by hand in the app">{edited} edited</span>}
+      </div>
     </>
   );
 }
@@ -248,11 +249,15 @@ function Reference({ endpoint, apiKey, jobId, surface }) {
           {specError && <div className="warning" role="status">Could not load the OpenAPI document ({specError}); showing a summary.</div>}
           {!ops && <div className="api-skeleton muted">Loading the OpenAPI document…</div>}
           {ops && ops.map((op) => (
-            <article className="api-op" key={op.method + op.path}>
-              <header>
+            <details className="api-op" key={op.method + op.path}>
+              <summary>
                 <span className={`api-method m-${op.method}`}>{op.method.toUpperCase()}</span>
                 <code className="api-path">{V1}{op.path}</code>
-              </header>
+                <span className="api-op-codes" aria-label="Responses">
+                  {op.responses.map(([code]) => <span key={code} className={`api-code c${code[0]}`}>{code}</span>)}
+                </span>
+                <IconChevron className="chev" width={16} height={16} />
+              </summary>
               {op.summary && <p className="api-op-sum">{op.summary}</p>}
               <table className="api-params">
                 <caption className="sr-only">Parameters of {op.method.toUpperCase()} {op.path}</caption>
@@ -280,7 +285,7 @@ function Reference({ endpoint, apiKey, jobId, surface }) {
                   </li>
                 ))}
               </ul>
-            </article>
+            </details>
           ))}
           {spec && (
             <div className="api-schemas">
@@ -448,7 +453,13 @@ export default function ApiConsole({ openJob }) {
         <div className="api-hero-text">
           <span className="eyebrow">Public API · v1</span>
           <h2>Try the API</h2>
-          <p className="muted">Send a plan set to the same endpoints outside clients use, follow it from <code>202</code> to <code>200</code>, and explore the JSON it returns.</p>
+          <div className="chips api-flow">
+            <span className="api-method m-post">POST</span><span className="muted" aria-hidden="true">→</span>
+            <span className="api-code c2">202</span><span className="muted" aria-hidden="true">→</span>
+            <span className="api-code c2">200</span><span className="muted" aria-hidden="true">→</span>
+            <span className="tag info">JSON</span>
+            <InfoTip label="How the API works">Send a plan set to the same endpoints outside clients use, follow it from <code>202</code> to <code>200</code>, and explore the JSON it returns.</InfoTip>
+          </div>
         </div>
         <div className="api-tabs" role="tablist" aria-label="Endpoint">
           {Object.entries(ENDPOINTS).map(([k, { label }]) => (
@@ -468,8 +479,8 @@ export default function ApiConsole({ openJob }) {
         <section className="card api-request" aria-labelledby="api-req-h">
           <div className="api-card-head">
             <span className="eyebrow">Request</span>
-            <h3 id="api-req-h">{ENDPOINTS[endpoint].label}</h3>
-            <p className="muted">{ENDPOINTS[endpoint].blurb}</p>
+            <h3 id="api-req-h" className="h-tip">{ENDPOINTS[endpoint].label}
+              <InfoTip label={`About the ${ENDPOINTS[endpoint].label.toLowerCase()} endpoint`}>{ENDPOINTS[endpoint].blurb}</InfoTip></h3>
           </div>
 
           <div className="segmented small api-source" role="radiogroup" aria-label="What to send">
@@ -509,7 +520,7 @@ export default function ApiConsole({ openJob }) {
                   Use the open takeoff: {openJob.filename}
                 </button>
               )}
-              <span className="hint muted">An id from either POST, or a plan set uploaded in the app.</span>
+              <span className="hint muted">From a POST, or an app upload.</span>
             </div>
           )}
 
@@ -540,7 +551,7 @@ export default function ApiConsole({ openJob }) {
               <button type="button" className="btn small" onClick={() => setShowKey((s) => !s)} aria-pressed={showKey}>{showKey ? 'Hide' : 'Show'}</button>
               {apiKey && <button type="button" className="btn small ghost" onClick={() => setApiKey('')}>Clear</button>}
             </div>
-            <span className="hint muted">Sent as <code>X-API-Key</code>; remembered in this browser.</span>
+            <span className="hint muted">Header <code>X-API-Key</code> · saved in this browser</span>
           </div>
 
           <div className="api-actions">
@@ -564,7 +575,7 @@ export default function ApiConsole({ openJob }) {
             </div>
             <div aria-live="polite" aria-atomic="true" className="api-status-line">
               {run.phase === 'idle'
-                ? <span className="muted">No request yet. Choose a PDF or a job id and press <b>Send request</b>.</span>
+                ? <span className="muted">Idle · pick a PDF or job id, then <b>Send request</b></span>
                 : <b>{statusText}</b>}
               {run.jobId && run.phase !== 'idle' && <span className="muted"> · job <code>{run.jobId}</code></span>}
             </div>
@@ -628,7 +639,7 @@ export default function ApiConsole({ openJob }) {
                 <b>{busy ? statusText : run.phase === 'error' ? 'No result' : 'No response yet'}</b>
                 <span className="muted">
                   {busy ? 'The response appears here once the job answers 200.'
-                    : `The ${ENDPOINTS[endpoint].label.toLowerCase()} JSON appears here, with a summary, search, copy and download.`}
+                    : `${ENDPOINTS[endpoint].label} JSON appears here`}
                 </span>
               </div>
             </section>

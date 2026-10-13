@@ -26,17 +26,30 @@ export function ConfidenceBadge({ confidence: c, compact = false }) {
 export function ConfidencePanel({ confidence: c }) {
   if (!c) return null;
   const lv = level(c);
+  const ded = [...(c.deductions || [])].sort((a, b) => b.points - a.points);
+  const max = Math.max(1, ...ded.map((d) => d.points));
   return (
     <div className={`conf-panel ${lv}`} role={c.passed ? 'note' : 'alert'}>
       <div className="conf-head">
         <ConfidenceBadge confidence={c} compact />
-        <b>{c.passed ? 'Confidence passes' : (c.alerts?.[0]?.message || 'Low confidence')}</b>
-        <span className="muted">pass mark {c.threshold ?? PASS}%</span>
+        <b className="conf-msg">{c.passed ? 'Confidence passes' : (c.alerts?.[0]?.message || 'Low confidence')}</b>
+        <span className="conf-mark" title={`Pass mark ${c.threshold ?? PASS}%`}>
+          <span className="conf-meter" aria-hidden="true">
+            <i style={{ width: `${c.score}%` }} />
+            <b style={{ left: `${c.threshold ?? PASS}%` }} />
+          </span>
+          <span className="muted num">pass {c.threshold ?? PASS}%</span>
+        </span>
       </div>
-      {c.deductions?.length > 0 && (
-        <ul className="conf-list">
-          {[...c.deductions].sort((a, b) => b.points - a.points).map((d, i) => (
-            <li key={i}><span className="conf-pts">−{d.points}</span><span className="conf-factor">{d.factor}</span>{d.note}</li>
+      {ded.length > 0 && (
+        <ul className="conf-list" aria-label="Deductions">
+          {ded.map((d, i) => (
+            <li key={i}>
+              <span className="conf-pts num">−{d.points}</span>
+              <span className="conf-bar" aria-hidden="true"><i style={{ width: `${(100 * d.points) / max}%` }} /></span>
+              <span className="tag neutral conf-factor">{d.factor}</span>
+              <span className="conf-note">{d.note}</span>
+            </li>
           ))}
         </ul>
       )}

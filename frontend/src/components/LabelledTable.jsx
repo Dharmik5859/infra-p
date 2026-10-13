@@ -1,4 +1,5 @@
 // Every labelled plan set: what the estimator shaded vs what the pipeline measured.
+import { InfoTip } from './Ui';
 
 const sign = (v) => (v == null ? '—' : `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(1)}%`);
 const pct = (v, d = 0) => (v == null ? '—' : `${Number(v).toFixed(d)}%`);
@@ -19,19 +20,25 @@ export default function LabelledTable({ files, unlabelled }) {
           <span className="eyebrow">{files.length} labelled plan sets</span>
           <h3>Plan set by plan set</h3>
         </div>
+        <div className="chips">
+          <span className="acc-pill g-green">≤5%</span><span className="acc-pill g-blue">≤15%</span>
+          <span className="acc-pill g-yellow">≤30%</span><span className="acc-pill g-red">&gt;30%</span>
+          <InfoTip label="Column guide">
+            <b>Total</b> compares the cut + fill area summed over every section the estimator shaded; <b>fill</b> and
+            <b> cut</b> compare each on its own. <b>Within 25%</b> counts individual sections. <b>Shading found</b> is the share
+            of the estimator&apos;s shading that lies inside a section the pipeline located.
+          </InfoTip>
+        </div>
       </div>
-      <p className="muted table-intro">
-        <b>Total</b> compares the cut + fill area summed over every section the estimator shaded; <b>fill</b> and
-        <b> cut</b> compare each on its own. <b>Within 25%</b> counts individual sections. <b>Shading found</b> is the share
-        of the estimator&apos;s shading that lies inside a section the pipeline located.
-      </p>
       <div className="table-wrap tall">
         <table className="plan-table">
           <thead>
             <tr>
-              <th>Plan set</th><th>Labelled sections</th><th>Total</th>
-              <th>Fill ft² (ours / estimator)</th><th>Cut ft² (ours / estimator)</th>
-              <th>Within 10%</th><th>Within 25%</th><th>Typical difference</th><th>Shading found</th>
+              <th>Plan set</th><th title="Labelled sections">Sections</th><th title="Cut + fill area difference vs the estimator">Total</th>
+              <th title="Fill ft², ours / estimator">Fill ft² <small className="muted">ours / est.</small></th>
+              <th title="Cut ft², ours / estimator">Cut ft² <small className="muted">ours / est.</small></th>
+              <th title="Sections within 10%">≤10%</th><th title="Sections within 25%">≤25%</th>
+              <th title="Typical (median) section difference">Typical</th><th title="Share of the estimator's shading inside a located section">Found</th>
             </tr>
           </thead>
           <tbody>
@@ -55,9 +62,10 @@ export default function LabelledTable({ files, unlabelled }) {
         </table>
       </div>
       {unlabelled?.length > 0 && (
-        <p className="muted table-intro">
-          Also run, but carrying no estimator labels, so not scored: {unlabelled.map((u) => u.replace(/\.pdf$/i, '')).join(', ')}.
-        </p>
+        <div className="chips table-intro" title="Also run, but carrying no estimator labels, so not scored">
+          <span className="muted small-text">Not scored (no labels):</span>
+          {unlabelled.map((u) => <span key={u} className="tag neutral">{u.replace(/\.pdf$/i, '')}</span>)}
+        </div>
       )}
     </section>
   );

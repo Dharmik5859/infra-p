@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ft2 } from '../format';
+import { InfoTip } from './Ui';
 
 /**
  * A square-feet input that lets the user type freely ("12.", "") and only
@@ -34,10 +35,17 @@ export default function AreaEditor({ sections, selectedId, onSelect, onEdit, onR
   if (sections.length === 0) return <div className="empty">No sections on this road.</div>;
   return (
     <>
-      <div className="editor-hint muted">
-        Type over any area to correct it (square feet, measured to {surfaceLabel.toLowerCase()}). The chart, volumes and
-        totals update as you type; press <b>Save changes</b> to keep them. <b>Edit</b> opens the section large, to outline
-        areas on the drawing.
+      <div className="editor-hint">
+        <ol className="hint-steps">
+          <li><span className="flow-dot">1</span>Type an area <span className="muted">(ft², {surfaceLabel.toLowerCase()})</span></li>
+          <li><span className="flow-dot">2</span>Save changes</li>
+          <li><span className="flow-dot">3</span><span><b>Edit</b> to outline on the drawing</span></li>
+        </ol>
+        <InfoTip label="How editing works">
+          Type over any area to correct it (square feet, measured to {surfaceLabel.toLowerCase()}). The chart, volumes and
+          totals update as you type; press <b>Save changes</b> to keep them. <b>Edit</b> opens the section large, to outline
+          areas on the drawing.
+        </InfoTip>
       </div>
       <div className="table-wrap">
         <table className="edit-table">

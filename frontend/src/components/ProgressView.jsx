@@ -1,4 +1,13 @@
 import { useEffect, useState } from 'react';
+import { IconClock, IconLayers, IconScan, IconSection, IconSheet } from './Icons';
+import { Flow } from './Ui';
+
+const STEPS = [
+  { Icon: IconScan, label: 'Find frames', tip: 'Finding cross-section frames on every page' },
+  { Icon: IconSheet, label: 'Read stations', tip: 'Reading station labels (PDF text, or OCR on scans)' },
+  { Icon: IconSection, label: 'Trace surfaces', tip: 'Tracing existing ground and proposed design' },
+  { Icon: IconLayers, label: 'Measure', tip: 'Measuring cut / fill and grouping stations into roads' },
+];
 
 export default function ProgressView({ job }) {
   const [start] = useState(() => Date.now());
@@ -14,20 +23,26 @@ export default function ProgressView({ job }) {
   return (
     <div className="page narrow">
       <div className="card progress-card" aria-live="polite">
-        <h2>Reading {job.filename}</h2>
-        <div className="muted">
-          {job.status === 'queued'
-            ? 'Waiting for another plan set to finish…'
-            : total ? `${done} of ${total} pages · ${pct}%` : 'Starting…'} · {secs}s
+        <Flow steps={['Upload', 'Analyze', 'Results']} current={1} />
+        <div className="progress-head">
+          <div className="progress-title">
+            <span className="eyebrow">{job.status === 'queued' ? 'Queued' : 'Reading'}</span>
+            <h2 className="ellipsis" title={job.filename}>{job.filename}</h2>
+          </div>
+          <div className="progress-pct num">{total ? `${pct}%` : '…'}</div>
         </div>
         <div className={`bar ${total ? '' : 'indeterminate'}`}>
           <div style={{ width: `${pct}%` }} />
         </div>
-        <ul className="steps">
-          <li>Finding cross-section frames on every page</li>
-          <li>Reading station labels (PDF text, or OCR on scans)</li>
-          <li>Tracing existing ground and proposed design</li>
-          <li>Measuring cut / fill and grouping stations into roads</li>
+        <div className="chips">
+          <span className="tag neutral"><IconSheet width={14} height={14} />
+            {job.status === 'queued' ? 'waiting for another plan set' : total ? `${done} / ${total} pages` : 'starting'}</span>
+          <span className="tag neutral"><IconClock width={14} height={14} />{secs}s</span>
+        </div>
+        <ul className="steps-row" aria-label="What happens">
+          {STEPS.map(({ Icon, label, tip }) => (
+            <li key={label} title={tip}><Icon width={18} height={18} /><span>{label}</span><span className="sr-only">: {tip}</span></li>
+          ))}
         </ul>
       </div>
     </div>

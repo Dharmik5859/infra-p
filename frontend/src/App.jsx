@@ -24,13 +24,13 @@ function parseHash() {
 }
 
 const TITLES = {
-  dashboard: { title: 'Dashboard', sub: 'Accuracy at a glance and your latest takeoff' },
+  dashboard: { title: 'Dashboard', sub: 'Accuracy and your latest takeoff' },
   new: { title: 'New takeoff', sub: 'Upload a cross-section plan set' },
-  results: { title: 'Takeoff results', sub: 'Cut and fill by road, station and section' },
-  accuracy: { title: 'Accuracy', sub: 'How the measurements were checked' },
-  calibration: { title: 'Calibration', sub: 'Feet-to-pixel scale of every sheet, and every cross-section, as JSON' },
-  comparison: { title: 'Comparison', sub: 'Our takeoff against results provided for the same plan set' },
-  api: { title: 'API', sub: 'The public v1 endpoints: try them, read the JSON, copy the code' },
+  results: { title: 'Takeoff results', sub: 'Cut and fill by road and station' },
+  accuracy: { title: 'Accuracy', sub: 'Checked against estimator labels' },
+  calibration: { title: 'Calibration', sub: 'Feet-to-pixel scale per sheet, as JSON' },
+  comparison: { title: 'Comparison', sub: 'Our takeoff vs provided results' },
+  api: { title: 'API', sub: 'Try the public v1 endpoints' },
 };
 
 export default function App() {
