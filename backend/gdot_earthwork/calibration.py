@@ -9,9 +9,9 @@ over the page uses them). A sheet plotted at 1" = 20' therefore has
 
 Each sheet's scale comes from, in order of trust:
 
-  grid           the cross-section grid measured on the sheet itself (10 ft
-                 major squares, both axes) -- valid however the PDF was
-                 printed or scanned;
+  grid           the cross-section grid measured on the sheet itself, with
+                 the feet per square each axis read off its labels -- valid
+                 however the PDF was printed or scanned;
   sheet_note     a scale note printed on that sheet (1" = 20', HORIZ / VERT);
   document_note  the scale note of the document (usually on the first page),
                  for sheets that carry neither.
@@ -23,11 +23,14 @@ alongside as a check.
 Output follows the app's calibration and shape formats:
 
   calibration  {id, mode: "single", pageNumber, pixelLengthX/Y, realWorldLengthX/Y,
-                scaleX/Y (feet per pixel), unit: "feet"}
+                scaleX/Y (feet per pixel), unit: "feet"} plus pixelsPerFootX/Y,
+                verticalDiffers, source, and for grid sheets gridScale (ft per
+                major square each axis, read off the axis labels by
+                stages.calibrate)
   shape        {crossSectionType: "cut"|"fill", id, pageNumber, points: [x0, y0, x1, y1, ...]
                 offsets from position2D (the shape's top-left), position2D: {x, y},
                 dimensions: {width, height, depth: 0}, side: "left"|"right",
-                stage, stationId, streetName, areaSqFt}
+                stage, stationId, streetName, areaSqFt, crossSectionId}
 """
 from __future__ import annotations
 
@@ -144,8 +147,23 @@ def _calibration(page_no: int, px_x: float, px_y: float, source: str, **extra) -
         "pixelLengthX": round(px_x, 6), "pixelLengthY": round(px_y, 6),
         "realWorldLengthX": REAL_FT, "realWorldLengthY": REAL_FT,
         "scaleX": round(REAL_FT / px_x, 9), "scaleY": round(REAL_FT / px_y, 9),
-        "unit": "feet", "source": source, **extra,
+        "unit": "feet",
+        # the same scale the other way round: pixels per foot, each axis
+        "pixelsPerFootX": round(px_x / REAL_FT, 6), "pixelsPerFootY": round(px_y / REAL_FT, 6),
+        "verticalDiffers": abs(px_x - px_y) > 0.01 * max(px_x, px_y),
+        "source": source, **extra,
     }
+
+
+def _grid_scale(secs) -> dict | None:
+    """What the sheet's sections say about their grid: ft per major square on
+    each axis (most common reading) and how it was found (stages.calibrate)."""
+    reads = [s.scale for _, s in secs if s.scale]
+    if not reads:
+        return None
+    pick = lambda key: max({r[key] for r in reads}, key=lambda v: sum(r[key] == v for r in reads))
+    return {"ftPerSquareX": pick("ftPerSquareX"), "ftPerSquareY": pick("ftPerSquareY"),
+            "sourceX": pick("sourceX"), "sourceY": pick("sourceY")}
 
 
 # ----------------------------------------------------------- shapes
@@ -190,6 +208,7 @@ def _poly_area(pts) -> float:
 
 
 def _shape(kind: str, side: str | None, page_no: int, pts, px_per_ft2: float, sec_meta: dict) -> dict:
+    """A cut / fill zone in the app's shape format (see the module notes)."""
     xs, ys = [p[0] for p in pts], [p[1] for p in pts]
     x0, y0 = min(xs), min(ys)
     flat = [round(v, 6) for p in pts for v in (p[0] - x0, p[1] - y0)]
@@ -205,6 +224,7 @@ def _shape(kind: str, side: str | None, page_no: int, pts, px_per_ft2: float, se
         "stationId": sec_meta["station"],
         "streetName": sec_meta["street"],
         "areaSqFt": round(_poly_area(pts) / px_per_ft2, 2),
+        "crossSectionId": sec_meta.get("id"),
     }
 
 
@@ -239,6 +259,9 @@ def build(result, pdf_path: str, filename: str, road_labels: dict[int, str] | No
             if grids:
                 px = (float(np.median([g[0] for g in grids])), float(np.median([g[1] for g in grids])))
                 extra = {"sections": len(secs)}
+                gs = _grid_scale(secs)
+                if gs:
+                    extra["gridScale"] = gs
                 if sheet_note:
                     extra["noteCheck"] = {"text": notes[page_no][0]["text"], "pixelLengthX": round(sheet_note[0], 4),
                                           "pixelLengthY": round(sheet_note[1], 4)}
@@ -263,7 +286,7 @@ def build(result, pdf_path: str, filename: str, road_labels: dict[int, str] | No
                 gd = {k: ([None if p is None else tuple(to_disp(p)) for p in g[k]] if k in ("ground", "finished", "subgrade")
                           else [tuple(to_disp(p)) for p in g[k]] if k == "frame" else g[k]) for k in g}
                 centre_idx = s.centre_ft * CANON_PPF / GEOMETRY_STEP if s.centre_ft is not None else None
-                meta = {"stage": stage, "station": s.station_label, "street": road_labels.get(i)}
+                meta = {"stage": stage, "station": s.station_label, "street": road_labels.get(i), "id": f"xs-{i}"}
                 for kind, side, poly in _zones(gd, result.design_surface, centre_idx):
                     shapes.append(_shape(kind, side, page_no, poly, px_per_ft2, meta))
 

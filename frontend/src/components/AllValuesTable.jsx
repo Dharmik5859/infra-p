@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ft2 } from '../format';
 import { IconClose } from './Icons';
+import { ConfidenceBadge } from './Confidence';
 
 const COLS = [
   ['station', 'Station'], ['page', 'Sheet'], ['fill', 'Fill'], ['cut', 'Cut'], ['net', 'Net'],
-  ['lf', 'Left fill'], ['lc', 'Left cut'], ['rf', 'Right fill'], ['rc', 'Right cut'],
+  ['lf', 'Left fill'], ['lc', 'Left cut'], ['rf', 'Right fill'], ['rc', 'Right cut'], ['conf', 'Confidence'],
 ];
 
 const value = (s, key) => ({
   station: s.station_ft ?? Infinity, page: s.page, fill: s.fill_ft2, cut: s.cut_ft2, net: s.net_ft2,
   lf: s.sides?.left.fill_ft2, lc: s.sides?.left.cut_ft2, rf: s.sides?.right.fill_ft2, rc: s.sides?.right.cut_ft2,
+  conf: s.confidence?.score ?? -1,
 }[key]);
 
 /**
@@ -80,6 +82,7 @@ export default function AllValuesTable({ sections, roads, selectedId, onSelect, 
                 <td className="num cut-text">{s.sides ? ft2(s.sides.left.cut_ft2) : '—'}</td>
                 <td className="num fill-text">{s.sides ? ft2(s.sides.right.fill_ft2) : '—'}</td>
                 <td className="num cut-text">{s.sides ? ft2(s.sides.right.cut_ft2) : '—'}</td>
+                <td className="num"><ConfidenceBadge confidence={s.confidence} compact /></td>
               </tr>
             ))}
           </tbody>
@@ -93,6 +96,7 @@ export default function AllValuesTable({ sections, roads, selectedId, onSelect, 
               <td className="num cut-text">{ft2(totals.lc)}</td>
               <td className="num fill-text">{ft2(totals.rf)}</td>
               <td className="num cut-text">{ft2(totals.rc)}</td>
+              <td className="num muted">{rows.filter((s) => s.confidence && !s.confidence.passed).length} alerts</td>
             </tr>
           </tfoot>
         </table>

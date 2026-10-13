@@ -121,6 +121,34 @@ export async function getCalibration(jobId) {
   return json(await fetch(`${BASE}/api/jobs/${jobId}/calibration`));
 }
 
+/** Every cross-section in the received format: left / right areas, shapes, confidence and alerts. */
+export async function getCrossSections(jobId, surface) {
+  const q = surface ? `?surface=${encodeURIComponent(surface)}` : '';
+  return json(await fetch(`${BASE}/api/jobs/${jobId}/cross-sections${q}`));
+}
+
+/** A JSON Schema the API's responses are validated against ("calibration", "cross-sections"). */
+export async function getSchema(name) {
+  return json(await fetch(`${BASE}/api/schemas/${name}`));
+}
+
+/** Stored comparisons with results provided for a plan set (e.g. SR 5). */
+export async function listComparisons() {
+  return json(await fetch(`${BASE}/api/comparisons`));
+}
+
+export async function getComparison(name) {
+  return json(await fetch(`${BASE}/api/comparisons/${name}`));
+}
+
+/** Compare an open takeoff with a provided results file (xlsx / csv). */
+export async function compareJob(jobId, file, surface) {
+  const form = new FormData();
+  form.append('file', file);
+  const q = surface ? `?surface=${encodeURIComponent(surface)}` : '';
+  return json(await fetch(`${BASE}/api/jobs/${jobId}/compare${q}`, { method: 'POST', body: form }));
+}
+
 /** A sheet's measured sections, in the sheet image's coordinates (cached). */
 export const getSheet = (jobId, page) => getProfile(`/api/jobs/${jobId}/pages/${page}.json`);
 

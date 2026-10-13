@@ -14,6 +14,7 @@ Applied to both surfaces:
     refine_gaps()       recall pass: look for missed dashes inside big gaps
     despike()/densify() outlier rejection + dense per-column array
     trim_buried_tail()  drop false "cut" caused by buried services
+    climb_from_wall()   (design only) the back slope above a wall, back to ground
 """
 from __future__ import annotations
 
@@ -334,13 +335,20 @@ def despike(y: np.ndarray, win: int, thresh_px: float) -> tuple[np.ndarray, int]
 
 
 def trim_buried_tail(x: np.ndarray, gpx: np.ndarray, dpx: np.ndarray, ppf: float,
-                      run_ft: float, depth_ft: float, end_ft: float = 1.0):
+                      run_ft: float, depth_ft: float, end_ft: float = 1.0,
+                     roadway_depth_ft: float = 15.0):
     """Temporary pipes and other buried services run on past the template's toe.
     They read as a LONG, DEEP run of 'proposed below existing' that reaches the
     end of the chain and STOPS THERE, still inside the ground. A graded cut
     can be just as long and deep, but its back slope climbs out and ends on
     the ground at the catch point -- so a run is only trimmed when the chain
-    ends more than `end_ft` below existing ground."""
+    ends more than `end_ft` below existing ground. A run that passes under
+    the middle of the section (x = 0, the roadway) AND lies deeper than
+    `roadway_depth_ft` is the template itself -- a deep cut that the frame
+    cuts off before its back slope reaches the ground (SR 5, 18-45 ft); pipes
+    crossing under the road on the labelled sheets lie 8-12 ft down and are
+    still trimmed. (A template ending at a wall's foot is first carried up
+    the back slope by climb_from_wall, so it no longer ends below ground.)"""
     ov = ~np.isnan(gpx) & ~np.isnan(dpx)
     if ov.sum() < 10:
         return dpx, []
@@ -361,7 +369,7 @@ def trim_buried_tail(x: np.ndarray, gpx: np.ndarray, dpx: np.ndarray, ppf: float
     out = dpx.copy()
     killed = []
     for a, b, L, dep in runs:
-        if L < run_ft or dep < depth_ft:
+        if L < run_ft or dep < depth_ft or (xx[a] < 0 < xx[b] and dep > roadway_depth_ft):
             continue
         if xx[-1] - xx[b] <= 2.0 and -d[-1] > end_ft:
             out[c[a]:] = np.nan
@@ -374,6 +382,65 @@ def trim_buried_tail(x: np.ndarray, gpx: np.ndarray, dpx: np.ndarray, ppf: float
                                 x_to=round(float(xx[b]), 2),
                                 run_ft=round(float(L), 1), depth_ft=round(dep, 2)))
     return out, killed
+
+
+def climb_from_wall(D: np.ndarray, G: np.ndarray, mask: np.ndarray, ppf: float,
+                    min_drop_ft: float = 3.0, max_run_ft: float = 150.0) -> tuple[np.ndarray, list[dict]]:
+    """A cut retained by a wall: the traced template ends at the wall's FOOT,
+    deep below ground, because the wall face is vertical (one column cannot
+    hold two rows of a single-valued line). Above the wall the back slope
+    climbs on to meet the ground, drawn as its own line. From each end of the
+    design that stops more than `min_drop_ft` below ground, look for ink
+    starting between that end and the ground and follow it outward while it
+    keeps climbing; if it reaches the ground, it is the rest of the template.
+    Returns (design, [{side, x_from, x_to}] in columns)."""
+    W = len(D)
+    ok = np.where(~np.isnan(D))[0]
+    if len(ok) < 2:
+        return D, []
+    out, notes = D.copy(), []
+    cols = {}
+
+    def cands(x):
+        if x not in cols:
+            col = np.where(mask[:, x])[0]
+            cols[x] = [float(s_) for s_, _ in runs1d(col, tol=1)] + [float(e) for _, e in runs1d(col, tol=1)]
+        return cols[x]
+
+    for e, step in ((int(ok[0]), -1), (int(ok[-1]), 1)):
+        if np.isnan(G[e]) or (D[e] - G[e]) / ppf < min_drop_ft:
+            continue
+        lo, hi = G[e] + ppf, D[e] - 0.5 * ppf          # rows strictly between ground and the wall foot
+        seeds = sorted({c for k in range(0, int(1.5 * ppf)) for x in [e + step * k] if 0 <= x < W
+                        for c in cands(x) if lo < c < hi}, reverse=True)
+        for seed in seeds[:6]:
+            pts, prev, x, miss = [], seed, e, 0
+            while 0 <= x + step < W and abs(x - e) < max_run_ft * ppf:
+                x += step
+                near = [c for c in cands(x) if prev - (2.5 + 2.5 * miss) <= c <= prev + 1.0]
+                if not near:
+                    miss += 1
+                    if miss > ppf:                     # 1 ft with no ink: the line has ended
+                        break
+                    continue
+                prev, miss = min(near, key=lambda c: abs(c - prev)), 0
+                pts.append((x, prev))
+                if not np.isnan(G[x]) and prev <= G[x] + 1.5:
+                    break
+            else:
+                continue
+            if not pts or np.isnan(G[pts[-1][0]]) or pts[-1][1] > G[pts[-1][0]] + 1.5:
+                continue                               # never got back to the ground
+            if abs(pts[-1][0] - e) < 2 * ppf or (seed - pts[-1][1]) < 2 * ppf:
+                continue                               # too short to be a slope
+            xs = np.array([p[0] for p in pts]); ys = np.array([p[1] for p in pts])
+            order = np.argsort(xs)
+            span = np.arange(min(xs.min(), e + step), max(xs.max(), e + step) + 1)
+            span = span[(span >= 0) & (span < W)]
+            out[span] = np.interp(span, xs[order], ys[order])
+            notes.append(dict(side="left" if step < 0 else "right", x_from=int(span.min()), x_to=int(span.max())))
+            break
+    return out, notes
 
 
 def refine_gaps(chain: dict[int, float], full_mask: np.ndarray, ppf: float,

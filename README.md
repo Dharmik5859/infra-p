@@ -20,16 +20,23 @@ Plan, profile, cover and notes sheets are skipped automatically.
 
 ## How it works
 
+The pipeline runs as six independent stages (`gdot_earthwork/stages/`), each
+with plain inputs and outputs so it can be run, tested or replaced on its own:
+
 ```
-PDF page ─► pages.py     scan at native resolution, or vector page rendered + its strokes
-         ─► frames.py    find each section's grid frame (lattice detection, split at
-                         tick-marked axes), read its station (text layer or OCR)
-         ─► surfaces.py  trace existing ground (dashed) and proposed template (solid)
-                         – vector: from the CAD strokes; raster: from pixels
-                         measure fill / cut between ground and the subgrade
-plan set ─► stations.py  decode all station labels jointly (fixes OCR misreads)
-         ─► roads.py     group sections into roads by document order
-         ─► volume.py    average-end-area volume between consecutive stations
+PDF page ─► 1 ingest     stages/ingest.py     scan at native resolution, or vector page rendered + its strokes
+         ─► 2 detect     stages/detect.py     each section's grid frame (lattice detection, split at
+                                              tick-marked axes) and its station (text layer or OCR)
+         ─► 3 calibrate  stages/calibrate.py  ft per grid square ACROSS and UP, read off the section's
+                                              offset and elevation labels; its centreline (offset 0)
+         ─► 4 trace      stages/trace.py      existing ground (dashed) and proposed template (solid)
+                                              – vector: from the CAD strokes; raster: from pixels
+         ─► 5 measure    stages/measure.py    fill / cut to subgrade and finished grade, per 1 ft strip
+                                              (left / right of the centreline), warnings
+plan set ─► 6 decode     stages/decode.py     all station labels decoded jointly (fixes OCR misreads)
+         ─► roads.py       group sections into roads by document order
+         ─► confidence.py  a 0-100 score per section; below 85 it carries alerts
+         ─► volume.py      average-end-area volume between consecutive stations
 ```
 
 Details worth knowing:
@@ -38,6 +45,24 @@ Details worth knowing:
   before tracing, so the same rules apply to 19-series strips (14.4 px/ft),
   23-series sheets (18 px/ft) and vector renders. Different horizontal and
   vertical scales are undone at the same time.
+* **Scale per axis, from the drawing.** The calibrate stage reads how many feet
+  one grid square is on each axis: across from the offset labels under the
+  section (the PDF text on CAD sheets; on scans from where the labels turn from
+  two digits to three, and only with OCR of the widest labels agreeing when
+  that points away from 10 ft), up from the elevation labels beside it (text,
+  or OCR on scans). Only steps drawings use (1, 2, 2.5, 4, 5, 10, 20, 25, 40, 50, 100 ft)
+  and only when three or more labels agree; otherwise 10 ft, flagged as
+  assumed. Tested on sheets drawn at 10 × 10, 10 × 5 (2× vertical), 20 × 20 and
+  20 × 5 ft, as vector and as scan (`tests/test_calibrate.py`); every real
+  sheet checked (19-series, 23-series, SR 70, SR 332, SR 136, Perry Creek,
+  Hamilton, Franklin Gateway, SR 5) reads 10 × 10 ft, as drawn
+  (`python -m tools.calibration_check`).
+* **Confidence per section.** Each section is scored 0-100 from what had to be
+  guessed: how its station was read (text, OCR agreement, inferred), whether
+  its scale and centreline were read or assumed, scan vs CAD, surfaces
+  bridged over gaps, runs left out, a 0 / 0 result with no design line, and an
+  area far off both neighbours'. Every deduction is listed. 85 and above
+  passes; below 85 the section gets an alert (in the API and in the app).
 * **Earthwork is measured to the subgrade** (bottom of the pavement
   structure), the standard convention and the one the estimators' takeoffs in
   `EARTHWORK/` use. The finished-grade (top of pavement) figures are computed
@@ -45,7 +70,16 @@ Details worth knowing:
 * **Bridges and structures** (a design line hanging above the ground at both
   ends) are not counted as fill, and are reported.
 * **Buried pipes** drawn past the template (a long run that ends still below
-  ground) are not counted as cut, and are reported.
+  ground) are not counted as cut, and are reported. A run deeper than 15 ft
+  passing under the middle of the section is the template itself (a deep
+  cut the frame cuts off before it climbs out) and is kept.
+* **Checked against the estimators' labels** after these changes: all 16
+  labelled plan sets give the same areas as before, section for section,
+  except Mountain Industrial Blvd 309+00 – 310+00, which moved closer to the
+  labels.
+* **Walls.** Where the template ends at a wall's foot deep below ground, the
+  back slope drawn above the wall is followed up to the ground and measured
+  (`tests/test_walls.py`).
 * **Stations on scans** are read by OCR with several renderings voting, then
   decoded across the whole document (Viterbi): a road's stations step evenly,
   so a misread like `914+50` between `91+00` and `92+00` is corrected and a
@@ -86,7 +120,7 @@ of known size in the estimators' colours this is within 1 % (a few % on 1 ft sli
 
 ## The app
 
-A dashboard with a sidebar (Dashboard · New takeoff · Results · Accuracy) and a top bar.
+A dashboard with a sidebar (Dashboard · New takeoff · Results · Calibration · Comparison · Accuracy) and a top bar.
 
 * **Dashboard** – a verdict card for the 19-series and the 23-series, scored against the
   estimators' labels where a labelled copy exists (fill and cut accuracy, share of sections
@@ -104,8 +138,20 @@ A dashboard with a sidebar (Dashboard · New takeoff · Results · Accuracy) and
   displayed, i.e. a PDF viewer at 100 %. Every calibration follows the app's format
   (`pixelLengthX/Y` = `realWorldLengthX/Y` ft, `scaleX/Y` ft per pixel), and the response
   also lists every cut / fill area as a shape (`points` offsets from `position2D`, `side`,
-  `stationId`, `stage`, `streetName`, `areaSqFt`). On SR 70 the measured grid gives
-  36.00 px per 10 ft, exactly its printed 1" = 20'.
+  `stationId`, `stage`, `streetName`, `areaSqFt`). Each calibration also gives
+  `pixelsPerFootX/Y` and the grid's feet per square on each axis (`gridScale`, as read
+  off the axis labels). On SR 70 the measured grid gives 36.00 px per 10 ft, exactly its
+  printed 1" = 20'. The same viewer shows the **cross-section JSON** (every section's
+  left / right / total cut and fill, its shapes, confidence and alerts), the **alerts**
+  alone, and the **JSON Schema** the responses are validated against.
+* **Confidence and alerts** – every section shows its score (a ring badge: green passes,
+  amber / red below 85 %) in the viewer header and the *All values* table; below 85 % the
+  viewer lists what lowered it, and the section appears under **Needs review**, lowest
+  score first.
+* **Comparison** – our takeoff against results provided for the same plan set. The SR 5
+  connector comparison ships with the app (station by station, left / right cut and fill,
+  volumes per street and stage, what causes the differences); any open takeoff can be
+  compared with a results spreadsheet in the same format.
 * **Sheet view** – the results open on the whole sheet of the original PDF with every
   measured cross-section outlined, its cut / fill shaded and its station, fill and cut
   labelled. Click a section to select it (zoom with the wheel, drag to move, *Whole sheet* /
@@ -217,6 +263,10 @@ Writes `sections.csv`, `volumes.csv` and one overlay PNG per section.
 | `GET` | `/api/jobs/{id}/sections/{n}/profile.json` | the section's traced lines in image pixels (the app shades fill/cut from them, following edits) |
 | `GET` | `/api/jobs/{id}/volumes.csv?surface=subgrade&exclude=r2` | volumes per road |
 | `GET` | `/api/jobs/{id}/calibration` | feet-to-pixel calibration of every sheet (grid, sheet note or document note) and the cut / fill areas as page-space shapes |
+| `GET` | `/api/jobs/{id}/cross-sections?surface=` | every section in the received cross-section format: station, street, stage, left / right / total cut and fill (sq ft, edits applied), its shapes, `confidence` and `alerts` (below 85 %) |
+| `POST` | `/api/jobs/{id}/compare` | compare with provided results (`file`: xlsx / csv, Street · Stage · Station · Delta · Left / Right cut and fill areas and volumes) |
+| `GET` | `/api/comparisons`, `/api/comparisons/{name}` | stored comparisons with provided results (`sr5`) |
+| `GET` | `/api/schemas/{name}` | the JSON Schemas (`calibration`, `cross-sections`) the responses are validated against |
 | `GET` | `/api/jobs/{id}/pages/{n}.png` | a whole sheet of the original PDF, as an image |
 | `GET` | `/api/jobs/{id}/pages/{n}.json` | the measured sections on that sheet (frame, traced lines) in its coordinates |
 | `GET` | `/api/jobs/{id}/sections.csv` | areas per section, both surfaces, with left / right fill and cut and how the centreline was found (notes hand edits) |
@@ -238,7 +288,14 @@ pytest
 
 The tests generate synthetic plan sets with exactly known geometry (a vector
 PDF and a "scanned" copy of it) and check stations, areas, road grouping,
-volumes and the HTTP API end to end.
+volumes and the HTTP API end to end; the scale read on each axis at four grid
+scales; walls; the comparison with provided results; and every calibration
+and cross-section response against the JSON Schemas in `backend/schemas/`.
+
+```bash
+python -m tools.calibration_check out.json PLANS.pdf ...        # scale read per section, per axis
+python -m tools.compare_reference PLANS.pdf RESULTS.xlsx comparisons/NAME.json --title "..."
+```
 
 To re-measure accuracy on real plan sets:
 
@@ -254,7 +311,15 @@ python -m tools.accuracy_report labelled/                     # rewrites accurac
 ```
 backend/
   main.py                 FastAPI app (jobs, overlays, CSV, serves the built frontend)
+  schemas/                JSON Schemas of the calibration and cross-section responses
+  comparisons/            stored comparisons with provided results (SR 5) + notes
   gdot_earthwork/
+    stages/               the pipeline's six stages (ingest, detect, calibrate, trace,
+                          measure, decode stations) -- entry points over the modules below
+    calibration.py        feet-to-pixel calibration per sheet + cut / fill shapes
+    cross_sections.py     the cross-section response
+    confidence.py         0-100 score per section, alerts below 85
+    compare.py            comparison with provided results
     pages.py              PDF page -> image (+ text, + vector strokes)
     frames.py             section frames, station labels (text / OCR)
     tracing.py            grid stripping, glyph removal, surface tracing primitives
@@ -279,8 +344,12 @@ frontend/                 React + Vite app
   Misreads that break the station sequence are corrected or inferred and
   flagged under **Needs review**, but a label that is wrong *and* plausible
   cannot be detected.
-* Sections are assumed to be drawn with a 10 ft major grid (true for every
-  sheet series seen so far); `PipelineConfig.grid_ft` changes it.
+* Where a section's axis labels cannot be read, its grid is taken as 10 ft a
+  square (`PipelineConfig.grid_ft`) and the section says so (scale "assumed").
+* Faint dashed existing ground far below a tall embankment can be missed on
+  scans (SR 5, 313+50 – 314+50: the ground is traced along the embankment
+  instead), so those sections measure too little fill. Two of the three score
+  below 85 %; the overlay shows it at a glance.
 * Which lines count as "the proposed template" follows the drawing: temporary
   works, staging slopes or removal lines drawn with the same pen as the
   template can be measured as earthwork. The audit overlay shows exactly what

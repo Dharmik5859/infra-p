@@ -1,10 +1,11 @@
-import { IconAccuracy, IconDashboard, IconResults, IconRuler, IconUpload, Logo } from './Icons';
+import { IconAccuracy, IconCompare, IconDashboard, IconResults, IconRuler, IconUpload, Logo } from './Icons';
 
 const ITEMS = [
   { id: 'dashboard', label: 'Dashboard', Icon: IconDashboard },
   { id: 'new', label: 'New takeoff', Icon: IconUpload },
   { id: 'results', label: 'Results', Icon: IconResults },
   { id: 'calibration', label: 'Calibration', Icon: IconRuler },
+  { id: 'comparison', label: 'Comparison', Icon: IconCompare },
   { id: 'accuracy', label: 'Accuracy', Icon: IconAccuracy },
 ];
 

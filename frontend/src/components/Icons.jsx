@@ -64,6 +64,10 @@ export const IconDownload = (p) => (
   <svg {...base} {...p}><path d="M12 4v12M7 11l5 5 5-5" /><path d="M4 18v1a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-1" /></svg>
 );
 
+export const IconCompare = (p) => (
+  <svg {...base} {...p}><path d="M8 3v18M16 3v18" /><path d="M3 8h5M3 14h5M16 10h5M16 16h5" /></svg>
+);
+
 export function Logo({ size = 30 }) {
   // a terrain profile over a cut/fill base line, in the four brand colours
   return (

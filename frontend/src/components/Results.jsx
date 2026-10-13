@@ -13,7 +13,7 @@ import AreaEditor from './AreaEditor';
 import EditSectionModal from './EditSectionModal';
 
 function needsReview(s) {
-  return s.label_source === 'inferred' || s.warnings.length > 0 || !s.station;
+  return s.label_source === 'inferred' || s.warnings.length > 0 || !s.station || (s.confidence && !s.confidence.passed);
 }
 
 const SURFACE_LABEL = { subgrade: 'Subgrade', finished: 'Finished grade' };
@@ -65,6 +65,7 @@ export default function Results({ result, onResult }) {
   const review = useMemo(() => sections.filter(needsReview), [sections]);
   const editedCount = sections.filter((s) => s.edited).length;
   const zeroCount = sections.filter((s) => s.zero).length;
+  const lowCount = sections.filter((s) => s.confidence && !s.confidence.passed).length;
   const dirtyCount = Object.values(drafts).reduce((n, d) => n + Object.keys(d).length, 0);
 
   const totals = useMemo(() => {
@@ -266,6 +267,7 @@ export default function Results({ result, onResult }) {
             <div className="value num">{summary.sections}</div>
             <div className="sub">
               {summary.cross_section_pages} of {summary.pages} pages · {review.length} to review
+              {lowCount > 0 && <> · <span className="cut-text">{lowCount} below {85}% confidence</span></>}
               {zeroCount > 0 && <> · {zeroCount} with no earthwork</>}
               {editedCount > 0 && <> · <span className="edited-text">{editedCount} edited</span></>}
             </div>

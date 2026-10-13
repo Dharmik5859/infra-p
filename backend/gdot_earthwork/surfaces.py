@@ -31,6 +31,7 @@ from .tracing import (
     drop_rulers, ground_candidates, interp_spans, snap_bottom,
     refine_gaps, snap_top, split_chain, split_dash_solid, strip_grid, template_strokes,
     trim_buried_tail,
+    climb_from_wall,
 )
 
 CANON_PPF = 14.4   # px per ft the tracing constants were tuned at (19-series native)
@@ -152,6 +153,13 @@ def _finish(ground_px: dict, design_px: dict, solid: np.ndarray, roi: np.ndarray
         gap_d = max(gap_d, interp_spans(pc, W, CANON_PPF, cfg.gap_warn_ft)[1])
     D, _ = despike(D, cfg.despike_win, cfg.despike_px)
     B, _ = despike(B, cfg.despike_win, cfg.despike_px)
+    # a wall: carry the template on up its back slope to the ground (no pavement there)
+    walled, found = climb_from_wall(D, G, solid > 0, CANON_PPF)
+    if not found and roi is not None:          # a thin back slope may not have passed as a solid stroke
+        walled, found = climb_from_wall(D, G, roi > 0, CANON_PPF)
+    added = np.isnan(D) & ~np.isnan(walled)
+    D[added] = walled[added]
+    B[added] = walled[added]
     x = (np.arange(W) - W / 2) / CANON_PPF
     D, trimmed = trim_buried_tail(x, G, D, CANON_PPF, cfg.buried_run_ft, cfg.buried_depth_ft)
     B[np.isnan(D)] = np.nan
@@ -163,8 +171,9 @@ def _finish(ground_px: dict, design_px: dict, solid: np.ndarray, roi: np.ndarray
 
 
 def _canon_size(frame: Frame, cfg: PipelineConfig) -> tuple[float, float, int, int]:
-    sx = CANON_PPF / (frame.pitch_x / cfg.grid_ft)
-    sy = CANON_PPF / (frame.pitch_y / cfg.grid_ft)
+    # frame.ft_x / ft_y: ft per grid square as calibrated (stages.calibrate)
+    sx = CANON_PPF / (frame.pitch_x / frame.ft_x)
+    sy = CANON_PPF / (frame.pitch_y / frame.ft_y)
     W = int(round((frame.right - frame.left + 1) * sx))
     H = int(round((frame.y1 - frame.y0 + 1) * sy))
     return sx, sy, W, H
