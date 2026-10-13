@@ -143,8 +143,12 @@ def find_frames(img: PageImage, ink_thresh: int = 200, tol: float = 0.12) -> lis
                 if d > pitch * (1 + tol):
                     break
                 # grids are printed true to well under 6 %; a looser match
-                # would chain across the gap between two stacked sections
-                if abs(d - pitch) <= pitch * min(tol, 0.06) and _overlap(lines[j], lines[k]) > 0.8:
+                # would chain across the gap between two stacked sections.
+                # A rule reaching well past the grid either side (a title
+                # block's border one square below the axis) is not a grid line.
+                beyond = max(lines[j][2] - lines[k][2], lines[k][3] - lines[j][3])
+                if abs(d - pitch) <= pitch * min(tol, 0.06) and _overlap(lines[j], lines[k]) > 0.8 \
+                        and beyond <= 0.5 * pitch:
                     nxt = k
                     break
             if nxt is None:
@@ -682,14 +686,15 @@ def label_frames(frames: list[Frame], img: PageImage, ink_thresh: int = 200) -> 
     station label AND an offset axis -- that is what separates cross-sections
     from profile sheets, which are gridded and stationed too.
 
-    Scanned pages: use a text layer if the scan carries one (some PDFs are
-    OCR'd, others hold a few stray words), else read the label by OCR. Frames
-    whose label can't be read are kept: the plan-set pass can still infer the
-    station from the neighbouring sections."""
+    Scanned pages, and vector pages with no text layer at all (some CAD
+    exports draw their lettering as strokes): use a text layer if there is one
+    (some scans are OCR'd, others hold a few stray words), else read the label
+    by OCR. Frames whose label can't be read are kept: the plan-set pass can
+    still infer the station from the neighbouring sections."""
     out = []
     for f in frames:
         got = label_from_text(f, img) if img.spans else None
-        if img.kind == "vector":
+        if img.kind == "vector" and img.spans:
             if got is None or not _has_offset_axis(f, img):
                 continue
             f.station_label, f.station_ft, f.label_source, f.label_confidence = got[0], got[1], "text", 1.0

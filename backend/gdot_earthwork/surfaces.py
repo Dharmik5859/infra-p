@@ -366,7 +366,7 @@ def vector_strokes(frame: Frame, img: PageImage, cfg: PipelineConfig):
     sx, sy, W, H = _canon_size(frame, cfg)
     fw, fh = frame.right - frame.left, frame.bottom - frame.top
     edge = 0.08 * frame.pitch_y
-    dashed, solid = [], []
+    dashed, solid, short, glyphs = [], [], [], []
     for d in img.page.get_drawings():
         kind = d.get("type") or ""
         if "s" not in kind and not _is_pavement_fill(d, k, frame):
@@ -379,6 +379,14 @@ def vector_strokes(frame: Frame, img: PageImage, cfg: PipelineConfig):
         if rx1 < frame.left or rx0 > frame.right or ry1 < frame.y0 or ry0 > frame.y1:
             continue
         if max(rx1 - rx0, ry1 - ry0) < 0.25 * frame.pitch_x:   # text glyphs, ticks, specks
+            glyphs.append(((rx0 - frame.left) * sx, (ry0 - frame.y0) * sy, (rx1 - frame.left) * sx, (ry1 - frame.y0) * sy))
+            segs = _path_segments(d)
+            if len(segs) == 1 and "s" in kind:          # kept aside: may be one dash of a line drawn dash by dash
+                (ax, ay), (bx, by) = segs[0]
+                ax, ay = img.to_view(ax * k, ay * k)
+                bx, by = img.to_view(bx * k, by * k)
+                short.append(((ax - frame.left) * sx, (ay - frame.y0) * sy, (bx - frame.left) * sx, (by - frame.y0) * sy,
+                              round(d.get("width") or 0, 2), tuple(round(c, 2) for c in (d.get("color") or ()))))
             continue
         is_dash = _is_dashed(d)
         for (ax, ay), (bx, by) in _path_segments(d):
@@ -404,7 +412,80 @@ def vector_strokes(frame: Frame, img: PageImage, cfg: PipelineConfig):
             seg = ((ax - frame.left) * sx, (ay - frame.y0) * sy,
                    (bx - frame.left) * sx, (by - frame.y0) * sy)
             (dashed if is_dash else solid).append(seg)
+    if not dashed and short:
+        # no dashed line style at all: some CAD exports draw a dashed line
+        # dash by dash, as separate little segments
+        dashed = _dash_chains(short)
+    for sp in img.spans:                                  # lettering from the text layer
+        half = 0.3 * len(sp.text.strip()) * sp.size
+        glyphs.append(((sp.x - half - frame.left) * sx, (sp.y - sp.size / 2 - frame.y0) * sy,
+                       (sp.x + half - frame.left) * sx, (sp.y + sp.size / 2 - frame.y0) * sy))
+    solid = [s_ for s_ in solid if not _is_underline(s_, glyphs)]
     return dashed, solid, W, H
+
+
+def _is_underline(seg: tuple, glyphs: list[tuple], cover: float = 0.6) -> bool:
+    """A level line with lettering just above it along most of its length is
+    a label's underline or leader (a utility note: "EX. 8" SANITARY SEWER"),
+    not part of the template. A pavement top with a "2.0%" label has only a
+    few letters over a long line, so it stays."""
+    x0, y0, x1, y1 = seg
+    if x1 < x0:
+        x0, y0, x1, y1 = x1, y1, x0, y0
+    length = x1 - x0
+    if length < 3 * CANON_PPF or abs(y1 - y0) > 0.1 * CANON_PPF:
+        return False
+    y = (y0 + y1) / 2
+    covered = np.zeros(int(length) + 1, bool)
+    for gx0, gy0, gx1, gy1 in glyphs:
+        if 0 <= y - gy1 <= 2.0 * CANON_PPF and gy1 - gy0 <= 2.5 * CANON_PPF:      # just above the line
+            a, b = max(0, int(gx0 - x0)), min(len(covered), int(gx1 - x0) + 1)
+            covered[a:b] = True
+    return covered.mean() >= cover
+
+
+def _dash_chains(short: list[tuple], min_dashes: int = 5, min_span_ft: float = 10.0) -> list[tuple]:
+    """Segments that are dashes of one line: short single strokes of the same
+    pen, each starting a small gap after the previous one ends and heading the
+    same way, in a run of at least `min_dashes` spanning `min_span_ft`.
+    Letters (drawn as strokes when a PDF has no text) and tick marks do not
+    line up like that. Canonical pixels in, (x0, y0, x1, y1) out."""
+    ppf = CANON_PPF
+    cand = [c for c in short if 0.3 * ppf <= np.hypot(c[2] - c[0], c[3] - c[1]) <= 4.0 * ppf]
+    n = len(cand)
+    parent = list(range(n))
+
+    def find(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    unit = []
+    for x0, y0, x1, y1, *_ in cand:
+        L = np.hypot(x1 - x0, y1 - y0)
+        unit.append(((x1 - x0) / L, (y1 - y0) / L))
+    for i in range(n):
+        a = cand[i]
+        for j in range(i + 1, n):
+            b = cand[j]
+            if a[4:] != b[4:]:                                  # same pen: width and colour
+                continue
+            if abs(unit[i][0] * unit[j][0] + unit[i][1] * unit[j][1]) < 0.8:     # same heading (within ~35 deg)
+                continue
+            gap = min(np.hypot(p[0] - q[0], p[1] - q[1])
+                      for p in ((a[0], a[1]), (a[2], a[3])) for q in ((b[0], b[1]), (b[2], b[3])))
+            if 0.05 * ppf <= gap <= 3.5 * ppf:
+                parent[find(i)] = find(j)
+    groups: dict[int, list[int]] = {}
+    for i in range(n):
+        groups.setdefault(find(i), []).append(i)
+    out = []
+    for members in groups.values():
+        xs = [v for i in members for v in (cand[i][0], cand[i][2])]
+        if len(members) >= min_dashes and max(xs) - min(xs) >= min_span_ft * ppf:
+            out += [cand[i][:4] for i in members]
+    return out
 
 
 def _is_pavement_fill(d: dict, k: float, frame: Frame) -> bool:

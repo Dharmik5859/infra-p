@@ -141,6 +141,20 @@ def _other_stage_spans(f, img, cfg: PipelineConfig, stage: str) -> tuple[list, l
     return spans, lines, notes
 
 
+def _bridge_note(f, img) -> str | None:
+    """A warning when the drawing marks a bridge in the section ("BEGIN
+    BRIDGE STA. 106+22.00"): the space under a deck is traced like fill, and
+    whether it belongs in the earthwork is the reviewer's call."""
+    for sp in img.spans:
+        if "BRIDGE" in sp.text.upper() and f.left <= sp.x <= f.right and f.y0 <= sp.y <= f.y1:
+            line = sorted((o for o in img.spans if abs(o.y - sp.y) < 0.6 * sp.size and abs(o.x - sp.x) < 25 * sp.size),
+                          key=lambda o: o.x)
+            text = " ".join(" ".join(o.text.split()) for o in line)
+            return (f"the drawing marks a bridge here ('{text}') -- the space under the deck is measured as fill; "
+                    f"check whether it belongs in the earthwork")
+    return None
+
+
 def _blank_design(surf: Surfaces, f, cfg: PipelineConfig, spans) -> None:
     """No proposed line (so no cut or fill) across the given page-pixel x ranges."""
     sx = _canon_size(f, cfg)[0]
@@ -170,6 +184,9 @@ def _measure_page(pdf_path: str, index: int, cfg: PipelineConfig, overlays: bool
             _blank_design(surf, f, cfg, other)
             m = measure_section(surf, cfg)
             m.warnings.extend(stage_notes)
+            bridge = _bridge_note(f, img) if m.zero_reason is None else None
+            if bridge:
+                m.warnings.append(bridge)
             png = encode_png(overlay(surf, f, img, cfg, surface=cfg.design_surface,
                                      shade=overlays != "lines")) if overlays else None
             out.append(SectionResult(

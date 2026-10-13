@@ -585,7 +585,42 @@ def template_strokes(solid: np.ndarray, link_px: int, min_px: int) -> np.ndarray
     keep[1:] = widths >= cut
     if not keep.any():
         keep[1 + int(np.argmax(widths))] = True
+    _continue_template(lab, st, keep, link_px)
     return np.where(keep[lab], solid, 0).astype(solid.dtype)
+
+
+def _ends(lab: np.ndarray, st, k: int) -> tuple[tuple[int, float], tuple[int, float]]:
+    """A group's leftmost and rightmost ink: (column, mean row) at each end."""
+    x0, x1 = st[k, cv2.CC_STAT_LEFT], st[k, cv2.CC_STAT_LEFT] + st[k, cv2.CC_STAT_WIDTH] - 1
+    y0, y1 = st[k, cv2.CC_STAT_TOP], st[k, cv2.CC_STAT_TOP] + st[k, cv2.CC_STAT_HEIGHT]
+    band = lab[y0:y1]
+    row = lambda x: float(np.mean(np.where(band[:, x] == k)[0])) + y0
+    return (x0, row(x0)), (x1, row(x1))
+
+
+def _continue_template(lab: np.ndarray, st, keep: np.ndarray, link_px: int) -> None:
+    """Keep short stroke groups that carry the template on: one starting
+    where a kept group ends -- a little beyond its last ink (up to 1.75 x
+    link_px further out) and at the same height (within a quarter of
+    link_px) -- like a side slope drawn after a small break in the linework.
+    Text underlines and leaders sit above or below the template, so they
+    stay out. Repeats until nothing more joins."""
+    n = len(keep)
+    far, dy = 1.75 * link_px, 0.25 * link_px
+    ends = {k: _ends(lab, st, k) for k in range(1, n)}
+    changed = True
+    while changed:
+        changed = False
+        kept = [k for k in range(1, n) if keep[k]]
+        for k in range(1, n):
+            if keep[k]:
+                continue
+            (lx, ly), (rx, ry) = ends[k]
+            for t in kept:
+                (tlx, tly), (trx, try_) = ends[t]
+                if (0 < lx - trx <= far and abs(ly - try_) <= dy) or (0 < tlx - rx <= far and abs(ry - tly) <= dy):
+                    keep[k] = changed = True
+                    break
 
 
 def drop_layer_lines(dash: np.ndarray, template: np.ndarray, link: int = 29, min_w: int = 72,

@@ -119,6 +119,7 @@ class Grid:
     ft_y: float = GRID_FT
     pt_x: float = PT_PER_FT
     pt_y: float = PT_PER_FT
+    dash_by_dash: bool = False         # draw the ground's dashes as separate strokes (some CAD exports)
 
 
 def _draw_section(page: fitz.Page, spec: SectionSpec, y_axis: float, x_c: float,
@@ -150,8 +151,18 @@ def _draw_section(page: fitz.Page, spec: SectionSpec, y_axis: float, x_c: float,
         shape.draw_line((sx(x - 2), sy(g + 12.5)), (sx(x + 2), sy(g + 12.5)))
     if spec.pavement or spec.poles:
         shape.finish(width=0.6, color=(0, 0, 0), closePath=False)       # drawn solid, like the template
-    shape.draw_polyline([(sx(o), sy(e)) for o, e in spec.ground])  # existing ground: dashed
-    shape.finish(width=0.84, color=(0, 0, 0), dashes="[2.52 1.44] 0", closePath=False)
+    if grid.dash_by_dash:                                          # existing ground drawn dash by dash
+        shape.finish(width=0.6, color=(0, 0, 0), closePath=False)
+        dashes = page.new_shape()
+        xs = np.arange(spec.ground[0][0], spec.ground[-1][0], 1.1)    # 0.7 ft dashes, 0.4 ft gaps
+        for a in xs:
+            b = min(a + 0.7, spec.ground[-1][0])
+            dashes.draw_line((sx(a), sy(float(_interp(spec.ground, a)))), (sx(b), sy(float(_interp(spec.ground, b)))))
+            dashes.finish(width=0.84, color=(0, 0, 0), closePath=False)
+        dashes.commit()
+    else:
+        shape.draw_polyline([(sx(o), sy(e)) for o, e in spec.ground])  # existing ground: dashed
+        shape.finish(width=0.84, color=(0, 0, 0), dashes="[2.52 1.44] 0", closePath=False)
     shape.draw_polyline([(sx(o), sy(e)) for o, e in spec.design])  # proposed design: solid
     shape.finish(width=0.6, color=(0, 0, 0), closePath=False)
     shape.commit()
@@ -173,7 +184,8 @@ def _draw_section(page: fitz.Page, spec: SectionSpec, y_axis: float, x_c: float,
 
 
 def make_pdf(path: str, pages: list[list[SectionSpec]], scanned: bool = False, dpi: int = 254,
-             grid: Grid = Grid(), squares: int | None = None, title: str | None = None) -> None:
+             grid: Grid = Grid(), squares: int | None = None, title: str | None = None,
+             border_below: bool = False) -> None:
     """Stack the sections of each inner list on one 17x11 in sheet, highest
     station at the top (the usual convention)."""
     doc = fitz.open()
@@ -187,7 +199,11 @@ def make_pdf(path: str, pages: list[list[SectionSpec]], scanned: bool = False, d
             lo = min(e for _, e in spec.ground + spec.design)
             elev0 = grid.ft_y * np.floor(lo / grid.ft_y) - grid.ft_y
             _draw_section(page, spec, y_axis, 612, elev0, n_squares, grid)
+            last_axis = y_axis
             y = y_axis + 40
+        if border_below:                                           # a title block's border one square below
+            yb = last_axis + grid.ft_y * grid.pt_y
+            page.draw_line((40, yb), (1184, yb), width=1.5)
         if title:                                                  # title block, bottom right
             page.insert_text((1000, 760), title, fontsize=14)
     if scanned:
