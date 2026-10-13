@@ -28,22 +28,18 @@ export function VerdictPill({ g }) {
   return <span className={`pill verdict t-${g.tone}`}><IconCheck width={16} height={16} />{g.label}</span>;
 }
 
-export function VerdictCard({ f }) {
+export function VerdictCard({ f, compact = false }) {
   const m = f.metrics;
   if (!m) {
     return (
       <article className="card verdict-card edge-neutral">
         <header className="vc-head">
           <div>
-            <span className="eyebrow">{f.format}</span>
             <h2>{f.title}</h2>
           </div>
           <span className="pill verdict t-neutral">Not scored</span>
         </header>
-        <p className="vc-verdict">
-          No estimator-labelled copy of this series is in the data, so there is nothing to score it against. Its
-          takeoffs run normally; each section's picture shows exactly what was measured.
-        </p>
+        <p className="vc-verdict">No estimator-labelled copy exists, so this series is not scored.</p>
       </article>
     );
   }
@@ -53,7 +49,6 @@ export function VerdictCard({ f }) {
     <article className={`card verdict-card edge-${g.tone}`}>
       <header className="vc-head">
         <div>
-          <span className="eyebrow">{f.format}</span>
           <h2>{f.title}</h2>
         </div>
         <VerdictPill g={g} />
@@ -64,20 +59,16 @@ export function VerdictCard({ f }) {
         <Gauge value={accuracy(m.cut_error_pct)} tone="red" label="Cut accuracy" sub={errText(m.cut_error_pct)} />
       </div>
 
-      <p className="vc-verdict">{sentence(m)}</p>
-
-      <dl className="vc-stats">
-        <div><dt>Labelled sections</dt><dd className="num">{m.sections}</dd></div>
-        <div><dt>Within 10 %</dt><dd className="num">{m.within_10pct == null ? '—' : `${Math.round(m.within_10pct)} %`}</dd></div>
-        <div><dt>Typical error</dt><dd className="num">{m.median_error_pct == null ? '—' : `${m.median_error_pct.toFixed(1)} %`}</dd></div>
-        <div><dt>90% within</dt><dd className="num">{m.p90_error_pct == null ? '—' : `${m.p90_error_pct.toFixed(0)} %`}</dd></div>
-      </dl>
-      <footer className="vc-ref">
-        <IconInfo width={16} height={16} />
-        <span>
-          Checked against {f.reference}.
-        </span>
-      </footer>
+      {!compact && (
+        <>
+          <p className="vc-verdict">{sentence(m)}</p>
+          <dl className="vc-stats">
+            <div><dt>Sections</dt><dd className="num">{m.sections}</dd></div>
+            <div><dt>Within 10 %</dt><dd className="num">{m.within_10pct == null ? '—' : `${Math.round(m.within_10pct)} %`}</dd></div>
+            <div><dt>Typical error</dt><dd className="num">{m.median_error_pct == null ? '—' : `${m.median_error_pct.toFixed(1)} %`}</dd></div>
+          </dl>
+        </>
+      )}
     </article>
   );
 }
@@ -89,7 +80,7 @@ function LatestTakeoff({ job, onOpen, onNew }) {
         <div className="cta-icon"><IconUpload /></div>
         <div>
           <h3>Run a takeoff</h3>
-          <p className="muted">Upload a 19-series, 23-series or CAD-exported cross-section PDF. Cover, plan and profile sheets are skipped automatically.</p>
+          <p className="muted">Upload a cross-section plan set PDF.</p>
         </div>
         <button className="btn primary" onClick={onNew}>Upload plan set</button>
       </section>
@@ -130,7 +121,7 @@ function LatestTakeoff({ job, onOpen, onNew }) {
         <div className="tile t-red"><span>Cut</span><b className="num">{cy(cut)}</b><small>cubic yards</small></div>
         <div className="tile t-green"><span>Fill</span><b className="num">{cy(fill)}</b><small>cubic yards</small></div>
         <div className="tile t-blue"><span>Net</span><b className="num">{signed(net)}</b><small>{net >= 0 ? 'import needed' : 'surplus to export'}</small></div>
-        <div className="tile t-yellow"><span>Sections</span><b className="num">{summary.sections}</b><small>{counted.length} road{counted.length === 1 ? '' : 's'} · {summary.cross_section_pages} sheets</small></div>
+        <div className="tile t-yellow"><span>Sections</span><b className="num">{summary.sections}</b><small>{counted.length} road{counted.length === 1 ? '' : 's'}</small></div>
       </div>
     </section>
   );
@@ -141,38 +132,34 @@ export default function Dashboard({ report, job, onOpen, onNew, onAccuracy }) {
     <div className="page">
       <section className="hero">
         <div>
-          <span className="eyebrow">Automated earthwork takeoff</span>
-          <h2>Cut &amp; fill from cross-section plan sets, measured and verified</h2>
-          <p className="muted">
-            Accuracy below is measured only against estimators' labelled takeoffs: the cut and fill they shaded
-            by hand on the same sheets.
-          </p>
+          <h2>Cut &amp; fill takeoff</h2>
+          <p className="muted">Accuracy is measured against estimators' hand-labelled takeoffs.</p>
         </div>
-        <button className="btn" onClick={onAccuracy}><IconAccuracy width={18} height={18} />Full accuracy report</button>
+        <button className="btn" onClick={onAccuracy}><IconAccuracy width={18} height={18} />Accuracy details</button>
       </section>
 
       {report && <Headline report={report} compact />}
 
       {report === undefined && <div className="card skeleton" aria-busy="true">Loading accuracy…</div>}
       {report === null && (
-        <div className="card note"><IconInfo />No accuracy report on this server yet. Run <code>python -m tools.accuracy_report</code> to create one.</div>
+        <div className="card note"><IconInfo />No accuracy report yet. Run <code>python -m tools.accuracy_report</code>.</div>
       )}
       {report && (
         <div className="verdict-grid">
-          {report.formats.map((f) => <VerdictCard key={f.id} f={f} />)}
+          {report.formats.map((f) => <VerdictCard key={f.id} f={f} compact />)}
         </div>
       )}
 
       <LatestTakeoff job={job} onOpen={onOpen} onNew={onNew} />
 
-      <section className="card scale">
-        <h3>What the verdicts mean</h3>
+      <details className="card scale">
+        <summary>What the verdicts mean</summary>
         <ul>
           {GRADES.map((g) => (
             <li key={g.id}><span className={`pill verdict t-${g.tone}`}>{g.label}</span><span className="muted">{g.meaning}</span></li>
           ))}
         </ul>
-      </section>
+      </details>
     </div>
   );
 }

@@ -12,25 +12,17 @@ export default function Headline({ report, compact = false }) {
   const tiles = [
     {
       tone: 'green', value: fmtPct(acc(main.total_error_pct)), meter: acc(main.total_error_pct),
-      label: 'Cut + fill total vs the estimator',
-      sub: `Mainline sheets: ${main.sections} labelled sections in ${main.files} plan sets (fill ${fmtPct(acc(main.fill_error_pct))}, cut ${fmtPct(acc(main.cut_error_pct))})`,
+      label: 'Overall accuracy', sub: `cut + fill vs estimator · ${main.sections} sections`,
     },
     {
       tone: 'yellow', value: fmtPct(main.within_25pct, 0), meter: main.within_25pct,
-      label: 'Sections within 25% of the estimator',
-      sub: `${fmtPct(main.within_10pct, 0)} within 10% · typical section difference ${fmtPct(main.median_error_pct)}`,
+      label: 'Sections within 25%', sub: `${fmtPct(main.within_10pct, 0)} within 10%`,
     },
     {
       tone: 'blue', value: fmtPct(all.label_found_pct, 0), meter: all.label_found_pct,
-      label: "Of the estimators' shading found",
-      sub: 'Labelled area that falls inside a cross-section the pipeline located',
+      label: 'Shading found', sub: "of the estimators' labelled area",
     },
-    {
-      tone: 'red', value: fmtPct(acc(all.total_error_pct)), meter: acc(all.total_error_pct),
-      label: 'All labelled sheets, staged included',
-      sub: `${all.sections} sections in ${all.files} plan sets; staged sheets shade only one stage's work`,
-    },
-  ];
+  ].slice(0, compact ? 2 : 3);
   return (
     <section className={`headline ${compact ? 'compact' : ''}`} aria-label="Accuracy at a glance">
       <div className="headline-tiles">
@@ -43,14 +35,6 @@ export default function Headline({ report, compact = false }) {
           </div>
         ))}
       </div>
-      {!compact && (
-        <p className="headline-basis">
-          Measured only against labelled data: the cut (red) and fill (green) that estimators shaded by hand on
-          {` ${all.files}`} scanned plan sets. The pipeline read the scan underneath, untouched, and every section the
-          estimator shaded was compared. Per-section shares leave out sections under 10 ft², where a few square feet
-          would swing the percentage.
-        </p>
-      )}
     </section>
   );
 }

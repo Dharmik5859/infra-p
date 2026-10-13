@@ -904,3 +904,9 @@ tr.total td { font-weight: 500; background: var(--surface-2); }
 @media (max-width: 1100px) { .cmp-page .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 600px) { .cmp-page .kpis { grid-template-columns: minmax(0, 1fr); } }
 .cmp-findings ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 6px; color: var(--text-2); font-size: 13.5px; line-height: 1.5; }
+
+/* Simplified dashboard / accuracy */
+details.card > summary { cursor: pointer; font-weight: 600; font-size: 16px; }
+details.card[open] > summary { margin-bottom: 8px; }
+.vc-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 640px) { .vc-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; } }
