@@ -68,6 +68,25 @@ export const IconCompare = (p) => (
   <svg {...base} {...p}><path d="M8 3v18M16 3v18" /><path d="M3 8h5M3 14h5M16 10h5M16 16h5" /></svg>
 );
 
+export const IconCode = (p) => (
+  <svg {...base} {...p}><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 4l-3 16" /></svg>
+);
+export const IconKey = (p) => (
+  <svg {...base} {...p}><circle cx="8" cy="15" r="4" /><path d="M11 12l9-9M16 7l3 3M14 9l2 2" /></svg>
+);
+export const IconSearch = (p) => (
+  <svg {...base} {...p}><circle cx="11" cy="11" r="7" /><path d="M20 20l-4-4" /></svg>
+);
+export const IconPlay = (p) => (
+  <svg {...base} {...p}><path d="M7 4.5v15l12-7.5z" /></svg>
+);
+export const IconExternal = (p) => (
+  <svg {...base} {...p}><path d="M14 4h6v6M20 4l-9 9" /><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" /></svg>
+);
+export const IconChevron = (p) => (
+  <svg {...base} {...p}><path d="M9 6l6 6-6 6" /></svg>
+);
+
 export function Logo({ size = 30 }) {
   // a terrain profile over a cut/fill base line, in the four brand colours
   return (
