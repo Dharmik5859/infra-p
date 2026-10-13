@@ -606,7 +606,9 @@ def _continue_template(lab: np.ndarray, st, keep: np.ndarray, link_px: int) -> N
     link_px further out) and at the same height (within a quarter of
     link_px) -- like a side slope drawn after a small break in the linework.
     Text underlines and leaders sit above or below the template, so they
-    stay out. Repeats until nothing more joins."""
+    stay out; so does anything climbing steeper than 2:1 from the break (a
+    leader rising from the template's end to a note). Repeats until nothing
+    more joins."""
     n = len(keep)
     far, dy = 1.75 * link_px, 0.25 * link_px
     ends = {k: _ends(lab, st, k) for k in range(1, n)}
@@ -618,6 +620,8 @@ def _continue_template(lab: np.ndarray, st, keep: np.ndarray, link_px: int) -> N
             if keep[k]:
                 continue
             (lx, ly), (rx, ry) = ends[k]
+            if st[k, cv2.CC_STAT_HEIGHT] - link_px > 0.5 * (st[k, cv2.CC_STAT_WIDTH] - link_px):
+                continue
             for t in kept:
                 (tlx, tly), (trx, try_) = ends[t]
                 if (0 < lx - trx <= far and abs(ly - try_) <= dy) or (0 < tlx - rx <= far and abs(ry - tly) <= dy):
