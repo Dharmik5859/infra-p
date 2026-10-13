@@ -18,7 +18,10 @@ Each sheet's scale comes from, in order of trust:
 
 A written scale holds only for a full-size plot; the grid needs no such
 assumption, so where both exist the grid wins and the note is reported
-alongside as a check.
+alongside as a check (noteCheck, with the ratio grid / note). When every
+sheet with both agrees on a ratio other than 1 -- a set printed at half
+size -- the ratio is reported (printScale) and applied to the sheets that
+only have a note.
 
 Output follows the app's calibration and shape formats:
 
@@ -166,6 +169,41 @@ def _grid_scale(secs) -> dict | None:
             "sourceX": pick("sourceX"), "sourceY": pick("sourceY")}
 
 
+PRINT_RATIO_TOL = 0.03      # sheets must agree this closely for their print ratio to be applied
+
+
+def _print_ratio(doc: fitz.Document, by_page: dict, notes: dict) -> tuple[float | None, list[int]]:
+    """How the set was printed relative to its scale notes: the measured grid
+    over the note's scale, on every sheet that has both. Plans are often
+    printed at half size (11" x 17" from 22" x 34"), so a 1" = 10' note then
+    reads 1" = 20' on the page. Only returned (and then applied to sheets that
+    have a note but no grid) when it is not 1 and every such sheet agrees."""
+    ratios, pages = [], []
+    for page_no, secs in by_page.items():
+        sheet_note = _from_notes(notes.get(page_no, []))
+        if not sheet_note:
+            continue
+        to_disp = _displayed(doc[page_no - 1])
+        grids = [g for g in (_grid_px(s, to_disp) for _, s in secs) if g]
+        if grids:
+            ratios.append(float(np.median([g[0] for g in grids])) / sheet_note[0])
+            pages.append(page_no)
+    if not ratios:
+        return None, []
+    med = float(np.median(ratios))
+    if abs(med - 1) <= PRINT_RATIO_TOL or any(abs(r - med) > PRINT_RATIO_TOL * med for r in ratios):
+        return None, []
+    return round(med, 4), sorted(pages)
+
+
+def _ratio_meaning(r: float | None) -> str | None:
+    if not r:
+        return None
+    if abs(r - 0.5) <= PRINT_RATIO_TOL:
+        return "printed at half size: the scale notes are for full-size sheets (e.g. 22 x 34 in printed 11 x 17 in)"
+    return f"printed at {r:.0%} of the size the scale notes are written for"
+
+
 # ----------------------------------------------------------- shapes
 
 def _zones(g: dict, surface: str, centre_idx: float | None):
@@ -249,6 +287,8 @@ def build(result, pdf_path: str, filename: str, road_labels: dict[int, str] | No
         doc_note = next((n for p in note_pages for n in notes.get(p, [])), None)
         doc_note_page = next((p for p in note_pages if notes.get(p)), None)
 
+        print_ratio, ratio_pages = _print_ratio(doc, by_page, notes)
+
         calibrations, shapes, uncalibrated = [], [], []
         for page_no in range(1, len(doc) + 1):
             page = doc[page_no - 1]
@@ -256,6 +296,8 @@ def build(result, pdf_path: str, filename: str, road_labels: dict[int, str] | No
             secs = by_page.get(page_no, [])
             grids = [g for g in (_grid_px(s, to_disp) for _, s in secs) if g]
             sheet_note = _from_notes(notes.get(page_no, []))
+            if sheet_note and not grids and print_ratio:
+                sheet_note = (sheet_note[0] * print_ratio, sheet_note[1] * print_ratio)
             if grids:
                 px = (float(np.median([g[0] for g in grids])), float(np.median([g[1] for g in grids])))
                 extra = {"sections": len(secs)}
@@ -264,14 +306,20 @@ def build(result, pdf_path: str, filename: str, road_labels: dict[int, str] | No
                     extra["gridScale"] = gs
                 if sheet_note:
                     extra["noteCheck"] = {"text": notes[page_no][0]["text"], "pixelLengthX": round(sheet_note[0], 4),
-                                          "pixelLengthY": round(sheet_note[1], 4)}
+                                          "pixelLengthY": round(sheet_note[1], 4),
+                                          "printRatio": round(px[0] / sheet_note[0], 4)}
                 calibrations.append(_calibration(page_no, px[0], px[1], "grid", **extra))
             elif sheet_note:
-                calibrations.append(_calibration(page_no, *sheet_note, "sheet_note", note=notes[page_no][0]["text"]))
+                extra = {"printRatio": print_ratio} if print_ratio else {}
+                calibrations.append(_calibration(page_no, *sheet_note, "sheet_note", note=notes[page_no][0]["text"],
+                                                 **extra))
             elif secs and doc_note:
                 px = _from_notes([doc_note])
+                extra = {"printRatio": print_ratio} if print_ratio else {}
+                if print_ratio:
+                    px = (px[0] * print_ratio, px[1] * print_ratio)
                 calibrations.append(_calibration(page_no, *px, "document_note", note=doc_note["text"],
-                                                 notePage=doc_note_page))
+                                                 notePage=doc_note_page, **extra))
             elif secs:
                 uncalibrated.append(page_no)
 
@@ -296,6 +344,9 @@ def build(result, pdf_path: str, filename: str, road_labels: dict[int, str] | No
             "pixelUnit": "PDF point of the page as displayed (1/72 in; a PDF viewer at 100 % zoom)",
             "documentScale": {"text": doc_note["text"], "pageNumber": doc_note_page,
                               "feetPerInch": doc_note["feet_per_inch"]} if doc_note else None,
+            # the sheets' measured grids against their printed notes: how the set was printed
+            "printScale": {"ratio": print_ratio, "pages": ratio_pages,
+                           "meaning": _ratio_meaning(print_ratio)} if print_ratio else None,
             "calibrations": calibrations,
             "uncalibratedPages": uncalibrated,
             "shapes": shapes,

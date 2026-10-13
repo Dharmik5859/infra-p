@@ -666,6 +666,51 @@ def ground_candidates(dash: np.ndarray, template: np.ndarray, hidden_weight: flo
     return cands, weights
 
 
+def trace_ground(dash: np.ndarray, template: np.ndarray, hidden_weight: float, win: int, ppf: float,
+                 min_run_ft: float = 15.0, min_dash_frac: float = 0.1) -> dict[int, float]:
+    """Existing ground through its dashes, borrowing the template where the
+    ground hides behind it (ground_candidates). But under a tall embankment
+    or in a deep cut the ground is far from the template, drawn as faint,
+    broken dashes: following the template's continuous strokes then scores
+    better than hopping between them, and the section measures ~0 cut / fill.
+    So where the trace rides the template for more than `min_run_ft` while
+    at least `min_dash_frac` of those columns hold ground dashes elsewhere,
+    the ground is not hidden there: trace those columns on the dashes alone."""
+    cd, ct = candidates(drop_layer_lines(dash, template)), candidates(template)
+    cands = [a + b for a, b in zip(cd, ct)]
+    weights = [[1.0] * len(a) + [hidden_weight] * len(b) for a, b in zip(cd, ct)]
+    path = best_path(cands, win=win, weights=weights)
+    near = lambda y, ys: any(abs(y - v) <= 3 for v in ys)
+    on_tpl = np.zeros(len(cd), bool)
+    elsewhere = np.zeros(len(cd), bool)
+    for x, y in path.items():
+        if near(y, ct[x]) and not near(y, cd[x]):
+            on_tpl[x] = True
+    for x in range(len(cd)):
+        elsewhere[x] = any(abs(v - w) > 0.5 * ppf for v in cd[x] for w in ct[x]) if ct[x] else bool(cd[x])
+    # runs of columns where the trace rides the template (small gaps in the path allowed)
+    xs = np.array(sorted(path))
+    release = np.zeros(len(cd), bool)
+    if len(xs):
+        run_start = None
+        for a, b in zip(xs, list(xs[1:]) + [None]):
+            if on_tpl[a] and run_start is None:
+                run_start = a
+            if run_start is not None and (b is None or not on_tpl[b] or b - a > ppf):
+                end = a
+                if end - run_start >= min_run_ft * ppf:
+                    span = slice(run_start, end + 1)
+                    if elsewhere[span].mean() >= min_dash_frac:
+                        release[span] = True
+                run_start = None
+    if not release.any():
+        return path
+    cands = [a if release[x] else a + b for x, (a, b) in enumerate(zip(cd, ct))]
+    weights = [[1.0] * len(a) + ([] if release[x] else [hidden_weight] * len(b))
+               for x, (a, b) in enumerate(zip(cd, ct))]
+    return best_path(cands, win=win, weights=weights)
+
+
 def drop_rulers(solid: np.ndarray, min_len: int, max_rise: int = 4) -> np.ndarray:
     """Remove dead-straight horizontal strokes longer than `min_len`: border
     and grid remnants, axis lines, title rules. A drawn surface is never that

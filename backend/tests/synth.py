@@ -9,7 +9,7 @@ is generated, the true fill/cut area of every section is known exactly.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import pymupdf as fitz
 import numpy as np
@@ -21,8 +21,11 @@ GRID_FT = 10.0
 @dataclass
 class SectionSpec:
     station: str                         # e.g. "12+50"
-    ground: list[tuple[float, float]]    # (offset ft, elevation ft) polyline
+    ground: list[tuple[float, float]]    # (offset ft, elevation ft) polyline -- the TOP of what exists
     design: list[tuple[float, float]]
+    pavement: list[tuple[float, float, float]] = field(default_factory=list)  # existing asphalt: (from, to, thick ft)
+    poles: list[float] = field(default_factory=list)                          # utility poles standing on the ground
+    stage_mark: tuple[str, float, float] | None = None   # ("2", from, to): a "STAGE 2 CONSTRUCTION" dimension
 
 
 def _interp(poly, x):
@@ -136,6 +139,17 @@ def _draw_section(page: fitz.Page, spec: SectionSpec, y_axis: float, x_c: float,
         if off % grid.ft_x:
             shape.draw_line((sx(off), y_axis), (sx(off), y_axis - 1.6))
     shape.finish(width=0.24, color=(0, 0, 0), closePath=False)
+    for a, b, t in spec.pavement:                                  # existing asphalt: a solid band on the ground
+        xs = np.linspace(a, b, 12)
+        top = [(sx(x), sy(float(_interp(spec.ground, x)))) for x in xs]
+        bot = [(sx(x), sy(float(_interp(spec.ground, x)) - t)) for x in xs[::-1]]
+        shape.draw_polyline(top + bot + top[:1])
+    for x in spec.poles:                                           # a pole: upright line with a cross arm
+        g = float(_interp(spec.ground, x))
+        shape.draw_line((sx(x), sy(g)), (sx(x), sy(g + 14)))
+        shape.draw_line((sx(x - 2), sy(g + 12.5)), (sx(x + 2), sy(g + 12.5)))
+    if spec.pavement or spec.poles:
+        shape.finish(width=0.6, color=(0, 0, 0), closePath=False)       # drawn solid, like the template
     shape.draw_polyline([(sx(o), sy(e)) for o, e in spec.ground])  # existing ground: dashed
     shape.finish(width=0.84, color=(0, 0, 0), dashes="[2.52 1.44] 0", closePath=False)
     shape.draw_polyline([(sx(o), sy(e)) for o, e in spec.design])  # proposed design: solid
@@ -146,10 +160,20 @@ def _draw_section(page: fitz.Page, spec: SectionSpec, y_axis: float, x_c: float,
     for k in range(n_squares + 1):
         page.insert_text((right + 4, y_axis - k * grid.ft_y * grid.pt_y + 2), f"{elev0 + k * grid.ft_y:g}", fontsize=6)
     page.insert_text((sx(118), y_axis - 0.8 * grid.ft_y * grid.pt_y), spec.station, fontsize=11)
+    if spec.stage_mark:
+        sid, a, b = spec.stage_mark
+        y = top + 0.6 * grid.ft_y * grid.pt_y
+        dim = page.new_shape()
+        dim.draw_line((sx(a), y), (sx(b), y))
+        dim.draw_line((sx(a), y - 4), (sx(a), y + 4))
+        dim.draw_line((sx(b), y - 4), (sx(b), y + 4))
+        dim.finish(width=0.4, color=(0, 0, 0), closePath=False)
+        dim.commit()
+        page.insert_text((sx((a + b) / 2) - 65, y + 13), f"STAGE {sid} CONSTRUCTION", fontsize=10)
 
 
 def make_pdf(path: str, pages: list[list[SectionSpec]], scanned: bool = False, dpi: int = 254,
-             grid: Grid = Grid(), squares: int | None = None) -> None:
+             grid: Grid = Grid(), squares: int | None = None, title: str | None = None) -> None:
     """Stack the sections of each inner list on one 17x11 in sheet, highest
     station at the top (the usual convention)."""
     doc = fitz.open()
@@ -164,6 +188,8 @@ def make_pdf(path: str, pages: list[list[SectionSpec]], scanned: bool = False, d
             elev0 = grid.ft_y * np.floor(lo / grid.ft_y) - grid.ft_y
             _draw_section(page, spec, y_axis, 612, elev0, n_squares, grid)
             y = y_axis + 40
+        if title:                                                  # title block, bottom right
+            page.insert_text((1000, 760), title, fontsize=14)
     if scanned:
         out = fitz.open()
         for page in doc:

@@ -73,7 +73,7 @@ def run_job(job: Job, path: str) -> None:
         try:
             # section images carry the lines only; the app shades fill/cut from
             # the profile so the picture follows the areas the user types
-            res = process_plan_set(path, progress=progress, overlays="lines")
+            res = process_plan_set(path, progress=progress, overlays="lines", name=job.filename)
             job.result = res
             job.payload = serialize(job, res)
             job.pdf_path = path
