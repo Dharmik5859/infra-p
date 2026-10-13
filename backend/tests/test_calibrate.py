@@ -58,3 +58,25 @@ def test_elevation_step_fit():
     assert fit_elevation_step([(0, 1090.0), (1, 1080.0), (2, 1070.0), (3, 1060.0)]) == (10.0, 4)
     assert fit_elevation_step([(0, 660.0), (1, 655.0), (2, 650.0), (4, 640.0)]) == (5.0, 4)
     assert fit_elevation_step([(0, 660.0), (1, 655.0)]) is None
+
+
+def test_half_size_print_is_detected_from_grid_and_note(tmp_path):
+    """Sheets drawn at 1" = 20' (PT_PER_FT 3.6) whose note says 1" = 10': the
+    set was printed at half size. The grid wins, and the ratio is reported."""
+    from fastapi.testclient import TestClient
+    import main
+    import time
+    pdf = tmp_path / "plans.pdf"
+    make_pdf(str(pdf), [[embankment("11+50", 651.3, 5.0)], [embankment("12+00", 651.0, 4.0)]],
+             title='SCALE: 1" = 10\'')
+    client = TestClient(main.app)
+    job = client.post("/api/jobs", files={"file": ("plans.pdf", pdf.read_bytes(), "application/pdf")}).json()["job_id"]
+    for _ in range(300):
+        if client.get(f"/api/jobs/{job}").json()["status"] in ("done", "error"):
+            break
+        time.sleep(0.1)
+    body = client.get(f"/api/jobs/{job}/calibration").json()
+    assert body["printScale"]["ratio"] == 0.5 and "half size" in body["printScale"]["meaning"]
+    for c in body["calibrations"]:
+        assert c["source"] == "grid" and abs(c["pixelLengthX"] - 36.0) < 0.5      # 1" = 20' on the page
+        assert c["noteCheck"]["printRatio"] == 0.5
