@@ -161,7 +161,7 @@ def _finish(ground_px: dict, design_px: dict, solid: np.ndarray, roi: np.ndarray
     D[added] = walled[added]
     B[added] = walled[added]
     x = (np.arange(W) - W / 2) / CANON_PPF
-    D, trimmed = trim_buried_tail(x, G, D, CANON_PPF, cfg.buried_run_ft, cfg.buried_depth_ft)
+    D, trimmed = trim_buried_tail(x, G, D, CANON_PPF, cfg.buried_run_ft, cfg.buried_depth_ft, subgrade=B)
     B[np.isnan(D)] = np.nan
     s = Surfaces(G, D, W, H, source, roi, gap_g, gap_d, trimmed)
     s.subgrade = B

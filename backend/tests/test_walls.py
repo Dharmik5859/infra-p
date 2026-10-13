@@ -47,3 +47,20 @@ def test_buried_service_still_trimmed_but_not_the_roadway():
     design2[1420:] = 500.0 + 20 * ppf
     _, killed = trim_buried_tail(x, ground, design2, ppf, 25.0, 3.5)
     assert not killed
+
+
+def test_new_road_built_down_through_the_old_one_is_cut_not_a_pipe():
+    """The proposed pavement 4 ft under the existing road, up to where the
+    drawing stops: the old asphalt and earth above it are dug out (cut). A
+    single line at the same place is still read as a pipe."""
+    ppf = 14.4
+    x = (np.arange(4000) - 2000) / ppf
+    ground = np.full(4000, 500.0)
+    surface = np.full(4000, np.nan)
+    surface[1400:3100] = 500.0 + 4.0 * ppf             # catch at ground, then below it to the end
+    surface[1400:1450] = 500.0 + np.linspace(0, 4.0 * ppf, 50)
+    box = surface + 1.5 * ppf                          # subgrade: a pavement box under it
+    _, killed = trim_buried_tail(x, ground, surface, ppf, 25.0, 3.5, subgrade=box)
+    assert not killed
+    _, killed = trim_buried_tail(x, ground, surface, ppf, 25.0, 3.5, subgrade=surface.copy())
+    assert killed
