@@ -226,7 +226,7 @@ def raster_surfaces(frame: Frame, img: PageImage, cfg: PipelineConfig, exclude=N
     grid_rows = [((a + b) / 2 - y0) * sy for a, b in frame.hlines]
 
     def trace(mask):
-        d = trace_design(mask)
+        d = trace_design(mask, ground_px)
         return fill_along_gridlines(d, grid_rows, int(1.0 * CANON_PPF))
 
     return _finish_with_retry(ground_px, trace, _blank_columns(solid, frame, sx, exclude, erase, sy), roi, W, H, cfg,
@@ -269,12 +269,14 @@ def _erase_chain(mask: np.ndarray, chain: dict, half: int = 4) -> np.ndarray:
     return mask & (1 - band)
 
 
-def trace_design(mask: np.ndarray, rounds: int = 3) -> dict[int, float]:
+def trace_design(mask: np.ndarray, ground: dict | None = None, rounds: int = 3) -> dict[int, float]:
     """The design line: the best chain through the template strokes, then
     any further template piece standing apart from it along the section (a
     widening on the far side of untouched existing pavement), each traced
     the same way. A chain only bridges gaps of a tracing window, so a second
-    piece 60 ft away would otherwise be left out whole."""
+    piece 60 ft away would otherwise be left out whole. Such a piece is graded
+    ground: both its ends tie into the existing ground (catch point, edge of
+    pavement kept), which a note's underline and leader do not."""
     chain = snap_top(mask, best_path(candidates(mask)))
     rest, last = mask.copy(), chain
     for _ in range(rounds):
@@ -289,8 +291,24 @@ def trace_design(mask: np.ndarray, rounds: int = 3) -> dict[int, float]:
             break
         if len(last) < 0.6 * (max(last) - min(last) + 1):
             break                       # hops between scattered marks (lettering), not a drawn line
+        if ground is not None and not _ties_into(last, ground):
+            continue
         chain = {**chain, **{x: y for x, y in last.items() if x not in chain}}
     return dict(sorted(chain.items()))
+
+
+def _ties_into(piece: dict, ground: dict, tol_ft: float = 2.0) -> bool:
+    """Both ends of a design piece lie on (within tol_ft of) the ground."""
+    if not ground:
+        return False
+    gx = np.array(sorted(ground), float)
+    gy = np.array([ground[x] for x in sorted(ground)], float)
+    for x in (min(piece), max(piece)):
+        if not gx[0] - CANON_PPF <= x <= gx[-1] + CANON_PPF:
+            return False
+        if abs(piece[x] - np.interp(x, gx, gy)) > tol_ft * CANON_PPF:
+            return False
+    return True
 
 
 def _finish_with_retry(ground_px, trace, solid, roi, W, H, cfg, source, refine) -> Surfaces:
@@ -600,6 +618,6 @@ def vector_surfaces(frame: Frame, img: PageImage, cfg: PipelineConfig, exclude=N
     smask = _drop_detached_in_margins(smask, (frame.top - frame.y0) * sy, (frame.bottom - frame.y0) * sy)
     gc, gw = ground_candidates(dmask, smask, HIDDEN_GROUND_WEIGHT)
     ground_px = best_path(gc, win=TRACE_WINDOW, weights=gw)
-    return _finish_with_retry(ground_px, trace_design,
+    return _finish_with_retry(ground_px, lambda m: trace_design(m, ground_px),
                               _blank_columns(smask, frame, _canon_size(frame, cfg)[0], exclude, erase,
                                              _canon_size(frame, cfg)[1]), dmask | smask, W, H, cfg, "vector", refine=False)
