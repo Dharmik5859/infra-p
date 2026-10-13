@@ -248,7 +248,81 @@ Writes `sections.csv`, `volumes.csv` and one overlay PNG per section.
 
 ---
 
+## Public API (v1)
+
+The two deliverables, the **calibration** and the **cross-sections** of a plan set, are
+also a documented API for clients outside the app: Swagger UI at **`/api/v1/docs`**,
+OpenAPI at `/api/v1/openapi.json` (each `200` response described by its JSON Schema from
+`backend/schemas/`).
+
+| Method | Path | |
+|---|---|---|
+| `POST` | `/api/v1/calibration?wait=` | upload a plan-set PDF (multipart field `file`) → `202` + job status, or `200` + the calibration if it is ready within `wait` seconds (0-600, default 0) |
+| `GET` | `/api/v1/calibration/{id}` | `200` the calibration once processed; `202` + progress until then |
+| `POST` | `/api/v1/cross-sections?wait=` | the same upload, answered with the cross-sections |
+| `GET` | `/api/v1/cross-sections/{id}?surface=` | `200` every cross-section, measured to `subgrade` (default) or `finished`; `202` until ready |
+| `GET` | `/api/v1/schemas/{name}` | the JSON Schema (`calibration`, `cross-sections`) of each response |
+
+One processing run serves both: an id from either POST reads either GET, and a plan set
+uploaded in the app can be read by its job id (hand edits included). While processing,
+the answer is `202` with `{"id", "status": "queued" | "running", "progress": {"done", "total"},
+"links": {"self", "calibration", "crossSections"}}` and `Location` / `Retry-After` headers;
+every answer names its job in `X-Job-Id` (the only place a POST answered `200` can).
+
+| Status | Meaning |
+|---|---|
+| `200` | the result (calibration or cross-section JSON) |
+| `202` | still queued or running: poll `links.self` |
+| `400` | not a PDF, an empty file, a malformed form, or a bad parameter (`wait`, `surface`) |
+| `401` | missing or wrong `X-API-Key` (only when `API_KEYS` is set) |
+| `404` | unknown or expired id |
+| `410` | the uploaded PDF is no longer on the server |
+| `413` | the PDF is larger than `MAX_UPLOAD_MB` |
+| `422` | the plan set could not be processed; `{"detail": "..."}` says why |
+
+**Authentication.** Start the server with `API_KEYS=key1,key2` and every `/api/v1`
+request must send one of them in the `X-API-Key` header (compared in constant time);
+without `API_KEYS` the API is open. The docs pages stay readable either way (use
+**Authorize** there to try the API), and the app's own `/api/...` endpoints never need a key.
+
+**Large plan sets.** The upload is parsed as it arrives and written straight to disk, a
+chunk at a time; it is refused with `413` as soon as it passes `MAX_UPLOAD_MB` (before a
+byte is read when its declared length already does). Jobs share the app's queue
+(`MAX_CONCURRENT_JOBS`) and expire after `JOB_TTL_SECONDS`.
+
+```bash
+# upload and wait (up to 5 minutes) for the result
+curl -X POST "http://localhost:8000/api/v1/cross-sections?wait=300" \
+     -H "X-API-Key: $API_KEY" -F "file=@plans.pdf" -o cross-sections.json
+
+# or upload, then poll
+curl -X POST http://localhost:8000/api/v1/calibration -H "X-API-Key: $API_KEY" -F "file=@plans.pdf"
+#   202 {"id": "3f9c2a1b7e4d", "status": "queued", "progress": {"done": 0, "total": 0}, "links": {...}}
+curl http://localhost:8000/api/v1/calibration/3f9c2a1b7e4d -H "X-API-Key: $API_KEY"
+curl "http://localhost:8000/api/v1/cross-sections/3f9c2a1b7e4d?surface=finished" -H "X-API-Key: $API_KEY"
+```
+
+```python
+import time
+import requests
+
+API = "http://localhost:8000/api/v1"
+HEADERS = {"X-API-Key": "..."}                  # only when the server sets API_KEYS
+
+with open("plans.pdf", "rb") as f:
+    r = requests.post(f"{API}/calibration", params={"wait": 60}, headers=HEADERS, files={"file": f})
+job_id = r.headers["X-Job-Id"]
+while r.status_code == 202:                      # still processing
+    time.sleep(int(r.headers.get("Retry-After", 2)))
+    r = requests.get(f"{API}/calibration/{job_id}", headers=HEADERS)
+r.raise_for_status()                             # 422: r.json()["detail"] says why it failed
+calibration = r.json()
+cross_sections = requests.get(f"{API}/cross-sections/{job_id}", headers=HEADERS).json()   # same job
+```
+
 ## API
+
+The app's own endpoints (no API key, not versioned):
 
 | Method | Path | |
 |---|---|---|
@@ -274,7 +348,8 @@ Writes `sections.csv`, `volumes.csv` and one overlay PNG per section.
 | `PUT` | `/api/jobs/{id}/edits` | save hand-edited areas `{"surface": "subgrade", "edits": {"12": {"fill_ft2": 40, "cut_ft2": 3}, "13": null}}` (`null` = back to measured; an edit may carry `"marks": [{"kind": "fill", "pts": [[x, y], …]}]`, areas outlined on the section image); volumes are recomputed and the updated result returned |
 
 Environment: `ALLOWED_ORIGINS` (CORS, comma separated), `MAX_CONCURRENT_JOBS` (default 1), `MAX_UPLOAD_MB`
-(default 2048), `UPLOAD_CHUNK_MB` (default 8), `JOB_TTL_SECONDS` (default 6 h), `FRONTEND_DIST`, `ACCURACY_FILE`.
+(default 2048), `UPLOAD_CHUNK_MB` (default 8), `JOB_TTL_SECONDS` (default 6 h), `API_KEYS` (public API keys,
+comma separated; unset = open), `FRONTEND_DIST`, `ACCURACY_FILE`.
 
 ---
 
@@ -289,8 +364,10 @@ pytest
 The tests generate synthetic plan sets with exactly known geometry (a vector
 PDF and a "scanned" copy of it) and check stations, areas, road grouping,
 volumes and the HTTP API end to end; the scale read on each axis at four grid
-scales; walls; the comparison with provided results; and every calibration
-and cross-section response against the JSON Schemas in `backend/schemas/`.
+scales; walls; the comparison with provided results; every calibration
+and cross-section response against the JSON Schemas in `backend/schemas/`; and the
+public API (`tests/test_public_api.py`: upload / poll / wait, one id on both endpoints,
+errors, API keys, the streamed upload, the OpenAPI document).
 
 ```bash
 python -m tools.calibration_check out.json PLANS.pdf ...        # scale read per section, per axis
@@ -310,7 +387,17 @@ python -m tools.accuracy_report labelled/                     # rewrites accurac
 
 ```
 backend/
-  main.py                 FastAPI app (jobs, overlays, CSV, serves the built frontend)
+  main.py                 entry point: assembles the app's routers, mounts the public API at
+                          /api/v1, serves the built frontend
+  api/                    the HTTP layer
+    settings.py           environment settings
+    jobs.py               job store, processing queue, expiry, uploads (shared by both APIs)
+    payload.py            a job's result as the app reads it; hand edits, volume recompute
+    results.py            the calibration and cross-section JSON of a finished job
+    schemas.py, streaming.py   JSON Schemas for serving / OpenAPI; multipart upload streamed to disk
+    routes_*.py           the app's endpoints: jobs & uploads, sheets & images, calibration &
+                          cross-sections, exports (CSV / PDF), comparisons & schemas, health & accuracy
+    public.py             the public API (v1): its own FastAPI app, OpenAPI and Swagger UI
   schemas/                JSON Schemas of the calibration and cross-section responses
   comparisons/            stored comparisons with provided results (SR 5) + notes
   gdot_earthwork/
