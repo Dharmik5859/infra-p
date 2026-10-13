@@ -331,11 +331,12 @@ HEADERS = {"X-API-Key": "..."}                  # only when the server sets API_
 
 with open("plans.pdf", "rb") as f:
     r = requests.post(f"{API}/calibration", params={"wait": 60}, headers=HEADERS, files={"file": f})
+r.raise_for_status()                             # 400 / 401 / 413; 422: r.json()["detail"] says why it failed
 job_id = r.headers["X-Job-Id"]
 while r.status_code == 202:                      # still processing
     time.sleep(int(r.headers.get("Retry-After", 2)))
     r = requests.get(f"{API}/calibration/{job_id}", headers=HEADERS)
-r.raise_for_status()                             # 422: r.json()["detail"] says why it failed
+    r.raise_for_status()
 calibration = r.json()
 cross_sections = requests.get(f"{API}/cross-sections/{job_id}", headers=HEADERS).json()   # same job
 ```

@@ -215,16 +215,20 @@ def _links(request: Request, job: jobs.Job, kind: str, surface: str | None) -> L
 async def _answer(request: Request, job: jobs.Job, kind: str, wait: float, surface: str | None = None) -> JSONResponse:
     """The result once the job is done (waiting up to `wait` seconds for it),
     or where it stands (202). The wait sleeps on the event loop, so waiting
-    clients hold no worker thread. Every answer names the job in X-Job-Id: a
-    POST answered 200 has no other place to say it."""
+    clients hold no worker thread, and ends early if the client hangs up
+    (the job carries on). Every answer names the job in X-Job-Id: a POST
+    answered 200 has no other place to say it."""
     deadline = time.monotonic() + wait
     while job.status in ("queued", "running") and time.monotonic() < deadline:
         await asyncio.sleep(max(0.0, min(POLL_SECONDS, deadline - time.monotonic())))
+        if await request.is_disconnected():
+            break
     links = _links(request, job, kind, surface)
-    if job.status == "error":
+    state = job.status              # read once: the job's thread may move it on meanwhile
+    if state == "error":
         raise HTTPException(422, job.error, headers={"X-Job-Id": job.id})
-    if job.status != "done":
-        status = JobStatus(id=job.id, status=job.status, progress=Progress(done=job.done, total=job.total),
+    if state != "done":
+        status = JobStatus(id=job.id, status=state, progress=Progress(done=job.done, total=job.total),
                            links=links)
         return JSONResponse(status.model_dump(by_alias=True), status_code=202, headers={
             "Location": links.self_, "Retry-After": str(RETRY_AFTER), "X-Job-Id": job.id})

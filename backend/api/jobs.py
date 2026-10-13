@@ -79,7 +79,8 @@ def run_job(job: Job, path: str) -> None:
             job.pdf_path = path
             job.status = "done"
         except Exception as e:  # surfaced to the client, not swallowed (naming the file, not where it was kept)
-            job.status, job.error = "error", f"{type(e).__name__}: {e}".replace(path, job.filename)
+            job.error = f"{type(e).__name__}: {e}".replace(path, job.filename)
+            job.status = "error"        # last: whoever sees "error" also finds the reason
             shutil.rmtree(os.path.dirname(path), ignore_errors=True)
 
 
