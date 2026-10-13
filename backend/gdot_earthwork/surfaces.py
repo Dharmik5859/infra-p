@@ -161,7 +161,7 @@ def _finish(ground_px: dict, design_px: dict, solid: np.ndarray, roi: np.ndarray
     D[added] = walled[added]
     B[added] = walled[added]
     x = (np.arange(W) - W / 2) / CANON_PPF
-    D, trimmed = trim_buried_tail(x, G, D, CANON_PPF, cfg.buried_run_ft, cfg.buried_depth_ft)
+    D, trimmed = trim_buried_tail(x, G, D, CANON_PPF, cfg.buried_run_ft, cfg.buried_depth_ft, subgrade=B)
     B[np.isnan(D)] = np.nan
     s = Surfaces(G, D, W, H, source, roi, gap_g, gap_d, trimmed)
     s.subgrade = B
@@ -226,7 +226,7 @@ def raster_surfaces(frame: Frame, img: PageImage, cfg: PipelineConfig, exclude=N
     grid_rows = [((a + b) / 2 - y0) * sy for a, b in frame.hlines]
 
     def trace(mask):
-        d = snap_top(mask, best_path(candidates(mask)))
+        d = trace_design(mask, ground_px)
         return fill_along_gridlines(d, grid_rows, int(1.0 * CANON_PPF))
 
     return _finish_with_retry(ground_px, trace, _blank_columns(solid, frame, sx, exclude, erase, sy), roi, W, H, cfg,
@@ -249,7 +249,10 @@ def _drop_detached_in_margins(mask: np.ndarray, top_row: float, bottom_row: floa
     out = mask.copy()
     for k in range(1, n):
         y, h = st[k, cv2.CC_STAT_TOP], st[k, cv2.CC_STAT_HEIGHT]
-        if not (y > bottom_row + 2 or y + h < top_row - 2):
+        # wholly in a margin, or hanging off the grid's edge line into it
+        below = y >= bottom_row - 0.5 * CANON_PPF and y + h > bottom_row + 2
+        above = y + h <= top_row + 0.5 * CANON_PPF and y < top_row - 2
+        if not (below or above):
             continue
         comp = lab == k
         if rect[comp].sum() >= rect_frac * comp.sum():
@@ -264,6 +267,48 @@ def _erase_chain(mask: np.ndarray, chain: dict, half: int = 4) -> np.ndarray:
         band[max(0, int(y) - half):int(y) + half + 1, max(0, x - 1):x + 2] = 1
     band = cv2.dilate(band, np.ones((3, 3), np.uint8))
     return mask & (1 - band)
+
+
+def trace_design(mask: np.ndarray, ground: dict | None = None, rounds: int = 3) -> dict[int, float]:
+    """The design line: the best chain through the template strokes, then
+    any further template piece standing apart from it along the section (a
+    widening on the far side of untouched existing pavement), each traced
+    the same way. A chain only bridges gaps of a tracing window, so a second
+    piece 60 ft away would otherwise be left out whole. Such a piece is graded
+    ground: both its ends tie into the existing ground (catch point, edge of
+    pavement kept), which a note's underline and leader do not."""
+    chain = snap_top(mask, best_path(candidates(mask)))
+    rest, last = mask.copy(), chain
+    for _ in range(rounds):
+        if not last:
+            break
+        rest[:, max(0, min(last) - LINK_PX):max(last) + LINK_PX + 1] = 0
+        cols = np.flatnonzero(rest.any(axis=0))
+        if cols.size == 0 or cols[-1] - cols[0] < MIN_TEMPLATE_PX:
+            break
+        last = snap_top(rest, best_path(candidates(rest)))
+        if not last or max(last) - min(last) < MIN_TEMPLATE_PX:
+            break
+        if len(last) < 0.6 * (max(last) - min(last) + 1):
+            break                       # hops between scattered marks (lettering), not a drawn line
+        if ground is not None and not _ties_into(last, ground):
+            continue
+        chain = {**chain, **{x: y for x, y in last.items() if x not in chain}}
+    return dict(sorted(chain.items()))
+
+
+def _ties_into(piece: dict, ground: dict, tol_ft: float = 2.0) -> bool:
+    """Both ends of a design piece lie on (within tol_ft of) the ground."""
+    if not ground:
+        return False
+    gx = np.array(sorted(ground), float)
+    gy = np.array([ground[x] for x in sorted(ground)], float)
+    for x in (min(piece), max(piece)):
+        if not gx[0] - CANON_PPF <= x <= gx[-1] + CANON_PPF:
+            return False
+        if abs(piece[x] - np.interp(x, gx, gy)) > tol_ft * CANON_PPF:
+            return False
+    return True
 
 
 def _finish_with_retry(ground_px, trace, solid, roi, W, H, cfg, source, refine) -> Surfaces:
@@ -367,6 +412,9 @@ def vector_strokes(frame: Frame, img: PageImage, cfg: PipelineConfig):
     fw, fh = frame.right - frame.left, frame.bottom - frame.top
     edge = 0.08 * frame.pitch_y
     dashed, solid, short, glyphs = [], [], [], []
+    # text labels in page-image pixels: (x0, y0, x1, y1, is a word note)
+    boxes = [(sp.x - hw, sp.y - hh, sp.x + hw, sp.y + hh, sum(c.isalpha() for c in sp.text) >= 3)
+             for sp in img.spans if sp.text.strip() for hw, hh in [_half_box(sp)]]
     for d in img.page.get_drawings():
         kind = d.get("type") or ""
         if "s" not in kind and not _is_pavement_fill(d, k, frame):
@@ -376,6 +424,8 @@ def vector_strokes(frame: Frame, img: PageImage, cfg: PipelineConfig):
         (rx0, ry0), (rx1, ry1) = img.to_view(r.x0 * k, r.y0 * k), img.to_view(r.x1 * k, r.y1 * k)
         rx0, rx1 = sorted((rx0, rx1))
         ry0, ry1 = sorted((ry0, ry1))
+        if any(bx0 <= rx0 and rx1 <= bx1 and by0 <= ry0 and ry1 <= by1 for bx0, by0, bx1, by1, _ in boxes):
+            continue                        # lettering drawn as strokes over its own text (a bold label)
         if rx1 < frame.left or rx0 > frame.right or ry1 < frame.y0 or ry0 > frame.y1:
             continue
         if max(rx1 - rx0, ry1 - ry0) < 0.25 * frame.pitch_x:   # text glyphs, ticks, specks
@@ -389,6 +439,8 @@ def vector_strokes(frame: Frame, img: PageImage, cfg: PipelineConfig):
                               round(d.get("width") or 0, 2), tuple(round(c, 2) for c in (d.get("color") or ()))))
             continue
         is_dash = _is_dashed(d)
+        if not is_dash and _is_landed_leader(d, img, k, boxes, frame.pitch_x / frame.ft_x):
+            continue
         for (ax, ay), (bx, by) in _path_segments(d):
             ax, ay = img.to_view(ax * k, ay * k)
             bx, by = img.to_view(bx * k, by * k)
@@ -409,6 +461,8 @@ def vector_strokes(frame: Frame, img: PageImage, cfg: PipelineConfig):
             # (often drawn as one path spanning the whole axis)
             if not is_dash and max(_edge_dist(frame, ax, ay), _edge_dist(frame, bx, by)) < edge:
                 continue
+            if not is_dash and _is_leader(ax, ay, bx, by, boxes, frame.pitch_x / frame.ft_x):
+                continue
             seg = ((ax - frame.left) * sx, (ay - frame.y0) * sy,
                    (bx - frame.left) * sx, (by - frame.y0) * sy)
             (dashed if is_dash else solid).append(seg)
@@ -422,6 +476,46 @@ def vector_strokes(frame: Frame, img: PageImage, cfg: PipelineConfig):
                        (sp.x + half - frame.left) * sx, (sp.y + sp.size / 2 - frame.y0) * sy))
     solid = [s_ for s_ in solid if not _is_underline(s_, glyphs)]
     return dashed, solid, W, H
+
+
+def _half_box(sp) -> tuple[float, float]:
+    """Half width and height of a word on the image: its box from the text
+    layer, else estimated from its length (read as level text)."""
+    if sp.w > 0 and sp.h > 0:
+        return sp.w / 2 + 1, sp.h / 2 + 1
+    return 0.3 * len(sp.text.strip()) * sp.size, 0.6 * sp.size
+
+
+def _is_landed_leader(d: dict, img: PageImage, k: float, boxes: list, ppf: float) -> bool:
+    """A leader drawn the usual CAD way: one path from the point it marks to
+    a short level landing that stops just short of a word note. The slanted
+    part can rise from the template's catch point, so it must go as a whole."""
+    segs = _path_segments(d)
+    if not 2 <= len(segs) <= 3:
+        return False
+    for (ax, ay), (bx, by) in (segs[-1], (segs[0][1], segs[0][0])):
+        (ax, ay), (bx, by) = img.to_view(ax * k, ay * k), img.to_view(bx * k, by * k)
+        if abs(by - ay) > 0.2 * abs(bx - ax) or abs(bx - ax) > 4 * ppf:
+            continue                                  # not a short level landing
+        for bx0, by0, bx1, by1, word in boxes:
+            gap = max(1.0 * ppf, 0.6 * (by1 - by0))
+            if word and by0 <= by <= by1 and (bx0 - gap <= bx <= bx0 + 1 or bx1 - 1 <= bx <= bx1 + gap):
+                return True
+    return False
+
+
+def _is_leader(ax: float, ay: float, bx: float, by: float, boxes: list, ppf: float) -> bool:
+    """A leader line: a steep stroke ending at a word note ("EDGE OF STREAM
+    BANK", "LIMIT OF CONSTRUCTION"), drawn from the point it describes. It
+    may touch the template, so it would otherwise be traced as part of it."""
+    if abs(by - ay) < abs(bx - ax):                  # level strokes are underlines' business
+        return False
+    pad = 0.6 * ppf
+    for x, y in ((ax, ay), (bx, by)):
+        for bx0, by0, bx1, by1, word in boxes:
+            if word and bx0 - pad <= x <= bx1 + pad and by0 - pad <= y <= by1 + pad:
+                return True
+    return False
 
 
 def _is_underline(seg: tuple, glyphs: list[tuple], cover: float = 0.6) -> bool:
@@ -520,8 +614,10 @@ def vector_surfaces(frame: Frame, img: PageImage, cfg: PipelineConfig, exclude=N
         return None          # this sheet doesn't draw ground dashed -- fall back to raster
     dmask, smask = _draw(dashed, W, H), _draw(solid, W, H)
     smask = template_strokes(smask, LINK_PX, MIN_TEMPLATE_PX)
+    sy = _canon_size(frame, cfg)[1]
+    smask = _drop_detached_in_margins(smask, (frame.top - frame.y0) * sy, (frame.bottom - frame.y0) * sy)
     gc, gw = ground_candidates(dmask, smask, HIDDEN_GROUND_WEIGHT)
     ground_px = best_path(gc, win=TRACE_WINDOW, weights=gw)
-    return _finish_with_retry(ground_px, lambda m: snap_top(m, best_path(candidates(m))),
+    return _finish_with_retry(ground_px, lambda m: trace_design(m, ground_px),
                               _blank_columns(smask, frame, _canon_size(frame, cfg)[0], exclude, erase,
                                              _canon_size(frame, cfg)[1]), dmask | smask, W, H, cfg, "vector", refine=False)

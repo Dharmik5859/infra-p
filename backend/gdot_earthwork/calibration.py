@@ -334,7 +334,7 @@ def build(result, pdf_path: str, filename: str, road_labels: dict[int, str] | No
                 gd = {k: ([None if p is None else tuple(to_disp(p)) for p in g[k]] if k in ("ground", "finished", "subgrade")
                           else [tuple(to_disp(p)) for p in g[k]] if k == "frame" else g[k]) for k in g}
                 centre_idx = s.centre_ft * CANON_PPF / GEOMETRY_STEP if s.centre_ft is not None else None
-                meta = {"stage": stage, "station": s.station_label, "street": road_labels.get(i), "id": f"xs-{i}"}
+                meta = {"stage": stage, "station": s.station_label, "street": road_labels.get(i) or s.street, "id": f"xs-{i}"}
                 for kind, side, poly in _zones(gd, result.design_surface, centre_idx):
                     shapes.append(_shape(kind, side, page_no, poly, px_per_ft2, meta))
 

@@ -5,6 +5,7 @@ import { AreaInput } from './AreaEditor';
 import { CENTRE_NOTE, currentSides, polygonSides, removalSides } from '../sides';
 import { Centreline, Shading, fitView, isRemoval, polygonFt2, shareInside, unplacedText, useProfile } from './SectionPicture';
 import SideTable from './SideTable';
+import { InfoTip } from './Ui';
 
 const MARK_LABEL = { fill: 'Added fill', cut: 'Added cut', remove_fill: 'Removed fill', remove_cut: 'Removed cut' };
 const r2 = (v) => Math.round(Math.max(0, v) * 100) / 100;
@@ -291,9 +292,10 @@ export default function EditSectionModal({ section: s, surface, onClose, onSave 
               <label className="stat edit-stat"><span>Cut ft²</span>
                 <AreaInput key={`c${rev}`} value={cut} tone="cut" label="Cut area, square feet" onChange={setCut} /></label>
             </div>
-            <div className="muted small-text">
-              Measured from the drawing: fill {ft2(measured.fill_ft2)} ft², cut {ft2(measured.cut_ft2)} ft². Net now{' '}
-              <b className={fill - cut >= 0 ? 'fill-text' : 'cut-text'}>{ft2(fill - cut)} ft²</b>.
+            <div className="chips" aria-label="Measured from the drawing">
+              <span className="tag neutral num" title="Fill measured from the drawing">measured fill {ft2(measured.fill_ft2)}</span>
+              <span className="tag neutral num" title="Cut measured from the drawing">cut {ft2(measured.cut_ft2)}</span>
+              <span className={`tag num ${fill - cut >= 0 ? 'fill' : 'cut'}`} title="Net with the areas above">net {ft2(fill - cut)} ft²</span>
             </div>
             <SideTable sides={sides} note={CENTRE_NOTE[s.centreline?.source]} compact />
             {(fill < markedFill - 0.05 || cut < markedCut - 0.05) && (
@@ -301,9 +303,12 @@ export default function EditSectionModal({ section: s, surface, onClose, onSave 
             )}
 
             <div className="edit-tool">
-              <h4>Select an area</h4>
+              <h4 className="h-tip">Select an area
+                <InfoTip label="How to select an area">Click points around an area on the drawing. Finish by clicking the first
+                  point again (or double-click / Enter), then choose what to do with it: count it as fill or cut, or remove
+                  measured fill or cut inside it.</InfoTip></h4>
               <p className="muted small-text">
-                {pending.length === 0 && selected < 0 && 'Click points around an area on the drawing. Finish by clicking the first point again (or double-click / Enter), then choose what to do with it.'}
+                {pending.length === 0 && selected < 0 && 'Click around an area; close it on the first point.'}
                 {pending.length > 0 && pending.length < 3 && `${pending.length} point${pending.length > 1 ? 's' : ''} — keep clicking around the area.`}
                 {pending.length >= 3 && !closed && <>Selected <b>{ft2(pendingFt2)} ft²</b>. Keep adding points, or click the first point to finish.</>}
                 {pending.length >= 3 && closed && <>Selection finished: <b>{ft2(pendingFt2)} ft²</b>. Choose an action below.</>}

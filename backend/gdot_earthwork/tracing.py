@@ -336,7 +336,7 @@ def despike(y: np.ndarray, win: int, thresh_px: float) -> tuple[np.ndarray, int]
 
 def trim_buried_tail(x: np.ndarray, gpx: np.ndarray, dpx: np.ndarray, ppf: float,
                       run_ft: float, depth_ft: float, end_ft: float = 1.0,
-                     roadway_depth_ft: float = 15.0):
+                     roadway_depth_ft: float = 15.0, subgrade: np.ndarray | None = None):
     """Temporary pipes and other buried services run on past the template's toe.
     They read as a LONG, DEEP run of 'proposed below existing' that reaches the
     end of the chain and STOPS THERE, still inside the ground. A graded cut
@@ -347,8 +347,12 @@ def trim_buried_tail(x: np.ndarray, gpx: np.ndarray, dpx: np.ndarray, ppf: float
     `roadway_depth_ft` is the template itself -- a deep cut that the frame
     cuts off before its back slope reaches the ground (SR 5, 18-45 ft); pipes
     crossing under the road on the labelled sheets lie 8-12 ft down and are
-    still trimmed. (A template ending at a wall's foot is first carried up
-    the back slope by climb_from_wall, so it no longer ends below ground.)"""
+    still trimmed. A run is one continuous stretch of design: a widening
+    drawn apart from the rest of the template is judged on its own. (A template ending at a wall's foot is first carried up
+    the back slope by climb_from_wall, so it no longer ends below ground.)
+    A pipe is one line; a run that ends as a pavement box (`subgrade` well
+    below the surface) a few feet under existing ground is the new road built
+    down through the old one, up to where the drawing stops -- cut, kept."""
     ov = ~np.isnan(gpx) & ~np.isnan(dpx)
     if ov.sum() < 10:
         return dpx, []
@@ -356,11 +360,12 @@ def trim_buried_tail(x: np.ndarray, gpx: np.ndarray, dpx: np.ndarray, ppf: float
     xx = x[c]
     d = (gpx[c] - dpx[c]) / ppf
     sign = np.sign(np.where(np.abs(d) < 0.10, 0, d))
+    gap_px = 3.0 * ppf                  # a run ends where the design does (separate template pieces)
     runs, i = [], 0
     while i < len(d):
         if sign[i] < 0:
-            j = i
-            while j < len(d) and sign[j] <= 0:
+            j = i + 1
+            while j < len(d) and sign[j] <= 0 and c[j] - c[j - 1] <= gap_px:
                 j += 1
             runs.append((i, j - 1, xx[j - 1] - xx[i], float(-d[i:j].min())))
             i = j
@@ -372,16 +377,36 @@ def trim_buried_tail(x: np.ndarray, gpx: np.ndarray, dpx: np.ndarray, ppf: float
         if L < run_ft or dep < depth_ft or (xx[a] < 0 < xx[b] and dep > roadway_depth_ft):
             continue
         if xx[-1] - xx[b] <= 2.0 and -d[-1] > end_ft:
+            if subgrade is not None and _ends_as_pavement(c, d, b, -1, dpx, subgrade, ppf):
+                continue
             out[c[a]:] = np.nan
             killed.append(dict(side="right", x_from=round(float(xx[a]), 2),
                                 x_to=round(float(xx[-1]), 2),
                                 run_ft=round(float(L), 1), depth_ft=round(dep, 2)))
         elif xx[a] - xx[0] <= 2.0 and -d[0] > end_ft:
+            if subgrade is not None and _ends_as_pavement(c, d, a, 1, dpx, subgrade, ppf):
+                continue
             out[:c[b] + 1] = np.nan
             killed.append(dict(side="left", x_from=round(float(xx[0]), 2),
                                 x_to=round(float(xx[b]), 2),
                                 run_ft=round(float(L), 1), depth_ft=round(dep, 2)))
     return out, killed
+
+
+def _ends_as_pavement(c, d, end: int, step: int, dpx: np.ndarray, bpx: np.ndarray, ppf: float,
+                      tail_ft: float = 25.0, max_depth_ft: float = 5.0, box_ft: float = 0.3) -> bool:
+    """The run's end inside the ground (index `end`, the run lying in
+    direction `step` from it) is a pavement box within max_depth_ft of the
+    ground: the surface line has a subgrade line under it along most of the
+    last tail_ft."""
+    n = int(tail_ft * ppf)
+    lo, hi = (end, end + n) if step > 0 else (end - n + 1, end + 1)
+    lo, hi = max(lo, 0), min(hi, len(c))
+    if hi - lo < 0.5 * n:
+        return False
+    cols = c[lo:hi]
+    box = (bpx[cols] - dpx[cols]) / ppf >= box_ft
+    return bool(box.mean() >= 0.6 and np.median(-d[lo:hi]) <= max_depth_ft)
 
 
 def climb_from_wall(D: np.ndarray, G: np.ndarray, mask: np.ndarray, ppf: float,
@@ -604,7 +629,9 @@ def _continue_template(lab: np.ndarray, st, keep: np.ndarray, link_px: int) -> N
     link_px further out) and at the same height (within a quarter of
     link_px) -- like a side slope drawn after a small break in the linework.
     Text underlines and leaders sit above or below the template, so they
-    stay out. Repeats until nothing more joins."""
+    stay out; so does anything climbing steeper than 2:1 from the break (a
+    leader rising from the template's end to a note). Repeats until nothing
+    more joins."""
     n = len(keep)
     far, dy = 1.75 * link_px, 0.25 * link_px
     ends = {k: _ends(lab, st, k) for k in range(1, n)}
@@ -616,6 +643,8 @@ def _continue_template(lab: np.ndarray, st, keep: np.ndarray, link_px: int) -> N
             if keep[k]:
                 continue
             (lx, ly), (rx, ry) = ends[k]
+            if st[k, cv2.CC_STAT_HEIGHT] - link_px > 0.5 * (st[k, cv2.CC_STAT_WIDTH] - link_px):
+                continue
             for t in kept:
                 (tlx, tly), (trx, try_) = ends[t]
                 if (0 < lx - trx <= far and abs(ly - try_) <= dy) or (0 < tlx - rx <= far and abs(ry - tly) <= dy):

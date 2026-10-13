@@ -33,6 +33,7 @@ from .render import encode_png, overlay, overlay_scale, profile
 from .roads import Road, StationEntry, group_into_roads
 from .sides import measured_sides
 from .staging import other_stage, sheet_stage, stage_from_name, stage_spans
+from .street import name_roads, sheet_street, street_from_name
 from .stages import calibrate, decode_stations, detect, ingest, measure_section, trace
 from .stages.calibrate import centre_ft
 from .stages.measure import ZERO_FT2, ZERO_REASONS, zero_reason as _zero_reason  # noqa: F401 (re-exported)
@@ -69,6 +70,7 @@ class SectionResult:
     strips: dict | None = None         # surface -> (fill, cut) ft² per 1 ft strip from the left edge
     sides: dict | None = None          # surface -> {"left"|"right": {"fill_ft2", "cut_ft2"}}, as traced
     scale: dict | None = None          # stages.FrameScale.as_dict(): ft per grid square each axis, and source
+    street: str | None = None          # the street in the sheet's title block (street.sheet_street)
     confidence: dict | None = None     # confidence.score(): {"score", "passed", "deductions", "alerts"}
 
     @property
@@ -175,6 +177,7 @@ def _measure_page(pdf_path: str, index: int, cfg: PipelineConfig, overlays: bool
         frames, img = detect(img, cfg)
         # staged-construction plan sets (the file names a stage): measure the sheet's own stage only
         stage = sheet_stage(img, name) if frames and stage_from_name(name) else None
+        street = sheet_street(img) if frames else None
         page_cache: dict = {}
         out = []
         for i, f in enumerate(frames):
@@ -201,7 +204,7 @@ def _measure_page(pdf_path: str, index: int, cfg: PipelineConfig, overlays: bool
                 overlay_px_per_ft=round(CANON_PPF * overlay_scale(surf), 4) if png else None,
                 profile=profile(surf) if png else None, geometry=_geometry(surf, f, img, cfg),
                 zero_reason=m.zero_reason, centre_ft=centre_ft(f, scale), centre_source=scale.centre_source,
-                strips=m.strips, scale=scale.as_dict(),
+                strips=m.strips, scale=scale.as_dict(), street=street,
             ))
         return out
     finally:
@@ -272,6 +275,7 @@ def process_plan_set(
     entries = [StationEntry(s.station_label, s.station_ft, s.page, s)
                for s in sections if s.station_ft is not None]
     roads = group_into_roads(entries)
+    name_roads(roads, street_from_name(name or pdf_path))
     score_sections(sections, roads)
     volumes = [average_end_area_volume([e.ref for e in r.entries], road_label=r.label) for r in roads]
     alt_volumes = [average_end_area_volume([_AltArea(e.ref) for e in r.entries], road_label=r.label)

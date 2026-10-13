@@ -1,4 +1,4 @@
-import { IconAccuracy, IconCompare, IconDashboard, IconResults, IconRuler, IconUpload, Logo } from './Icons';
+import { IconAccuracy, IconCode, IconCompare, IconDashboard, IconResults, IconRuler, IconUpload, Logo } from './Icons';
 
 const ITEMS = [
   { id: 'dashboard', label: 'Dashboard', Icon: IconDashboard },
@@ -6,6 +6,7 @@ const ITEMS = [
   { id: 'results', label: 'Results', Icon: IconResults },
   { id: 'calibration', label: 'Calibration', Icon: IconRuler },
   { id: 'comparison', label: 'Comparison', Icon: IconCompare },
+  { id: 'api', label: 'API', Icon: IconCode },
   { id: 'accuracy', label: 'Accuracy', Icon: IconAccuracy },
 ];
 

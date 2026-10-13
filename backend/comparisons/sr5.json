@@ -18,32 +18,32 @@
    "320+65"
   ],
   "areaCutFt2": {
-   "ours": 108993.23,
+   "ours": 108948.52,
    "reference": 110295.45,
-   "diff": -1302.22,
+   "diff": -1346.93,
    "pct": -1.2
   },
   "areaFillFt2": {
-   "ours": 23693.96,
+   "ours": 33546.87,
    "reference": 34047.36,
-   "diff": -10353.4,
-   "pct": -30.4
+   "diff": -500.49,
+   "pct": -1.5
   },
   "volumeCutCy": {
-   "ours": 200468.9,
+   "ours": 200386.4,
    "reference": 204632.58,
-   "diff": -4163.68,
-   "pct": -2.0
+   "diff": -4246.18,
+   "pct": -2.1
   },
   "volumeFillCy": {
-   "ours": 42023.69,
+   "ours": 60045.33,
    "reference": 62687.01,
-   "diff": -20663.32,
-   "pct": -33.0
+   "diff": -2641.68,
+   "pct": -4.2
   },
-  "areaWeightedErrorPct": 9.2,
-  "sectionsWithin10Pct": 23,
-  "sectionsWithin25Pct": 26
+  "areaWeightedErrorPct": 2.3,
+  "sectionsWithin10Pct": 25,
+  "sectionsWithin25Pct": 29
  },
  "groups": [
   {
@@ -145,42 +145,42 @@
    "matched": 37,
    "volumes": {
     "cut": {
-     "ours": 200468.9,
+     "ours": 200386.4,
      "reference": 202881.02,
-     "diff": -2412.12,
+     "diff": -2494.62,
      "pct": -1.2,
      "referenceRecomputed": 202855.47
     },
     "left_cut": {
-     "ours": 75666.84,
+     "ours": 75618.77,
      "reference": 79213.11,
-     "diff": -3546.27,
+     "diff": -3594.34,
      "pct": -4.5
     },
     "right_cut": {
-     "ours": 124802.06,
+     "ours": 124767.66,
      "reference": 123667.9,
-     "diff": 1134.16,
+     "diff": 1099.76,
      "pct": 0.9
     },
     "fill": {
-     "ours": 42023.69,
+     "ours": 60045.33,
      "reference": 60801.02,
-     "diff": -18777.33,
-     "pct": -30.9,
+     "diff": -755.69,
+     "pct": -1.2,
      "referenceRecomputed": 60800.88
     },
     "left_fill": {
-     "ours": 26903.62,
+     "ours": 38049.84,
      "reference": 39549.9,
-     "diff": -12646.28,
-     "pct": -32.0
+     "diff": -1500.06,
+     "pct": -3.8
     },
     "right_fill": {
-     "ours": 15120.09,
+     "ours": 21995.54,
      "reference": 21251.11,
-     "diff": -6131.02,
-     "pct": -28.9
+     "diff": 744.43,
+     "pct": 3.5
     }
    }
   }
@@ -1471,27 +1471,27 @@
      "pct": -4.0
     },
     "right_cut": {
-     "ours": 93.51,
+     "ours": 92.56,
      "reference": 85.59,
-     "diff": 7.92,
-     "pct": 9.3
+     "diff": 6.97,
+     "pct": 8.1
     },
     "right_fill": {
-     "ours": 222.89,
+     "ours": 222.86,
      "reference": 211.14,
-     "diff": 11.75,
+     "diff": 11.72,
      "pct": 5.6
     },
     "total_cut": {
-     "ours": 93.99,
+     "ours": 93.05,
      "reference": 95.22,
-     "diff": -1.23,
-     "pct": -1.3
+     "diff": -2.17,
+     "pct": -2.3
     },
     "total_fill": {
-     "ours": 306.34,
+     "ours": 306.3,
      "reference": 298.08,
-     "diff": 8.26,
+     "diff": 8.22,
      "pct": 2.8
     }
    }
@@ -1507,40 +1507,40 @@
    "confidence": 82,
    "areas": {
     "left_cut": {
-     "ours": 20.76,
+     "ours": 21.63,
      "reference": 15.84,
-     "diff": 4.92,
-     "pct": 31.1
+     "diff": 5.79,
+     "pct": 36.6
     },
     "left_fill": {
-     "ours": 0.09,
+     "ours": 789.87,
      "reference": 881.19,
-     "diff": -881.1,
-     "pct": -100.0
+     "diff": -91.32,
+     "pct": -10.4
     },
     "right_cut": {
-     "ours": 20.6,
+     "ours": 0.0,
      "reference": 0.0,
-     "diff": 20.6,
+     "diff": 0.0,
      "pct": null
     },
     "right_fill": {
-     "ours": 202.72,
+     "ours": 1475.05,
      "reference": 1394.82,
-     "diff": -1192.1,
-     "pct": -85.5
+     "diff": 80.23,
+     "pct": 5.8
     },
     "total_cut": {
-     "ours": 41.36,
+     "ours": 21.63,
      "reference": 15.84,
-     "diff": 25.52,
-     "pct": 161.1
+     "diff": 5.79,
+     "pct": 36.6
     },
     "total_fill": {
-     "ours": 202.81,
+     "ours": 2264.92,
      "reference": 2276.01,
-     "diff": -2073.2,
-     "pct": -91.1
+     "diff": -11.09,
+     "pct": -0.5
     }
    }
   },
@@ -1555,16 +1555,16 @@
    "confidence": 62,
    "areas": {
     "left_cut": {
-     "ours": 24.25,
+     "ours": 18.32,
      "reference": 21.42,
-     "diff": 2.83,
-     "pct": 13.2
+     "diff": -3.1,
+     "pct": -14.5
     },
     "left_fill": {
-     "ours": 9.55,
+     "ours": 1698.25,
      "reference": 2451.24,
-     "diff": -2441.69,
-     "pct": -99.6
+     "diff": -752.99,
+     "pct": -30.7
     },
     "right_cut": {
      "ours": 0.0,
@@ -1573,22 +1573,22 @@
      "pct": null
     },
     "right_fill": {
-     "ours": 144.83,
+     "ours": 438.85,
      "reference": 0.0,
-     "diff": 144.83,
+     "diff": 438.85,
      "pct": null
     },
     "total_cut": {
-     "ours": 24.25,
+     "ours": 18.32,
      "reference": 21.42,
-     "diff": 2.83,
-     "pct": 13.2
+     "diff": -3.1,
+     "pct": -14.5
     },
     "total_fill": {
-     "ours": 154.38,
+     "ours": 2137.1,
      "reference": 2451.24,
-     "diff": -2296.86,
-     "pct": -93.7
+     "diff": -314.14,
+     "pct": -12.8
     }
    }
   },
@@ -1600,43 +1600,43 @@
    "sectionId": 28,
    "status": "matched",
    "page": 13,
-   "confidence": 92,
+   "confidence": 82,
    "areas": {
     "left_cut": {
-     "ours": 45.43,
+     "ours": 24.53,
      "reference": 22.32,
-     "diff": 23.11,
-     "pct": 103.5
+     "diff": 2.21,
+     "pct": 9.9
     },
     "left_fill": {
-     "ours": 0.33,
+     "ours": 3540.81,
      "reference": 3542.31,
-     "diff": -3541.98,
-     "pct": -100.0
+     "diff": -1.5,
+     "pct": -0.0
     },
     "right_cut": {
-     "ours": 38.37,
+     "ours": 16.48,
      "reference": 16.56,
-     "diff": 21.81,
-     "pct": 131.7
+     "diff": -0.08,
+     "pct": -0.5
     },
     "right_fill": {
-     "ours": 0.13,
+     "ours": 2125.58,
      "reference": 2149.29,
-     "diff": -2149.16,
-     "pct": -100.0
+     "diff": -23.71,
+     "pct": -1.1
     },
     "total_cut": {
-     "ours": 83.81,
+     "ours": 41.01,
      "reference": 38.88,
-     "diff": 44.93,
-     "pct": 115.6
+     "diff": 2.13,
+     "pct": 5.5
     },
     "total_fill": {
-     "ours": 0.46,
+     "ours": 5666.38,
      "reference": 5691.6,
-     "diff": -5691.14,
-     "pct": -100.0
+     "diff": -25.22,
+     "pct": -0.4
     }
    }
   },
@@ -1807,27 +1807,27 @@
      "pct": -0.4
     },
     "right_cut": {
-     "ours": 0.08,
+     "ours": 24.97,
      "reference": 19.35,
-     "diff": -19.27,
-     "pct": -99.6
+     "diff": 5.62,
+     "pct": 29.0
     },
     "right_fill": {
-     "ours": 1136.08,
+     "ours": 1135.66,
      "reference": 1142.64,
-     "diff": -6.56,
+     "diff": -6.98,
      "pct": -0.6
     },
     "total_cut": {
-     "ours": 0.18,
+     "ours": 25.06,
      "reference": 29.79,
-     "diff": -29.61,
-     "pct": -99.4
+     "diff": -4.73,
+     "pct": -15.9
     },
     "total_fill": {
-     "ours": 2507.93,
+     "ours": 2507.51,
      "reference": 2520.27,
-     "diff": -12.34,
+     "diff": -12.76,
      "pct": -0.5
     }
    }
@@ -2047,28 +2047,28 @@
      "pct": 0.1
     },
     "right_cut": {
-     "ours": 0.19,
+     "ours": 0.0,
      "reference": 0.0,
-     "diff": 0.19,
+     "diff": 0.0,
      "pct": null
     },
     "right_fill": {
-     "ours": 160.36,
+     "ours": 302.98,
      "reference": 357.48,
-     "diff": -197.12,
-     "pct": -55.1
+     "diff": -54.5,
+     "pct": -15.2
     },
     "total_cut": {
-     "ours": 1.66,
+     "ours": 1.47,
      "reference": 6.48,
-     "diff": -4.82,
-     "pct": -74.4
+     "diff": -5.01,
+     "pct": -77.3
     },
     "total_fill": {
-     "ours": 578.52,
+     "ours": 721.14,
      "reference": 775.35,
-     "diff": -196.83,
-     "pct": -25.4
+     "diff": -54.21,
+     "pct": -7.0
     }
    }
   }
@@ -2077,23 +2077,23 @@
  "planSet": "SR 5 CONNCETOR -EARTHWORK.pdf",
  "referenceFile": "Crossections_1791799434754.xlsx",
  "generated": "2026-10-13",
- "pipelineSeconds": 143.6,
+ "pipelineSeconds": 100.0,
  "sections": 42,
- "lowConfidence": 19,
+ "lowConfidence": 20,
  "ourRoads": [
   {
-   "label": "Road 1",
+   "label": "S.R. 5 Connector",
    "from": "301+40",
    "to": "320+65",
-   "fill_cy": 42559.4,
-   "cut_cy": 210612.9
+   "fill_cy": 60713.1,
+   "cut_cy": 203298.1
   }
  ],
  "notes": [
-  "SR 5 Mainline cut agrees within 1.2 % (200,469 vs 202,881 CY). Station by station the cut areas are mostly within 1-2 % of the provided ones, left and right of the centreline alike.",
-  "Before this comparison the deep cuts from 302+50 to 306+50 and 311+00 to 312+00 measured almost nothing: the template there ends at the foot of a retaining wall, 45 ft below ground, and was taken for a buried pipe. The pipeline now follows the back slope up from the wall top to the ground, and no longer takes a cut more than 15 ft deep passing under the middle of the road for a pipe. That fix took the cut volume from -54 % to -2 %.",
-  "Fill is short at 313+50, 314+00 and 314+50 (about 200 ft\u00b2 measured against 2,276-5,692 ft\u00b2 provided): the existing ground under that tall embankment is a faint dashed line far below it, and the scan's ground trace follows the embankment instead. This accounts for most of the -31 % difference in Mainline fill; 313+50 and 314+00 are flagged below 85 % confidence, 314+50 is not.",
-  "304+00 and 306+50 measure about 10 % less cut than provided: the thin back-slope line above the wall is broken on the scan there, so the left wedge above the wall is not added.",
-  "The Driveways rows (312+50, 313+80) are separate driveway takeoffs with no section sheet of their own in this plan set, and SCHOOL ST (5+50, 6+00) is on the last two sheets: its only station label read by OCR (5+50) was overruled by the SR 5 station sequence, so those four sections were placed as 319+15 to 320+65 on SR 5 and flagged as inferred."
+  "SR 5 Mainline agrees within 5 % on every measure: cut 200,386 vs 202,881 CY (-1.2 %), fill 60,045 vs 60,801 CY (-1.2 %); left / right of the centreline: left cut -4.5 %, right cut +0.9 %, left fill -3.8 %, right fill +3.5 %.",
+  "Cut vs fill: where the proposed surface (subgrade) is below the existing ground, the earth between them is cut; where it is above, the space between them is fill. The existing line is the top of what is there -- existing asphalt in a cut is dug out with the earth (counted as cut), under a fill it stays and the fill is built on it (not counted); poles change nothing.",
+  "Fixes this comparison led to: (1) deep cuts ending at the foot of a retaining wall (302+50 to 306+50, 311+00 to 312+00) were taken for buried pipes -- the back slope above the wall is now followed up to the ground, and cuts over 15 ft deep under the roadway are kept (cut -54 % -> -1 %). (2) Under the tall embankment at 313+50 to 314+50 the existing ground is a faint, broken dashed line; the ground trace used to ride along the embankment instead, measuring ~0 fill. Where the trace follows the template for over 15 ft while ground dashes exist below it, it is now re-traced on the dashes (fill -31 % -> -1 %).",
+  "Remaining section differences over 5 %: 304+00 and 306+50 (-10 % cut: the thin back-slope line above the wall is broken on the scan), 307+50 (-7 % cut), 312+50 (+15 % cut), 314+00 (-13 % fill: the trace bridges a few dips in the faint ground), 318+50 / 318+65 (-9 % / -7 % fill).",
+  "Not compared: the two Driveways rows (312+50, 313+80) are separate driveway takeoffs with no cross-section sheet of their own here; SCHOOL ST (5+50, 6+00) is on the last two sheets, but its only readable station label (5+50) was overruled by the SR 5 station sequence, so those sections were placed after 318+65 on SR 5 and flagged as inferred for review."
  ]
 }

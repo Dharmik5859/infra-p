@@ -35,6 +35,8 @@ class TextSpan:
     y: float
     text: str
     size: float     # font size, in page-image pixels
+    w: float = 0.0  # the word's box on the image, when the text layer gives it
+    h: float = 0.0
 
 
 @dataclass
@@ -78,7 +80,7 @@ class PageImage:
                         self.scale, [], self.page, k, self.gray.shape, self.placement)
         for sp in base.spans:
             x, y = out.to_view(sp.x, sp.y)
-            out.spans.append(TextSpan(x, y, sp.text, sp.size))
+            out.spans.append(TextSpan(x, y, sp.text, sp.size, sp.h, sp.w) if k % 2 else TextSpan(x, y, sp.text, sp.size, sp.w, sp.h))
         return out
 
 
@@ -159,7 +161,7 @@ def _text_spans(page: fitz.Page, scale: float) -> list[TextSpan]:
         word = word.strip()
         if word:
             out.append(TextSpan((x0 + x1) / 2 * scale, (y0 + y1) / 2 * scale, word,
-                                min(x1 - x0, y1 - y0) * scale))
+                                min(x1 - x0, y1 - y0) * scale, (x1 - x0) * scale, (y1 - y0) * scale))
     return out
 
 

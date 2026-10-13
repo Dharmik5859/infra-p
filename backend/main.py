@@ -1,6 +1,8 @@
 """
 HTTP API for the earthwork pipeline.
 
+The app's endpoints (api/routes_*.py):
+
     GET  /api/health                         dependency check
     GET  /api/accuracy                       measured accuracy per plan-set format
     POST /api/jobs                           upload a plan-set PDF -> {job_id}
@@ -8,822 +10,90 @@ HTTP API for the earthwork pipeline.
     PUT  /api/uploads/{id}/{n}               chunk n (raw bytes, in order)
     POST /api/uploads/{id}/complete          assemble the PDF and start the job -> {job_id}
     GET  /api/jobs/{id}                      status, progress, and (when done) the result
+    PUT  /api/jobs/{id}/edits                save hand-edited cut/fill areas; volumes are recomputed
     GET  /api/jobs/{id}/sections/{n}.png     audit overlay for one cross-section
     GET  /api/jobs/{id}/sections/{n}/profile.json   its traced lines, in image pixels
     GET  /api/jobs/{id}/pages/{n}.png        a whole sheet of the original PDF, as an image
+    GET  /api/jobs/{id}/pages/{n}.json       the sections on that sheet, in its coordinates
     GET  /api/jobs/{id}/calibration          feet-to-pixel calibration per sheet + cut / fill shapes
     GET  /api/jobs/{id}/cross-sections       every section in the received cross-section format:
                                              left / right areas, shapes, confidence and alerts
+    GET  /api/jobs/{id}/volumes.csv          volume table (respects ?exclude=road ids)
+    GET  /api/jobs/{id}/sections.csv         per-section areas
+    GET  /api/jobs/{id}/annotated.pdf        the original PDF with the takeoff drawn on it
     POST /api/jobs/{id}/compare              compare with provided results (xlsx / csv upload)
     GET  /api/comparisons                    stored comparisons with provided results (e.g. SR 5)
     GET  /api/comparisons/{name}             one of them
     GET  /api/schemas/{name}                 the JSON Schemas responses are validated against
-    GET  /api/jobs/{id}/pages/{n}.json       the sections on that sheet, in its coordinates
-    GET  /api/jobs/{id}/volumes.csv          volume table (respects ?exclude=road ids)
-    GET  /api/jobs/{id}/sections.csv         per-section areas
-    GET  /api/jobs/{id}/annotated.pdf        the original PDF with the takeoff drawn on it
-    PUT  /api/jobs/{id}/edits                save hand-edited cut/fill areas; volumes are recomputed
 
-Processing a plan set takes seconds to minutes, so uploads return at once
-and the client polls the job. Jobs run MAX_CONCURRENT_JOBS at a time (each
-already uses every core); the rest wait as "queued". Jobs live in memory and
-expire after JOB_TTL_SECONDS; nothing is written to disk except the upload
-itself, which is kept while its job lives (for the annotated PDF export) and
-deleted with it.
+The public API for clients, version 1 (api/public.py; Swagger UI at /api/v1/docs):
+
+    POST /api/v1/calibration                 upload a plan-set PDF -> 202 {id, ...} or 200 + calibration
+    GET  /api/v1/calibration/{id}            200 the calibration, 202 while processing
+    POST /api/v1/cross-sections              upload a plan-set PDF -> 202 {id, ...} or 200 + cross-sections
+    GET  /api/v1/cross-sections/{id}         200 the cross-sections (?surface=), 202 while processing
+    GET  /api/v1/schemas/{name}              the JSON Schemas of the two responses
+
+Both share one job store and queue (api/jobs.py): jobs run
+MAX_CONCURRENT_JOBS at a time, live in memory and expire after
+JOB_TTL_SECONDS. This module only assembles the application, serves the
+built frontend, and keeps the names tests and tools import from main.
 """
 from __future__ import annotations
 
-import csv
-import io
-import json
-import math
 import os
-import shutil
-import tempfile
-import threading
-import time
-import uuid
-from dataclasses import dataclass, field
+import sys
+import types
 
-import pymupdf as fitz
-
-from fastapi import Body, FastAPI, File, HTTPException, Query, Request, UploadFile
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from gdot_earthwork import __version__
-from gdot_earthwork import calibration as calib
-from gdot_earthwork import cross_sections as xsec
-from gdot_earthwork.compare import compare as compare_reference, read_reference
-from gdot_earthwork.export import annotated_pdf
-from gdot_earthwork.plan_set import ZERO_REASONS, PlanSetResult, process_plan_set
-from gdot_earthwork.sides import current_sides, polygon_sides, removal_sides, road_side_volumes
-from gdot_earthwork.volume import average_end_area_volume
 
-JOB_TTL_SECONDS = int(os.environ.get("JOB_TTL_SECONDS", 6 * 3600))
-# each job already runs its pages in parallel on all cores; more jobs at once
-# would only slow every one of them down, so further uploads wait their turn
-MAX_CONCURRENT_JOBS = int(os.environ.get("MAX_CONCURRENT_JOBS", 1))
-# Scanned plan sets are big (the dataset's largest is ~120 MB); the cap only
-# guards the disk. Uploads arrive in chunks (see /api/uploads), so proxies with
-# their own request-size limits in front of the app don't get in the way.
-MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", 2048))
-ALLOWED_ORIGINS = [o for o in os.environ.get("ALLOWED_ORIGINS", "http://localhost:5173,https://improved-space-journey-w4rrv6rx5w6cgxxv-5173.app.github.dev").split(",") if o]
+from api import (public, routes_comparisons, routes_exports, routes_jobs, routes_results, routes_sheets,
+                 routes_status, settings)
+# imported from main by tests and tools
+from api.jobs import JOBS, Job
+from api.payload import recompute_volumes as _recompute_volumes, section_sides, serialize
+
+__all__ = ["app", "JOBS", "Job", "_recompute_volumes", "section_sides", "serialize"]
 
 app = FastAPI(title="Earthwork Takeoff API", version=__version__)
+# also covers the public API mounted below: the same origins may call it, and
+# read the headers it answers with (the job id, where to poll, when)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
+    allow_origins=settings.ALLOWED_ORIGINS,
     allow_methods=["GET", "POST", "PUT"],
     allow_headers=["*"],
+    expose_headers=["X-Job-Id", "Location", "Content-Location", "Retry-After"],
 )
-
-
-@dataclass
-class Job:
-    id: str
-    filename: str
-    created: float = field(default_factory=time.time)
-    status: str = "queued"            # queued | running | done | error
-    done: int = 0
-    total: int = 0
-    error: str | None = None
-    result: PlanSetResult | None = None
-    payload: dict | None = None
-    pdf_path: str | None = None       # the upload, kept while the job lives
-    pages: dict = field(default_factory=dict)   # rendered sheet images, page -> PNG (a few kept)
-    calibration: dict | None = None             # the calibration response, built once
-
-
-JOBS: dict[str, Job] = {}
-LOCK = threading.Lock()
-SLOTS = threading.BoundedSemaphore(MAX_CONCURRENT_JOBS)
-
-
-def _expire() -> None:
-    cutoff = time.time() - JOB_TTL_SECONDS
-    with LOCK:
-        for k in [k for k, j in JOBS.items() if j.created < cutoff and j.status in ("done", "error")]:
-            job = JOBS.pop(k)
-            if job.pdf_path:
-                shutil.rmtree(os.path.dirname(job.pdf_path), ignore_errors=True)
-
-
-def _round(v: float, n: int = 1) -> float:
-    return round(float(v), n) + 0.0     # +0.0 turns -0.0 into 0.0
-
-
-def serialize(job: Job, res: PlanSetResult) -> dict:
-    sec_id = {id(s): i for i, s in enumerate(res.sections)}
-    road_of: dict[int, str] = {}
-    roads = []
-    def vol_json(vol):
-        return {
-            "fill_cy": _round(vol.total_fill_cy),
-            "cut_cy": _round(vol.total_cut_cy),
-            "net_cy": _round(vol.total_net_cy),
-            "segments": [{
-                "from": s.station_from, "to": s.station_to, "length_ft": _round(s.length_ft, 2),
-                "fill_cy": _round(s.fill_cy), "cut_cy": _round(s.cut_cy), "net_cy": _round(s.net_cy),
-                "warning": s.warning,
-            } for s in vol.segments],
-        }
-
-    alt_surface = "finished" if res.design_surface == "subgrade" else "subgrade"
-    for r_i, (road, vol, alt) in enumerate(zip(res.roads, res.volumes, res.alt_volumes)):
-        rid = f"r{r_i + 1}"
-        for e in road.entries:
-            road_of[sec_id[id(e.ref)]] = rid
-        roads.append({
-            "id": rid,
-            "label": road.label,
-            "station_from": road.entries[0].station_label,
-            "station_to": road.entries[-1].station_label,
-            "repeat_of": next((f"r{j + 1}" for j, o in enumerate(res.roads) if o.label == road.repeat_of), None),
-            "flags": road.flags,
-            "sections": [sec_id[id(e.ref)] for e in road.entries],
-            "volumes": {res.design_surface: vol_json(vol), alt_surface: vol_json(alt)},
-        })
-    def areas(s):
-        return {
-            res.design_surface: {"fill_ft2": _round(s.fill_ft2, 2), "cut_ft2": _round(s.cut_ft2, 2)},
-            alt_surface: {"fill_ft2": _round(s.alt_fill_ft2, 2), "cut_ft2": _round(s.alt_cut_ft2, 2)},
-        }
-    sections = [{
-        "id": i,
-        "page": s.page,
-        "station": s.station_label,
-        "station_ft": s.station_ft,
-        "label_source": s.label_source,
-        "areas": areas(s),               # what volumes use: measured, or the user's edit
-        "measured": areas(s),            # as traced from the drawing, never changed
-        "marks": {res.design_surface: [], alt_surface: []},   # areas the user outlined on the image
-        "zero_reason": s.zero_reason,
-        # left / right of the centreline, as traced; marks carry their own split
-        "sides_measured": {sf: s.sides[sf] for sf in (res.design_surface, alt_surface)} if s.sides else None,
-        "centreline": {
-            "source": s.centre_source,
-            "x": round(s.centre_ft * s.overlay_px_per_ft, 1)          # in the section image's pixels
-            if s.centre_ft is not None and s.overlay_px_per_ft else None,
-        },
-        "method": s.method,
-        "page_kind": s.page_kind,
-        # ft per grid square on each axis, as read off the axis labels (stages.calibrate)
-        "scale": s.scale,
-        # 0-100, with what lowered it; below the pass score it carries alerts
-        "confidence": s.confidence,
-        "road": road_of.get(i),
-        "warnings": s.warnings,
-        "overlay": f"/api/jobs/{job.id}/sections/{i}.png" if s.overlay_png else None,
-        "overlay_px_per_ft": s.overlay_px_per_ft,
-        "profile": f"/api/jobs/{job.id}/sections/{i}/profile.json" if s.profile else None,
-    } for i, s in enumerate(res.sections)]
-    return {
-        "job_id": job.id,
-        "filename": job.filename,
-        "summary": {
-            "pages": res.pages,
-            "cross_section_pages": res.cross_section_pages,
-            "sections": len(res.sections),
-            "roads": len(roads),
-            "seconds": res.timing["total_seconds"],
-            "page_kinds": sorted({s.page_kind for s in res.sections}),
-            "design_surface": res.design_surface,
-            "surfaces": [res.design_surface, alt_surface],
-            "no_earthwork": sum(s.zero_reason is not None for s in res.sections),
-            "low_confidence": sum(1 for s in res.sections if s.confidence and not s.confidence["passed"]),
-        },
-        "zero_reasons": ZERO_REASONS,
-        "roads": roads,
-        "sections": sections,
-        "warnings": res.warnings,
-        "edits": {res.design_surface: {}, alt_surface: {}},   # section id -> {fill_ft2, cut_ft2}
-    }
-
-
-def _run(job: Job, path: str) -> None:
-    def progress(done: int, total: int) -> None:
-        job.done, job.total = done, total
-
-    with SLOTS:                       # stays "queued" until a slot is free
-        job.status = "running"
-        try:
-            # section images carry the lines only; the app shades fill/cut from
-            # the profile so the picture follows the areas the user types
-            res = process_plan_set(path, progress=progress, overlays="lines", name=job.filename)
-            job.result = res
-            job.payload = serialize(job, res)
-            job.pdf_path = path
-            job.status = "done"
-        except Exception as e:  # surfaced to the client, not swallowed
-            job.status, job.error = "error", f"{type(e).__name__}: {e}"
-            shutil.rmtree(os.path.dirname(path), ignore_errors=True)
-
-
-def _job(job_id: str) -> Job:
-    job = JOBS.get(job_id)
-    if job is None:
-        raise HTTPException(404, "Unknown or expired job.")
-    return job
-
-
-@app.get("/api/health")
-def health():
-    deps = {"tesseract": shutil.which("tesseract") is not None}
-    return {"ok": all(deps.values()), "version": __version__, "dependencies": deps,
-            "max_upload_mb": MAX_UPLOAD_MB}
-
-
-ACCURACY_FILE = os.environ.get(
-    "ACCURACY_FILE", os.path.join(os.path.dirname(os.path.abspath(__file__)), "accuracy.json"))
-
-
-@app.get("/api/accuracy")
-def accuracy():
-    """Measured accuracy per plan-set format (written by tools.accuracy_report)."""
-    try:
-        with open(ACCURACY_FILE, encoding="utf-8") as fh:
-            return json.load(fh)
-    except FileNotFoundError:
-        raise HTTPException(404, "No accuracy report has been generated.") from None
-
-
-@app.post("/api/jobs")
-async def create_job(file: UploadFile = File(...)):
-    _expire()
-    name = os.path.basename(file.filename or "plan-set.pdf")
-    if not name.lower().endswith(".pdf"):
-        raise HTTPException(400, "Please upload a PDF plan set.")
-    tmp = tempfile.mkdtemp(prefix="earthwork_")
-    path = os.path.join(tmp, "upload.pdf")
-    size = 0
-    with open(path, "wb") as out:
-        while chunk := await file.read(1 << 20):
-            size += len(chunk)
-            if size > MAX_UPLOAD_MB << 20:
-                shutil.rmtree(tmp, ignore_errors=True)
-                raise HTTPException(413, f"This PDF is larger than the server's {MAX_UPLOAD_MB} MB upload limit. "
-                                         f"Raise it with the MAX_UPLOAD_MB setting on the backend.")
-            out.write(chunk)
-    return {"job_id": _start_job(name, path)}
-
-
-def _start_job(name: str, path: str) -> str:
-    """Check the uploaded file is a PDF and start processing it."""
-    with open(path, "rb") as fh:
-        if fh.read(5) != b"%PDF-":
-            shutil.rmtree(os.path.dirname(path), ignore_errors=True)
-            raise HTTPException(400, "That file is not a PDF.")
-    job = Job(id=uuid.uuid4().hex[:12], filename=name)
-    with LOCK:
-        JOBS[job.id] = job
-    threading.Thread(target=_run, args=(job, path), daemon=True).start()
-    return job.id
-
-
-# ---------------------------------------------------------------- chunked upload
-# Big scans in one request trip the request-size limits of whatever sits in
-# front of the app (nginx's default is 1 MB; dev tunnels such as Codespaces
-# port forwarding and hosting platforms have their own). Sent in chunks, each
-# request stays small whatever the file size.
-UPLOAD_CHUNK_MB = int(os.environ.get("UPLOAD_CHUNK_MB", 8))
-UPLOAD_TTL_SECONDS = 3600
-
-
-@dataclass
-class Upload:
-    id: str
-    filename: str
-    size: int                   # declared total size, bytes
-    path: str
-    received: int = 0           # bytes written so far
-    next_chunk: int = 0         # index of the next chunk expected
-    touched: float = field(default_factory=time.time)
-
-
-UPLOADS: dict[str, Upload] = {}
-
-
-def _expire_uploads() -> None:
-    cutoff = time.time() - UPLOAD_TTL_SECONDS
-    with LOCK:
-        for k in [k for k, u in UPLOADS.items() if u.touched < cutoff]:
-            shutil.rmtree(os.path.dirname(UPLOADS.pop(k).path), ignore_errors=True)
-
-
-@app.post("/api/uploads")
-def start_upload(body: dict = Body(...)):
-    _expire_uploads()
-    name = os.path.basename(str(body.get("filename") or "plan-set.pdf"))
-    size = body.get("size")
-    if not name.lower().endswith(".pdf"):
-        raise HTTPException(400, "Please upload a PDF plan set.")
-    if isinstance(size, bool) or not isinstance(size, int) or size <= 0:
-        raise HTTPException(400, "size must be the file size in bytes.")
-    if size > MAX_UPLOAD_MB << 20:
-        raise HTTPException(413, f"This PDF is larger than the server's {MAX_UPLOAD_MB} MB upload limit. "
-                                 f"Raise it with the MAX_UPLOAD_MB setting on the backend.")
-    tmp = tempfile.mkdtemp(prefix="earthwork_")
-    up = Upload(id=uuid.uuid4().hex, filename=name, size=size, path=os.path.join(tmp, "upload.pdf"))
-    open(up.path, "wb").close()
-    with LOCK:
-        UPLOADS[up.id] = up
-    return {"upload_id": up.id, "chunk_size": UPLOAD_CHUNK_MB << 20}
-
-
-def _upload(upload_id: str) -> Upload:
-    up = UPLOADS.get(upload_id)
-    if up is None:
-        raise HTTPException(404, "Unknown or expired upload; start again.")
-    return up
-
-
-@app.put("/api/uploads/{upload_id}/{index}")
-async def upload_chunk(upload_id: str, index: int, request: Request):
-    """Chunks arrive in order. Re-sending the last chunk (a retry after a
-    lost response) is acknowledged without writing it twice."""
-    up = _upload(upload_id)
-    if index < up.next_chunk:
-        return {"received": up.received}
-    if index != up.next_chunk:
-        raise HTTPException(409, f"Expected chunk {up.next_chunk}, got {index}.")
-    data = bytearray()
-    async for part in request.stream():
-        data += part
-        if len(data) > max(UPLOAD_CHUNK_MB, 1) << 20 or up.received + len(data) > up.size:
-            raise HTTPException(413, "Chunk too large for this upload.")
-    if not data:
-        raise HTTPException(400, "Empty chunk.")
-    with open(up.path, "ab") as fh:
-        fh.write(data)
-    up.received += len(data)
-    up.next_chunk += 1
-    up.touched = time.time()
-    return {"received": up.received}
-
-
-@app.post("/api/uploads/{upload_id}/complete")
-def complete_upload(upload_id: str):
-    up = _upload(upload_id)
-    if up.received != up.size:
-        raise HTTPException(400, f"Upload incomplete: {up.received} of {up.size} bytes received.")
-    with LOCK:
-        UPLOADS.pop(upload_id, None)
-    _expire()
-    return {"job_id": _start_job(up.filename, up.path)}
-
-
-@app.get("/api/jobs/{job_id}")
-def get_job(job_id: str):
-    job = _job(job_id)
-    body = {"job_id": job.id, "filename": job.filename, "status": job.status,
-            "progress": {"done": job.done, "total": job.total}, "error": job.error}
-    if job.status == "done":
-        body["result"] = job.payload
-    return body
-
-
-@app.get("/api/jobs/{job_id}/sections/{n}.png")
-def section_png(job_id: str, n: int):
-    job = _job(job_id)
-    if job.result is None or not 0 <= n < len(job.result.sections):
-        raise HTTPException(404, "No such section.")
-    png = job.result.sections[n].overlay_png
-    if not png:
-        raise HTTPException(404, "No overlay for this section.")
-    return Response(png, media_type="image/png", headers={"Cache-Control": "private, max-age=86400"})
-
-
-@app.get("/api/jobs/{job_id}/sections/{n}/profile.json")
-def section_profile(job_id: str, n: int):
-    job = _job(job_id)
-    if job.result is None or not 0 <= n < len(job.result.sections):
-        raise HTTPException(404, "No such section.")
-    prof = job.result.sections[n].profile
-    if prof is None:
-        raise HTTPException(404, "No profile for this section.")
-    return JSONResponse(prof, headers={"Cache-Control": "private, max-age=86400"})
-
-
-PAGE_PX = 2400          # longest side of a rendered sheet image
-PAGE_CACHE = 12         # rendered sheets kept per job
-
-
-def _sheet(job: Job, n: int) -> "fitz.Page":
-    if job.result is None or not job.pdf_path or not os.path.exists(job.pdf_path):
-        raise HTTPException(404, "The original PDF is no longer available for this job.")
-    doc = fitz.open(job.pdf_path)
-    if not 1 <= n <= len(doc):
-        doc.close()
-        raise HTTPException(404, "No such page.")
-    return doc[n - 1]
-
-
-@app.get("/api/jobs/{job_id}/pages/{n}.png")
-def page_png(job_id: str, n: int):
-    """The original sheet as an image, as it is displayed (rotation applied)."""
-    job = _job(job_id)
-    png = job.pages.get(n)
-    if png is None:
-        page = _sheet(job, n)
-        z = PAGE_PX / max(page.rect.width, page.rect.height)
-        png = page.get_pixmap(matrix=fitz.Matrix(z, z), alpha=False).tobytes("png")
-        page.parent.close()
-        with LOCK:
-            if len(job.pages) >= PAGE_CACHE:
-                job.pages.pop(next(iter(job.pages)))
-            job.pages[n] = png
-    return Response(png, media_type="image/png", headers={"Cache-Control": "private, max-age=86400"})
-
-
-@app.get("/api/jobs/{job_id}/pages/{n}.json")
-def page_sections(job_id: str, n: int):
-    """Every measured cross-section on a sheet, in the sheet image's own
-    coordinates (PDF points, as displayed): its frame corners, the traced
-    ground and proposed surfaces, and where its section image sits -- so the
-    app can shade cut / fill and outline each section on the whole sheet."""
-    job = _job(job_id)
-    page = _sheet(job, n)
-    rot = page.rotation_matrix
-    size = [round(page.rect.width, 2), round(page.rect.height, 2)]
-    page.parent.close()
-    pt = lambda p: None if p is None else [round(q, 1) for q in (fitz.Point(p) * rot)]
-    out = []
-    for i, s in enumerate(job.result.sections):
-        g = s.geometry
-        if s.page != n or not g:
-            continue
-        thin = lambda line: [pt(p) for p in line[::2]]      # ~0.5 ft apart: plenty on a whole sheet
-        out.append({
-            "id": i, "frame": [pt(p) for p in g["frame"]],
-            "ground": thin(g["ground"]), "finished": thin(g["finished"]), "subgrade": thin(g["subgrade"]),
-            "canvas": [pt(p) for p in g["canvas"]] if g.get("canvas") else None,
-            "image_size": g.get("image_size"),
-        })
-    return JSONResponse({"page": n, "size": size, "image": f"/api/jobs/{job.id}/pages/{n}.png", "sections": out},
-                        headers={"Cache-Control": "private, max-age=86400"})
-
-
-def _calibration(job: Job) -> dict:
-    if job.status != "done" or job.result is None:
-        raise HTTPException(409, "Job is not finished.")
-    if job.calibration is None:
-        if not job.pdf_path or not os.path.exists(job.pdf_path):
-            raise HTTPException(410, "The original PDF is no longer available for this job.")
-        roads = {r["id"]: r["label"] for r in job.payload["roads"]}
-        labels = {s["id"]: roads.get(s["road"]) for s in job.payload["sections"]}
-        job.calibration = calib.build(job.result, job.pdf_path, job.filename, labels)
-    return job.calibration
-
-
-@app.get("/api/jobs/{job_id}/calibration")
-def calibration(job_id: str):
-    """Feet-to-pixel calibration for every sheet of the plan set, and the cut /
-    fill areas found on each as page-space shapes (see gdot_earthwork.calibration
-    for the format). Built once per job: scale notes on scanned sheets are read
-    by OCR, which takes a few seconds."""
-    return _calibration(_job(job_id))
-
-
-@app.get("/api/jobs/{job_id}/cross-sections")
-def cross_sections(job_id: str, surface: str | None = None):
-    """Every cross-section in the received cross-section format (see
-    gdot_earthwork.cross_sections): station, street, stage, left / right cut
-    and fill (hand edits applied), its shapes on the page, its confidence
-    score and alerts below the pass score."""
-    job = _job(job_id)
-    cal = _calibration(job)
-    sf = _surface(job, surface)
-    measured = lambda sec, s: sec["sides_measured"][s] if sec.get("sides_measured") else None
-    return xsec.build(job.payload, cal, sf, section_sides, measured)
-
-
-COMPARISONS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "comparisons")
-SCHEMAS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "schemas")
-MAX_REFERENCE_MB = 20
-
-
-@app.post("/api/jobs/{job_id}/compare")
-async def compare_job(job_id: str, file: UploadFile = File(...), surface: str | None = None):
-    """Compare the job's sections (hand edits included) with results provided
-    for the same plan set: an xlsx / csv with Street | Stage | Station |
-    Delta | Left / Right cut and fill areas and volumes (see
-    gdot_earthwork.compare)."""
-    job = _job(job_id)
-    if job.payload is None:
-        raise HTTPException(409, "Job is not finished.")
-    data = await file.read(MAX_REFERENCE_MB * 2 ** 20 + 1)
-    if len(data) > MAX_REFERENCE_MB * 2 ** 20:
-        raise HTTPException(413, f"Results files are limited to {MAX_REFERENCE_MB} MB.")
-    try:
-        reference = read_reference(data, file.filename or "")
-    except Exception as e:
-        raise HTTPException(400, f"Could not read the results file: {e}") from None
-    sf = _surface(job, surface)
-    report = compare_reference(job.payload["sections"], reference, sf, section_sides)
-    report.update(title=f"{job.filename} vs {file.filename}", planSet=job.filename, referenceFile=file.filename)
-    return report
-
-
-def _comparison_files() -> list[str]:
-    if not os.path.isdir(COMPARISONS_DIR):
-        return []
-    return sorted(f[:-5] for f in os.listdir(COMPARISONS_DIR) if f.endswith(".json"))
-
-
-@app.get("/api/comparisons")
-def comparisons():
-    out = []
-    for name in _comparison_files():
-        with open(os.path.join(COMPARISONS_DIR, name + ".json")) as f:
-            r = json.load(f)
-        out.append({"name": name, "title": r.get("title"), "planSet": r.get("planSet"),
-                    "referenceFile": r.get("referenceFile"), "generated": r.get("generated"), "summary": r["summary"]})
-    return out
-
-
-@app.get("/api/comparisons/{name}")
-def comparison(name: str):
-    if name not in _comparison_files():
-        raise HTTPException(404, "No such comparison.")
-    return FileResponse(os.path.join(COMPARISONS_DIR, name + ".json"), media_type="application/json")
-
-
-@app.get("/api/schemas/{name}")
-def schema(name: str):
-    files = {f[:-len(".schema.json")] for f in os.listdir(SCHEMAS_DIR) if f.endswith(".schema.json")}
-    name = name.removesuffix(".schema.json").removesuffix(".json")
-    if name not in files:
-        raise HTTPException(404, f"Schemas: {sorted(files)}")
-    return FileResponse(os.path.join(SCHEMAS_DIR, name + ".schema.json"), media_type="application/schema+json")
-
-
-MAX_AREA_FT2 = 1e6
-
-
-def _area(v) -> float:
-    if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or not 0 <= v <= MAX_AREA_FT2:
-        raise HTTPException(400, f"Areas must be numbers between 0 and {MAX_AREA_FT2:g} sq ft.")
-    return _round(v, 2)
-
-
-MAX_MARKS, MAX_MARK_POINTS = 50, 500
-CENTRE_TEXT = {"text": "read from the drawing", "scan": "read from the scan", "neighbour": "from the neighbouring section",
-               "assumed": "assumed at grid middle"}
-
-
-def road_sides(payload: dict, road: dict, surface: str) -> dict | None:
-    """Left / right volumes of a road (API payload) for the areas in use."""
-    secs = [payload["sections"][i] for i in road["sections"]]
-    stations = [(s["station_ft"], section_sides(s, surface)) for s in secs if s["station_ft"] is not None]
-    if not stations or any(sd is None for _, sd in stations):
-        return None
-    return road_side_volumes(stations)
-
-
-def section_sides(sec: dict, surface: str) -> dict | None:
-    """Left / right fill and cut of a section (API payload) for the areas in use."""
-    if not sec.get("sides_measured"):
-        return None
-    return current_sides(sec["sides_measured"][surface], sec["measured"][surface], sec["areas"][surface],
-                         sec.get("marks", {}).get(surface, []))
-
-
-MARK_KINDS = ("fill", "cut", "remove_fill", "remove_cut")
-
-
-def _marks(val, sec, measured: dict, surface: str) -> list[dict]:
-    """Areas the user outlined on the section image: [{kind, pts}], pts in
-    image pixels. fill / cut add the outlined area (measured here from the
-    image scale); remove_fill / remove_cut take away the traced area inside
-    the outline -- the browser measures that share of the traced zones and
-    sends it as ft2, kept within what was measured."""
-    if val is None:
-        return []
-    ppf, prof = sec.overlay_px_per_ft, sec.profile
-    if not isinstance(val, list) or len(val) > MAX_MARKS or not ppf or not prof:
-        raise HTTPException(400, f"marks must be a list of at most {MAX_MARKS} outlined areas.")
-    w, h = prof["size"]
-    out = []
-    for m in val:
-        pts = m.get("pts") if isinstance(m, dict) else None
-        if m.get("kind") not in MARK_KINDS or not isinstance(pts, list) or not 3 <= len(pts) <= MAX_MARK_POINTS:
-            raise HTTPException(400, f"Each mark needs a kind ({'|'.join(MARK_KINDS)}) and 3 to {MAX_MARK_POINTS} points.")
-        clean = []
-        for p in pts:
-            if (not isinstance(p, list) or len(p) != 2
-                    or not all(isinstance(c, (int, float)) and not isinstance(c, bool) and math.isfinite(c) for c in p)):
-                raise HTTPException(400, "Mark points must be [x, y] pixel pairs.")
-            clean.append([round(min(max(p[0], 0), w), 1), round(min(max(p[1], 0), h), 1)])
-        a = 0.0
-        for (x1, y1), (x2, y2) in zip(clean, clean[1:] + clean[:1]):
-            a += x1 * y2 - x2 * y1
-        cx = sec.centre_ft * ppf if sec.centre_ft is not None else w / 2
-        if m["kind"].startswith("remove_"):
-            base = m["kind"][len("remove_"):]
-            ft2 = min(_area(m.get("ft2")), measured[f"{base}_ft2"])
-            sl, sr = removal_sides(prof, surface, base, clean, cx)
-            left, right = ft2 * sl, ft2 * sr
-        else:
-            ft2 = abs(a) / 2 / ppf ** 2
-            left, right = (v / ppf ** 2 for v in polygon_sides(clean, cx))
-        out.append({"kind": m["kind"], "pts": clean, "ft2": _round(ft2, 2),
-                    "sides": {"left": _round(left, 2), "right": _round(right, 2)}})
-    for kind in ("fill", "cut"):
-        if sum(m["ft2"] for m in out if m["kind"] == f"remove_{kind}") > measured[f"{kind}_ft2"] + 0.05:
-            raise HTTPException(400, f"Removed {kind} is more than the measured {kind}.")
-    return out
-
-
-def _recompute_volumes(payload: dict, surface: str) -> None:
-    """Rebuild every road's average-end-area volumes for `surface` from the
-    sections' current (possibly edited) areas."""
-    @dataclass
-    class _Station:
-        station_label: str
-        station_ft: float
-        fill_ft2: float
-        cut_ft2: float
-
-    secs = payload["sections"]
-    for road in payload["roads"]:
-        stations = [_Station(secs[i]["station"], secs[i]["station_ft"], **secs[i]["areas"][surface])
-                    for i in road["sections"] if secs[i]["station_ft"] is not None]
-        vol = average_end_area_volume(stations, road["label"])
-        road["volumes"][surface] = {
-            "fill_cy": _round(vol.total_fill_cy),
-            "cut_cy": _round(vol.total_cut_cy),
-            "net_cy": _round(vol.total_net_cy),
-            "segments": [{
-                "from": g.station_from, "to": g.station_to, "length_ft": _round(g.length_ft, 2),
-                "fill_cy": _round(g.fill_cy), "cut_cy": _round(g.cut_cy), "net_cy": _round(g.net_cy),
-                "warning": g.warning,
-            } for g in vol.segments],
-        }
-
-
-@app.put("/api/jobs/{job_id}/edits")
-def save_edits(job_id: str, body: dict = Body(...)):
-    """Save hand-edited areas for one surface, e.g.
-    {"surface": "subgrade", "edits": {"12": {"fill_ft2": 40.5, "cut_ft2": 3}, "13": null}}.
-    An edit may carry "marks": [{"kind": "fill"|"cut", "pts": [[x, y], ...]}],
-    areas outlined on the section image (pixels); they are kept, measured and
-    drawn on the annotated PDF. The fill/cut totals are what volumes use.
-    null puts a section back to its measured areas. Road volumes for that
-    surface are recomputed; the updated result is returned."""
-    job = _job(job_id)
-    if job.payload is None:
-        raise HTTPException(409, "Job is not finished.")
-    surface = _surface(job, body.get("surface"))
-    edits = body.get("edits")
-    if not isinstance(edits, dict) or len(edits) > len(job.payload["sections"]):
-        raise HTTPException(400, "edits must map section ids to {fill_ft2, cut_ft2} or null.")
-    parsed: dict[int, dict | None] = {}
-    for key, val in edits.items():
-        try:
-            i = int(key)
-        except (TypeError, ValueError):
-            raise HTTPException(400, f"Unknown section {key!r}.") from None
-        if not 0 <= i < len(job.payload["sections"]):
-            raise HTTPException(400, f"Unknown section {key!r}.")
-        if val is None:
-            parsed[i] = None
-        elif isinstance(val, dict):
-            parsed[i] = {"fill_ft2": _area(val.get("fill_ft2")), "cut_ft2": _area(val.get("cut_ft2")),
-                         "marks": _marks(val.get("marks"), job.result.sections[i],
-                                         job.payload["sections"][i]["measured"][surface], surface)}
-        else:
-            raise HTTPException(400, f"Section {key}: expected {{fill_ft2, cut_ft2}} or null.")
-    with LOCK:
-        saved = job.payload["edits"][surface]
-        for i, val in parsed.items():
-            sec = job.payload["sections"][i]
-            marks = val.pop("marks") if val else []
-            sec.setdefault("marks", {})[surface] = marks
-            if val is None or (val == sec["measured"][surface] and not marks):
-                saved.pop(str(i), None)
-                sec["areas"][surface] = dict(sec["measured"][surface])
-            else:
-                saved[str(i)] = val
-                sec["areas"][surface] = dict(val)
-        _recompute_volumes(job.payload, surface)
-        return job.payload
-
-
-def _csv(rows: list[list], filename: str) -> Response:
-    buf = io.StringIO()
-    csv.writer(buf).writerows(rows)
-    return Response(buf.getvalue(), media_type="text/csv",
-                    headers={"Content-Disposition": f'attachment; filename="{filename}"'})
-
-
-def _surface(job: Job, surface: str | None) -> str:
-    surfaces = job.payload["summary"]["surfaces"]
-    surface = surface or surfaces[0]
-    if surface not in surfaces:
-        raise HTTPException(400, f"surface must be one of {surfaces}")
-    return surface
-
-
-@app.get("/api/jobs/{job_id}/volumes.csv")
-def volumes_csv(job_id: str, exclude: list[str] = Query(default=[]), surface: str | None = None):
-    job = _job(job_id)
-    if job.payload is None:
-        raise HTTPException(409, "Job is not finished.")
-    surface = _surface(job, surface)
-    n_edited = len(job.payload["edits"][surface])
-    title = f"Measured to {surface}" + (f"; {n_edited} section(s) edited by hand" if n_edited else "")
-    rows = [[title], ["Road", "From", "To", "Length (ft)", "Fill (cy)", "Cut (cy)", "Net (cy)",
-                      "Left fill (cy)", "Left cut (cy)", "Right fill (cy)", "Right cut (cy)", "Note"]]
-    side_cells = lambda d: [d["left"]["fill_cy"], d["left"]["cut_cy"], d["right"]["fill_cy"], d["right"]["cut_cy"]] \
-        if d else ["", "", "", ""]
-    tf = tc = 0.0
-    all_sides = {"left": {"fill_cy": 0.0, "cut_cy": 0.0}, "right": {"fill_cy": 0.0, "cut_cy": 0.0}}
-    for r in job.payload["roads"]:
-        if r["id"] in exclude:
-            continue
-        v = r["volumes"][surface]
-        sides = road_sides(job.payload, r, surface)
-        for i, s in enumerate(v["segments"]):
-            rows.append([r["label"], s["from"], s["to"], s["length_ft"], s["fill_cy"], s["cut_cy"], s["net_cy"],
-                         *side_cells(sides["segments"][i] if sides else None), s["warning"] or ""])
-        rows.append([r["label"], "TOTAL", "", "", v["fill_cy"], v["cut_cy"], v["net_cy"], *side_cells(sides),
-                     "; ".join(r["flags"])])
-        tf, tc = tf + v["fill_cy"], tc + v["cut_cy"]
-        for side in ("left", "right"):
-            for k in ("fill_cy", "cut_cy"):
-                all_sides[side][k] += sides[side][k] if sides else 0.0
-    for side in all_sides.values():
-        for k in side:
-            side[k] = _round(side[k])
-    rows.append(["ALL ROADS", "", "", "", _round(tf), _round(tc), _round(tf - tc), *side_cells(all_sides), ""])
-    return _csv(rows, f"{os.path.splitext(job.filename)[0]}-volumes-{surface}.csv")
-
-
-@app.get("/api/jobs/{job_id}/sections.csv")
-def sections_csv(job_id: str):
-    job = _job(job_id)
-    if job.payload is None:
-        raise HTTPException(409, "Job is not finished.")
-    roads = {r["id"]: r["label"] for r in job.payload["roads"]}
-    a, b = job.payload["summary"]["surfaces"]
-    edits = job.payload["edits"]
-    rows = [["Page", "Station", "Station source", "Road",
-             f"Fill to {a} (sq ft)", f"Cut to {a} (sq ft)",
-             f"Left fill to {a} (sq ft)", f"Left cut to {a} (sq ft)",
-             f"Right fill to {a} (sq ft)", f"Right cut to {a} (sq ft)",
-             f"Fill to {b} (sq ft)", f"Cut to {b} (sq ft)",
-             f"Left fill to {b} (sq ft)", f"Left cut to {b} (sq ft)",
-             f"Right fill to {b} (sq ft)", f"Right cut to {b} (sq ft)",
-             "Centreline", "Edited by hand", "Method", "Confidence (%)", "Alerts", "Warnings"]]
-    for s in job.payload["sections"]:
-        edited = [sf for sf in (a, b) if str(s["id"]) in edits[sf]]
-        note = "; ".join(f"{sf} (measured fill {s['measured'][sf]['fill_ft2']}, cut {s['measured'][sf]['cut_ft2']})"
-                         for sf in edited)
-        def cells(sf):
-            out, sd = [s["areas"][sf]["fill_ft2"], s["areas"][sf]["cut_ft2"]], section_sides(s, sf)
-            for side in ("left", "right"):
-                out += [sd[side]["fill_ft2"], sd[side]["cut_ft2"]] if sd else ["", ""]
-            return out
-        rows.append([s["page"], s["station"] or "", s["label_source"] or "", roads.get(s["road"], ""),
-                     *cells(a), *cells(b), CENTRE_TEXT.get(s["centreline"]["source"], ""),
-                     note, s["method"], (s.get("confidence") or {}).get("score", ""),
-                     " | ".join(r for a in (s.get("confidence") or {}).get("alerts", []) for r in [a["message"]]),
-                     " | ".join(s["warnings"])])
-    return _csv(rows, f"{os.path.splitext(job.filename)[0]}-sections.csv")
-
-
-@app.get("/api/jobs/{job_id}/annotated.pdf")
-def annotated(job_id: str, exclude: list[str] = Query(default=[]), surface: str | None = None):
-    """The uploaded PDF, every page as it was, with each measured section's
-    cut/fill shading and areas (hand edits included) drawn on it, plus
-    summary pages at the end."""
-    job = _job(job_id)
-    if job.payload is None or job.result is None:
-        raise HTTPException(409, "Job is not finished.")
-    if not job.pdf_path or not os.path.exists(job.pdf_path):
-        raise HTTPException(410, "The original PDF is no longer available for this job.")
-    surface = _surface(job, surface)
-    with LOCK:
-        payload = json.loads(json.dumps(job.payload))      # a consistent snapshot of the edits
-    pdf = annotated_pdf(job.pdf_path, [s.geometry for s in job.result.sections], payload, surface, set(exclude))
-    name = f"{os.path.splitext(job.filename)[0]}-takeoff.pdf"
-    return Response(pdf, media_type="application/pdf",
-                    headers={"Content-Disposition": f'attachment; filename="{name}"'})
-
+for routes in (routes_status, routes_jobs, routes_sheets, routes_results, routes_exports, routes_comparisons):
+    app.include_router(routes.router)
+app.mount("/api/v1", public.app)
 
 # Production: serve the built frontend from the same origin, so the app's
 # relative /api URLs just work. (In development Vite serves it instead.)
-FRONTEND_DIST = os.environ.get(
-    "FRONTEND_DIST", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "frontend", "dist"))
-if os.path.isdir(FRONTEND_DIST):
-    app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_DIST, "assets")), name="assets")
+# Registered last: its catch-all route must not shadow the API.
+if os.path.isdir(settings.FRONTEND_DIST):
+    app.mount("/assets", StaticFiles(directory=os.path.join(settings.FRONTEND_DIST, "assets")), name="assets")
 
     @app.get("/{path:path}", include_in_schema=False)
     def spa(path: str):
-        candidate = os.path.normpath(os.path.join(FRONTEND_DIST, path))
-        if path and candidate.startswith(os.path.normpath(FRONTEND_DIST)) and os.path.isfile(candidate):
+        candidate = os.path.normpath(os.path.join(settings.FRONTEND_DIST, path))
+        if path and candidate.startswith(os.path.normpath(settings.FRONTEND_DIST)) and os.path.isfile(candidate):
             return FileResponse(candidate)
-        return FileResponse(os.path.join(FRONTEND_DIST, "index.html"))
+        return FileResponse(os.path.join(settings.FRONTEND_DIST, "index.html"))
 
+
+class _Main(types.ModuleType):
+    """main.<SETTING> reads and writes api.settings, where the endpoints look:
+    tests patch main.MAX_UPLOAD_MB and main.ACCURACY_FILE as before the split."""
+
+
+for _name in ("ACCURACY_FILE", "MAX_UPLOAD_MB", "JOB_TTL_SECONDS", "UPLOAD_CHUNK_MB", "API_KEYS"):
+    setattr(_Main, _name, property(lambda self, n=_name: getattr(settings, n),
+                                   lambda self, value, n=_name: setattr(settings, n, value)))
+sys.modules[__name__].__class__ = _Main

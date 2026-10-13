@@ -171,3 +171,50 @@ export function annotatedPdfUrl(jobId, excludedRoadIds, surface) {
 export function sectionsCsvUrl(jobId) {
   return `${BASE}/api/jobs/${jobId}/sections.csv`;
 }
+
+// ---------------------------------------------------------------- public API v1
+export const V1 = '/api/v1';
+
+function parseHeaders(raw) {
+  const out = {};
+  (raw || '').trim().split(/[\r\n]+/).forEach((line) => {
+    const i = line.indexOf(':');
+    if (i > 0) out[line.slice(0, i).trim().toLowerCase()] = line.slice(i + 1).trim();
+  });
+  return out;
+}
+
+/**
+ * One request to the public API, exactly as an outside client would make it.
+ * Resolves with {status, headers, body, ms} whatever the status (an error is
+ * part of the answer); rejects only when the connection fails or `signal`
+ * aborts it. XMLHttpRequest, so an upload can report its progress.
+ */
+export function v1Request(method, path, { form, apiKey, signal, onUpload } = {}) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const started = performance.now();
+    xhr.open(method, `${BASE}${V1}${path}`);
+    xhr.setRequestHeader('Accept', 'application/json');
+    if (apiKey) xhr.setRequestHeader('X-API-Key', apiKey);
+    if (onUpload) xhr.upload.onprogress = (e) => onUpload(e.loaded, e.total);
+    xhr.onerror = () => reject(new Error('The server could not be reached.'));
+    xhr.onabort = () => reject(Object.assign(new Error('Cancelled.'), { name: 'AbortError' }));
+    xhr.onload = () => {
+      let body = null;
+      try { body = xhr.responseText ? JSON.parse(xhr.responseText) : null; } catch { body = xhr.responseText; }
+      resolve({ status: xhr.status, headers: parseHeaders(xhr.getAllResponseHeaders()), body,
+        ms: Math.round(performance.now() - started) });
+    };
+    if (signal) {
+      if (signal.aborted) { reject(Object.assign(new Error('Cancelled.'), { name: 'AbortError' })); return; }
+      signal.addEventListener('abort', () => xhr.abort(), { once: true });
+    }
+    xhr.send(form || null);
+  });
+}
+
+/** The public API's OpenAPI document. */
+export async function getOpenApi() {
+  return json(await fetch(`${BASE}${V1}/openapi.json`));
+}

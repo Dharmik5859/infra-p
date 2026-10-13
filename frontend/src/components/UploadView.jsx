@@ -1,9 +1,17 @@
 import { useRef, useState } from 'react';
+import { IconFile, IconLayers, IconPencil, IconResults, IconScan, IconSection, IconSheet } from './Icons';
+import { Disclosure, Flow, InfoTip } from './Ui';
 
 const FORMATS = [
-  { title: '19-series', body: 'Scanned strips, one cross-section per page', tone: 'blue' },
-  { title: '23-series', body: 'Scanned sheets, several sections per sheet', tone: 'green' },
-  { title: 'CAD-exported PDF', body: 'Measured exactly from the drawing linework', tone: 'yellow' },
+  { title: '19-series', body: 'Scanned strips, one cross-section per page', tone: 'blue', Icon: IconScan },
+  { title: '23-series', body: 'Scanned sheets, several sections per sheet', tone: 'green', Icon: IconSheet },
+  { title: 'CAD PDF', body: 'CAD-exported: measured exactly from the drawing linework', tone: 'yellow', Icon: IconSection },
+];
+const DELIVERABLES = [
+  { Icon: IconResults, title: 'Volumes per road', body: 'Cut & fill volumes per road, by the average-end-area method.' },
+  { Icon: IconLayers, title: 'Every section traced', body: 'Every cross-section traced, with its area and an audit drawing.' },
+  { Icon: IconFile, title: 'Annotated PDF', body: 'Your plan set back as a PDF, cut and fill drawn on every section.' },
+  { Icon: IconPencil, title: 'Review & edit', body: 'Review & edit any area; volumes and the PDF follow your edits.' },
 ];
 
 const mb = (bytes) => `${(bytes / 1048576).toLocaleString(undefined, { maximumFractionDigits: bytes < 10485760 ? 1 : 0 })} MB`;
@@ -39,12 +47,9 @@ export default function UploadView({ server, onFile, busy, progress, error }) {
   return (
     <div className="page narrow">
       <div className="card upload-card">
+        <Flow steps={['Upload', 'Analyze', 'Results']} current={0} />
         <h2>Cut &amp; fill from cross-sections</h2>
-        <p className="lede">
-          Upload a road plan set. Cross-section sheets are found automatically, each station is read,
-          the existing ground and proposed design are traced, and cut/fill volumes are computed per road
-          by the average-end-area method.
-        </p>
+        <p className="lede">Drop a road plan set; we measure every section.</p>
 
         <div
           className={`dropzone ${over ? 'over' : ''}`}
@@ -71,28 +76,43 @@ export default function UploadView({ server, onFile, busy, progress, error }) {
               </span>
             </div>
           )}
-          {!busy && <span className="muted">or click to browse · cover, plan and profile sheets are skipped on their own</span>}
+          {!busy && <span className="muted">or click to browse · PDF</span>}
         </div>
 
         <div className="formats">
+          <span className="eyebrow">Reads</span>
           {FORMATS.map((f) => (
-            <div className={`format t-${f.tone}`} key={f.title}><b>{f.title}</b><span>{f.body}</span></div>
+            <span className={`format-chip t-${f.tone}`} key={f.title} title={f.body}>
+              <f.Icon width={16} height={16} />{f.title}<span className="sr-only">: {f.body}</span>
+            </span>
           ))}
+          <InfoTip label="Supported plan sets">
+            {FORMATS.map((f) => <span key={f.title} style={{ display: 'block' }}><b>{f.title}:</b> {f.body}.</span>)}
+            Cover, plan and profile sheets are skipped on their own.
+          </InfoTip>
         </div>
 
         <div className="deliverables">
           <span className="eyebrow">What you get</span>
-          <ul>
-            <li><b>Cut &amp; fill volumes</b> per road, by the average-end-area method</li>
-            <li><b>Every cross-section</b> traced, with its area and an audit drawing</li>
-            <li><b>Your plan set back as a PDF</b>, cut and fill drawn on every section</li>
-            <li><b>Review &amp; edit</b> any area; volumes and the PDF follow your edits</li>
+          <ul className="icon-row">
+            {DELIVERABLES.map((d) => (
+              <li key={d.title} title={d.body}><d.Icon width={18} height={18} /><span>{d.title}</span><span className="sr-only">: {d.body}</span></li>
+            ))}
           </ul>
         </div>
 
-        <div className="server">
+        <Disclosure title="How it works" className="upload-how">
+          <ol className="how-steps">
+            <li>Cross-section sheets are found automatically (cover, plan and profile sheets are skipped).</li>
+            <li>Each station label is read, from the PDF text or by OCR on scans.</li>
+            <li>The existing ground and proposed design are traced.</li>
+            <li>Cut / fill volumes are computed per road by the average-end-area method.</li>
+          </ol>
+        </Disclosure>
+
+        <div className={`server-chip ${server == null ? '' : server.ok ? 'ok' : 'bad'}`} title={status}>
           <span className={`dot ${server == null ? '' : server.ok ? 'ok' : 'bad'}`} />
-          {status}
+          <span className="ellipsis">{status}</span>
         </div>
         {(localError || error) && <div className="error-box" role="alert">{localError || error}</div>}
       </div>

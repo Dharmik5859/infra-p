@@ -9,8 +9,9 @@ import Results from './components/Results';
 import AccuracyView from './components/AccuracyView';
 import CalibrationView from './components/CalibrationView';
 import ComparisonView from './components/ComparisonView';
+import ApiConsole from './components/ApiConsole';
 
-// Routing lives in the URL hash: #/dashboard, #/new, #/accuracy and
+// Routing lives in the URL hash: #/dashboard, #/new, #/accuracy, #/api and
 // #/results/<job id>. The job id in the URL means a reload (or a shared
 // link, while the server still holds the job) reopens the same results.
 function parseHash() {
@@ -23,12 +24,13 @@ function parseHash() {
 }
 
 const TITLES = {
-  dashboard: { title: 'Dashboard', sub: 'Accuracy at a glance and your latest takeoff' },
+  dashboard: { title: 'Dashboard', sub: 'Accuracy and your latest takeoff' },
   new: { title: 'New takeoff', sub: 'Upload a cross-section plan set' },
-  results: { title: 'Takeoff results', sub: 'Cut and fill by road, station and section' },
-  accuracy: { title: 'Accuracy', sub: 'How the measurements were checked' },
-  calibration: { title: 'Calibration', sub: 'Feet-to-pixel scale of every sheet, and every cross-section, as JSON' },
-  comparison: { title: 'Comparison', sub: 'Our takeoff against results provided for the same plan set' },
+  results: { title: 'Takeoff results', sub: 'Cut and fill by road and station' },
+  accuracy: { title: 'Accuracy', sub: 'Checked against estimator labels' },
+  calibration: { title: 'Calibration', sub: 'Feet-to-pixel scale per sheet, as JSON' },
+  comparison: { title: 'Comparison', sub: 'Our takeoff vs provided results' },
+  api: { title: 'API', sub: 'Try the public v1 endpoints' },
 };
 
 export default function App() {
@@ -114,6 +116,8 @@ export default function App() {
     page = <UploadView server={server} onFile={upload} busy={Boolean(uploading)} progress={uploading} error={error} />;
   } else if (view === 'calibration') {
     page = <CalibrationView openJob={done} />;
+  } else if (view === 'api') {
+    page = <ApiConsole openJob={done || running} />;
   } else if (view === 'comparison') {
     page = <ComparisonView openJob={done} />;
   } else if (view === 'accuracy') {
