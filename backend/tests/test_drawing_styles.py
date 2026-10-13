@@ -3,7 +3,8 @@ import numpy as np
 
 from gdot_earthwork.plan_set import process_plan_set
 from gdot_earthwork.stations import StationRead, repair
-from gdot_earthwork.surfaces import CANON_PPF, _dash_chains, _is_underline
+from gdot_earthwork.pages import TextSpan
+from gdot_earthwork.surfaces import CANON_PPF, _dash_chains, _half_box, _is_landed_leader, _is_underline
 from gdot_earthwork.tracing import template_strokes
 
 from .synth import Grid, cut_section, embankment, make_pdf, true_areas
@@ -39,6 +40,29 @@ def test_underline_with_lettering_is_not_template():
     assert _is_underline(seg, word)
     assert not _is_underline(seg, word[:3])          # a "2.0%" label over a long pavement line
     assert not _is_underline((100.0, 200.0, 100 + 20 * P, 200 + 2 * P), word)   # not level
+
+
+def test_leader_to_a_word_note_is_not_template():
+    import pymupdf as fitz
+
+    class Img:                                              # page points = image pixels
+        def to_view(self, x, y):
+            return x, y
+
+    def path(*pts):
+        return {"items": [("l", fitz.Point(a), fitz.Point(b)) for a, b in zip(pts, pts[1:])]}
+
+    # "EDGE OF STREAM BANK" at 10 px per ft; the leader rises from a catch point
+    # and lands just short of the note
+    note = TextSpan(330.0, 100.0, "EDGE", 7.0, 40.0, 7.0)
+    boxes = [(note.x - _half_box(note)[0], note.y - _half_box(note)[1],
+              note.x + _half_box(note)[0], note.y + _half_box(note)[1], True)]
+    assert _is_landed_leader(path((200, 180), (290, 100), (306, 100)), Img(), 1.0, boxes, 10.0)
+    # a template ending at a level stretch far from any note, or one that runs long, stays
+    assert not _is_landed_leader(path((100, 180), (200, 100), (230, 100)), Img(), 1.0, boxes, 10.0)
+    assert not _is_landed_leader(path((200, 180), (240, 100), (306, 100)), Img(), 1.0, boxes, 10.0)
+    # a vertical label's box is tall and narrow, not as wide as its text is long
+    assert _half_box(TextSpan(0, 0, "708.43", 7.0, 7.0, 40.0)) == (4.5, 21.0)
 
 
 def test_template_carried_on_after_a_small_break():
