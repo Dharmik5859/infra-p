@@ -126,8 +126,9 @@ is compared (`backend/tools/labelled_eval.py`, 16 labelled PDFs, 769 sections).
 | Estimators' shading inside a section the pipeline found | 97.6 % | 98.0 % |
 
 Staged-construction sheets are the gap between the two columns: they show the same
-cross-sections as the mainline set, but the estimator shades only that stage's work,
-while the pipeline measures the whole section (it does not yet separate stages).
+cross-sections as the mainline set, but the estimator shades only that stage's work.
+The pipeline now reads the sheet's stage from the title block and leaves out stretches
+marked "STAGE n CONSTRUCTION" for another stage (`gdot_earthwork/staging.py`).
 The 19-series has no labelled copy in the data, so it is not scored; the 23-series
 sample's labelled copy (Mountain Ind Blvd mainline) comes out at 89.3 % (fill +0.6 %,
 cut −19.4 %). The app's **Accuracy** page shows every labelled plan set.
@@ -135,6 +136,32 @@ cut −19.4 %). The app's **Accuracy** page shows every labelled plan set.
 The label area is measured shape by shape: the bright fill plus half of each shape's
 outline (drawn on the shape's edge); orange and brown notes are not counted. On shapes
 of known size in the estimators' colours this is within 1 % (a few % on 1 ft slivers).
+
+### Plan-set audit (unlabelled Drive sets)
+
+Plan sets with no estimator shading (Franklin Gateway, CALL 011 / 022 / 024 / 025,
+New Hope at Wylie, SR 5 Connector) were audited section by section:
+`backend/tools/audit_plan_set.py PLANS.pdf OUT_DIR --raster-check` writes every
+section's overlay next to the same crop of the original sheet, the calibration and
+cross-section JSON, and (for CAD sheets) a second, independent reading from pixels.
+Each overlay was compared with the drawing and the areas estimated from the grid.
+
+* **Calibration** was right on every set. Franklin and CALL 025 are printed at half
+  size (their notes say 1" = 10', the grid measures 1" = 20'); this is now detected
+  and reported (`printScale`, `noteCheck.printRatio`), and the grid wins.
+* **SR 5 Connector mainline** against the delivered takeoff (xlsx): cut −1.2 %,
+  fill −1.2 %, left / right within 4.5 %.
+* Round 1 (Franklin, CALL 011, CALL 025): 56 of 61 sections correct. Round 2 (all
+  sets): 163 of 232. The failure modes found and fixed since:
+  - textless CAD sheets (New Hope: lettering drawn as strokes) found 0 sections → 27:
+    labels read by OCR, ground drawn dash by dash, underlines of notes ignored;
+  - template carried on across small breaks in the linework;
+  - title-block borders and scale bars hanging into the grid margins ignored;
+  - leaders to notes ("EDGE OF STREAM BANK") and bold labels no longer traced as
+    template (CALL 022 200+00 fill 132 → 7 ft², 600+93 false cut 212 → 0);
+  - widenings drawn apart from the rest of the template are traced (CALL 024
+    136+00 … 140+00 right-side cut now within ~10 % of the audit estimates);
+  - sections at a bridge are flagged for review.
 
 ---
 
@@ -273,7 +300,9 @@ Writes `sections.csv`, `volumes.csv` and one overlay PNG per section.
 The two deliverables, the **calibration** and the **cross-sections** of a plan set, are
 also a documented API for clients outside the app: Swagger UI at **`/api/v1/docs`**,
 OpenAPI at `/api/v1/openapi.json` (each `200` response described by its JSON Schema from
-`backend/schemas/`).
+`backend/schemas/`). The app's **API** page (`#/api`) is a console for both: upload a
+PDF or give a job id, watch it go from `202` to `200`, browse the JSON, and copy
+ready-made curl / Python / JavaScript calls.
 
 | Method | Path | |
 |---|---|---|
@@ -456,6 +485,10 @@ frontend/                 React + Vite app
   square (`PipelineConfig.grid_ft`) and the section says so (scale "assumed").
 * Where the existing ground under an embankment is very broken, the trace
   bridges its dips in straight lines (SR 5 314+00: -13 % fill).
+* A section at a bridge (BEGIN / END BRIDGE marked) is measured as drawn and
+  flagged for review: the space under the deck reads as fill.
+* On textless CAD sheets stations come from OCR of stroke lettering; a few
+  read wrong and are flagged (New Hope).
 * Which lines count as "the proposed template" follows the drawing: temporary
   works, staging slopes or removal lines drawn with the same pen as the
   template can be measured as earthwork. The audit overlay shows exactly what
