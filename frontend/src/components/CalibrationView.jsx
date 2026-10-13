@@ -122,7 +122,12 @@ export default function CalibrationView({ openJob }) {
   const [over, setOver] = useState(false);
   const input = useRef(null);
   const alive = useRef(true);
-  useEffect(() => () => { alive.current = false; }, []);
+  // set on every mount: StrictMode mounts twice in development, and a flag
+  // only ever cleared would stop the polling after its first answer
+  useEffect(() => {
+    alive.current = true;
+    return () => { alive.current = false; };
+  }, []);
 
   const origin = window.location.origin;
   const samples = useMemo(() => codeSamples(origin), [origin]);
@@ -295,6 +300,14 @@ export default function CalibrationView({ openJob }) {
                 <span className="muted">Document scale</span>
                 <b>{data.documentScale ? `${data.documentScale.text} (page ${data.documentScale.pageNumber})` : 'none printed'}</b>
               </div>
+              {data.printScale && data.printScale.ratio !== 1 && (
+                <div className="calib-scale">
+                  <span className="muted">Printed at</span>
+                  <b title={data.printScale.meaning}>
+                    {data.printScale.ratio === 0.5 ? 'half size' : `${Math.round(data.printScale.ratio * 100)} %`} — the grid is measured, so areas are right
+                  </b>
+                </div>
+              )}
               {data.uncalibratedPages.length > 0 && (
                 <div className="warning">No scale found for sheet{data.uncalibratedPages.length > 1 ? 's' : ''} {data.uncalibratedPages.join(', ')}.</div>
               )}
