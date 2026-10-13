@@ -77,6 +77,26 @@ Details worth knowing:
   labelled plan sets give the same areas as before, section for section,
   except Mountain Industrial Blvd 309+00 – 310+00, which moved closer to the
   labels.
+* **Cut and fill.** Where the proposed surface (subgrade) lies below the
+  existing line the earth between them is cut; where it lies above, the space
+  between them is fill. The existing line is the top of what is there:
+  existing asphalt in a cut is dug out with the earth and counted as cut;
+  under a fill it stays and the fill is built on it, so it is never counted;
+  poles (thin uprights) change nothing (`tests/test_existing_features.py`).
+* **Ground far below the template.** Under a tall embankment (or in a deep
+  cut) the existing ground is often a faint, broken dashed line. Where the
+  ground trace rides along the template for more than 15 ft while ground
+  dashes exist elsewhere in those columns, the ground is not hidden there:
+  those columns are re-traced on the dashes alone.
+* **Staged-construction sheets** (the file names a stage): only the sheet's
+  own stage is measured. The sheet's stage is read from its title block
+  ("STAGE 3", "STAGE 1B"); stretches marked "STAGE 2 CONSTRUCTION" for
+  another stage (found with their dimension line) are traced and measured
+  without, and the section says so. A mark for the sheet's own stage changes
+  nothing (`tests/test_staging.py`).
+* **Title blocks.** A stroke lying wholly in the strip below a section's axis
+  and made of horizontal / vertical rules (a scale bar, a table) is not part
+  of the section.
 * **Walls.** Where the template ends at a wall's foot deep below ground, the
   back slope drawn above the wall is followed up to the ground and measured
   (`tests/test_walls.py`).
@@ -346,10 +366,8 @@ frontend/                 React + Vite app
   cannot be detected.
 * Where a section's axis labels cannot be read, its grid is taken as 10 ft a
   square (`PipelineConfig.grid_ft`) and the section says so (scale "assumed").
-* Faint dashed existing ground far below a tall embankment can be missed on
-  scans (SR 5, 313+50 – 314+50: the ground is traced along the embankment
-  instead), so those sections measure too little fill. Two of the three score
-  below 85 %; the overlay shows it at a glance.
+* Where the existing ground under an embankment is very broken, the trace
+  bridges its dips in straight lines (SR 5 314+00: -13 % fill).
 * Which lines count as "the proposed template" follows the drawing: temporary
   works, staging slopes or removal lines drawn with the same pen as the
   template can be measured as earthwork. The audit overlay shows exactly what

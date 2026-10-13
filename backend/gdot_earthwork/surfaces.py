@@ -31,7 +31,7 @@ from .tracing import (
     drop_rulers, ground_candidates, interp_spans, snap_bottom,
     refine_gaps, snap_top, split_chain, split_dash_solid, strip_grid, template_strokes,
     trim_buried_tail,
-    climb_from_wall,
+    climb_from_wall, trace_ground,
 )
 
 CANON_PPF = 14.4   # px per ft the tracing constants were tuned at (19-series native)
@@ -181,7 +181,26 @@ def _canon_size(frame: Frame, cfg: PipelineConfig) -> tuple[float, float, int, i
 
 # ------------------------------------------------------------------ raster
 
-def raster_surfaces(frame: Frame, img: PageImage, cfg: PipelineConfig) -> Surfaces:
+def _blank_columns(mask: np.ndarray, frame: Frame, sx: float, exclude, erase=None, sy: float = 1.0) -> np.ndarray:
+    """`mask` with the columns of the page-pixel x ranges in `exclude`
+    cleared, and the annotation lines (x_from, x_to, y) in `erase` removed."""
+    if not exclude and not erase:
+        return mask
+    out = mask.copy()
+    for a, b in exclude or []:
+        c0, c1 = max(0, int((a - frame.left) * sx)), min(mask.shape[1], int((b - frame.left) * sx) + 1)
+        out[:, c0:c1] = 0
+    for a, b, y in erase or []:
+        c0, c1 = max(0, int((a - frame.left) * sx) - 3), min(mask.shape[1], int((b - frame.left) * sx) + 4)
+        r = int((y - frame.y0) * sy)
+        out[max(0, r - 4):r + 5, c0:c1] = 0
+    return out
+
+
+def raster_surfaces(frame: Frame, img: PageImage, cfg: PipelineConfig, exclude=None, erase=None) -> Surfaces:
+    """`exclude`: page-pixel x ranges whose proposed lines are not this
+    sheet's to measure (another construction stage): the design is traced
+    without them."""
     x0, x1, y0, y1 = frame.left, frame.right + 1, frame.y0, frame.y1 + 1
     gray = img.gray[y0:y1, x0:x1]
     ink = (gray < cfg.ink_thresh).astype(np.uint8)
@@ -202,15 +221,40 @@ def raster_surfaces(frame: Frame, img: PageImage, cfg: PipelineConfig) -> Surfac
     dash, solid, _, _ = split_dash_solid(roi)
     solid = drop_rulers(solid, int(0.4 * W))
     solid = template_strokes(solid, LINK_PX, MIN_TEMPLATE_PX)
-    gc, gw = ground_candidates(dash, solid, HIDDEN_GROUND_WEIGHT)
-    ground_px = best_path(gc, win=TRACE_WINDOW, weights=gw)
+    solid = _drop_detached_in_margins(solid, (frame.top - y0) * sy, (frame.bottom - y0) * sy)
+    ground_px = trace_ground(dash, solid, HIDDEN_GROUND_WEIGHT, TRACE_WINDOW, CANON_PPF)
     grid_rows = [((a + b) / 2 - y0) * sy for a, b in frame.hlines]
 
     def trace(mask):
         d = snap_top(mask, best_path(candidates(mask)))
         return fill_along_gridlines(d, grid_rows, int(1.0 * CANON_PPF))
 
-    return _finish_with_retry(ground_px, trace, solid, roi, W, H, cfg, "raster", refine=True)
+    return _finish_with_retry(ground_px, trace, _blank_columns(solid, frame, sx, exclude, erase, sy), roi, W, H, cfg,
+                              "raster", refine=True)
+
+
+def _drop_detached_in_margins(mask: np.ndarray, top_row: float, bottom_row: float,
+                              rect_frac: float = 0.7) -> np.ndarray:
+    """The frame is padded past its top and bottom grid lines so a ditch drawn
+    into the label strip is still measured; on some sheets the padding reaches
+    a title block, whose scale bar and table rules are long solid strokes. A
+    stroke lying entirely in the padding and drawn mostly of horizontal and
+    vertical rules (at least `rect_frac` of its ink) is a box, not part of the
+    section: a ditch below the axis is drawn with sloped sides."""
+    m = mask.astype(np.uint8)
+    run = int(1.5 * CANON_PPF)
+    rect = cv2.morphologyEx(m, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (run, 1))) | \
+        cv2.morphologyEx(m, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (1, run)))
+    n, lab, st, _ = cv2.connectedComponentsWithStats(m, 8)
+    out = mask.copy()
+    for k in range(1, n):
+        y, h = st[k, cv2.CC_STAT_TOP], st[k, cv2.CC_STAT_HEIGHT]
+        if not (y > bottom_row + 2 or y + h < top_row - 2):
+            continue
+        comp = lab == k
+        if rect[comp].sum() >= rect_frac * comp.sum():
+            out[comp] = 0
+    return out
 
 
 def _erase_chain(mask: np.ndarray, chain: dict, half: int = 4) -> np.ndarray:
@@ -322,7 +366,7 @@ def vector_strokes(frame: Frame, img: PageImage, cfg: PipelineConfig):
     sx, sy, W, H = _canon_size(frame, cfg)
     fw, fh = frame.right - frame.left, frame.bottom - frame.top
     edge = 0.08 * frame.pitch_y
-    dashed, solid = [], []
+    dashed, solid, short, glyphs = [], [], [], []
     for d in img.page.get_drawings():
         kind = d.get("type") or ""
         if "s" not in kind and not _is_pavement_fill(d, k, frame):
@@ -335,6 +379,14 @@ def vector_strokes(frame: Frame, img: PageImage, cfg: PipelineConfig):
         if rx1 < frame.left or rx0 > frame.right or ry1 < frame.y0 or ry0 > frame.y1:
             continue
         if max(rx1 - rx0, ry1 - ry0) < 0.25 * frame.pitch_x:   # text glyphs, ticks, specks
+            glyphs.append(((rx0 - frame.left) * sx, (ry0 - frame.y0) * sy, (rx1 - frame.left) * sx, (ry1 - frame.y0) * sy))
+            segs = _path_segments(d)
+            if len(segs) == 1 and "s" in kind:          # kept aside: may be one dash of a line drawn dash by dash
+                (ax, ay), (bx, by) = segs[0]
+                ax, ay = img.to_view(ax * k, ay * k)
+                bx, by = img.to_view(bx * k, by * k)
+                short.append(((ax - frame.left) * sx, (ay - frame.y0) * sy, (bx - frame.left) * sx, (by - frame.y0) * sy,
+                              round(d.get("width") or 0, 2), tuple(round(c, 2) for c in (d.get("color") or ()))))
             continue
         is_dash = _is_dashed(d)
         for (ax, ay), (bx, by) in _path_segments(d):
@@ -360,7 +412,80 @@ def vector_strokes(frame: Frame, img: PageImage, cfg: PipelineConfig):
             seg = ((ax - frame.left) * sx, (ay - frame.y0) * sy,
                    (bx - frame.left) * sx, (by - frame.y0) * sy)
             (dashed if is_dash else solid).append(seg)
+    if not dashed and short:
+        # no dashed line style at all: some CAD exports draw a dashed line
+        # dash by dash, as separate little segments
+        dashed = _dash_chains(short)
+    for sp in img.spans:                                  # lettering from the text layer
+        half = 0.3 * len(sp.text.strip()) * sp.size
+        glyphs.append(((sp.x - half - frame.left) * sx, (sp.y - sp.size / 2 - frame.y0) * sy,
+                       (sp.x + half - frame.left) * sx, (sp.y + sp.size / 2 - frame.y0) * sy))
+    solid = [s_ for s_ in solid if not _is_underline(s_, glyphs)]
     return dashed, solid, W, H
+
+
+def _is_underline(seg: tuple, glyphs: list[tuple], cover: float = 0.6) -> bool:
+    """A level line with lettering just above it along most of its length is
+    a label's underline or leader (a utility note: "EX. 8" SANITARY SEWER"),
+    not part of the template. A pavement top with a "2.0%" label has only a
+    few letters over a long line, so it stays."""
+    x0, y0, x1, y1 = seg
+    if x1 < x0:
+        x0, y0, x1, y1 = x1, y1, x0, y0
+    length = x1 - x0
+    if length < 3 * CANON_PPF or abs(y1 - y0) > 0.1 * CANON_PPF:
+        return False
+    y = (y0 + y1) / 2
+    covered = np.zeros(int(length) + 1, bool)
+    for gx0, gy0, gx1, gy1 in glyphs:
+        if 0 <= y - gy1 <= 2.0 * CANON_PPF and gy1 - gy0 <= 2.5 * CANON_PPF:      # just above the line
+            a, b = max(0, int(gx0 - x0)), min(len(covered), int(gx1 - x0) + 1)
+            covered[a:b] = True
+    return covered.mean() >= cover
+
+
+def _dash_chains(short: list[tuple], min_dashes: int = 5, min_span_ft: float = 10.0) -> list[tuple]:
+    """Segments that are dashes of one line: short single strokes of the same
+    pen, each starting a small gap after the previous one ends and heading the
+    same way, in a run of at least `min_dashes` spanning `min_span_ft`.
+    Letters (drawn as strokes when a PDF has no text) and tick marks do not
+    line up like that. Canonical pixels in, (x0, y0, x1, y1) out."""
+    ppf = CANON_PPF
+    cand = [c for c in short if 0.3 * ppf <= np.hypot(c[2] - c[0], c[3] - c[1]) <= 4.0 * ppf]
+    n = len(cand)
+    parent = list(range(n))
+
+    def find(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    unit = []
+    for x0, y0, x1, y1, *_ in cand:
+        L = np.hypot(x1 - x0, y1 - y0)
+        unit.append(((x1 - x0) / L, (y1 - y0) / L))
+    for i in range(n):
+        a = cand[i]
+        for j in range(i + 1, n):
+            b = cand[j]
+            if a[4:] != b[4:]:                                  # same pen: width and colour
+                continue
+            if abs(unit[i][0] * unit[j][0] + unit[i][1] * unit[j][1]) < 0.8:     # same heading (within ~35 deg)
+                continue
+            gap = min(np.hypot(p[0] - q[0], p[1] - q[1])
+                      for p in ((a[0], a[1]), (a[2], a[3])) for q in ((b[0], b[1]), (b[2], b[3])))
+            if 0.05 * ppf <= gap <= 3.5 * ppf:
+                parent[find(i)] = find(j)
+    groups: dict[int, list[int]] = {}
+    for i in range(n):
+        groups.setdefault(find(i), []).append(i)
+    out = []
+    for members in groups.values():
+        xs = [v for i in members for v in (cand[i][0], cand[i][2])]
+        if len(members) >= min_dashes and max(xs) - min(xs) >= min_span_ft * ppf:
+            out += [cand[i][:4] for i in members]
+    return out
 
 
 def _is_pavement_fill(d: dict, k: float, frame: Frame) -> bool:
@@ -387,7 +512,7 @@ def _draw(segs, W, H) -> np.ndarray:
     return m
 
 
-def vector_surfaces(frame: Frame, img: PageImage, cfg: PipelineConfig) -> Surfaces | None:
+def vector_surfaces(frame: Frame, img: PageImage, cfg: PipelineConfig, exclude=None, erase=None) -> Surfaces | None:
     if img.page is None:
         return None
     dashed, solid, W, H = vector_strokes(frame, img, cfg)
@@ -398,4 +523,5 @@ def vector_surfaces(frame: Frame, img: PageImage, cfg: PipelineConfig) -> Surfac
     gc, gw = ground_candidates(dmask, smask, HIDDEN_GROUND_WEIGHT)
     ground_px = best_path(gc, win=TRACE_WINDOW, weights=gw)
     return _finish_with_retry(ground_px, lambda m: snap_top(m, best_path(candidates(m))),
-                              smask, dmask | smask, W, H, cfg, "vector", refine=False)
+                              _blank_columns(smask, frame, _canon_size(frame, cfg)[0], exclude, erase,
+                                             _canon_size(frame, cfg)[1]), dmask | smask, W, H, cfg, "vector", refine=False)

@@ -60,6 +60,8 @@ def _deductions(s, prev=None, nxt=None) -> list[dict]:
     n_trim = w.count("buried pipe")
     if n_trim:
         take("tracing", min(10, 5 * n_trim), "buried runs below ground were left out")
+    if "marks a bridge here" in w:
+        take("tracing", 20, "the drawing marks a bridge: the space under the deck is counted as fill")
     if "bridge deck or structure" in w:
         take("tracing", 5, "a structure spans part of the section")
 

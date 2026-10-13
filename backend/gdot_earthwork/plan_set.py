@@ -32,6 +32,7 @@ from .config import PipelineConfig, get_config
 from .render import encode_png, overlay, overlay_scale, profile
 from .roads import Road, StationEntry, group_into_roads
 from .sides import measured_sides
+from .staging import other_stage, sheet_stage, stage_from_name, stage_spans
 from .stages import calibrate, decode_stations, detect, ingest, measure_section, trace
 from .stages.calibrate import centre_ft
 from .stages.measure import ZERO_FT2, ZERO_REASONS, zero_reason as _zero_reason  # noqa: F401 (re-exported)
@@ -123,19 +124,69 @@ def _geometry(surf: Surfaces, f, img, cfg: PipelineConfig) -> dict | None:
     }
 
 
-def _measure_page(pdf_path: str, index: int, cfg: PipelineConfig, overlays: bool | str) -> list[SectionResult]:
+def _other_stage_spans(f, img, cfg: PipelineConfig, stage: str) -> tuple[list, list, list[str]]:
+    """On a staged-construction sheet, the stretches marked "STAGE n
+    CONSTRUCTION" for another stage (see staging.py): page-pixel x ranges to
+    trace and measure without; every such dimension line (x_from, x_to, y),
+    to keep out of the tracing; and the warnings."""
+    spans, lines, notes = [], [], []
+    ppf = f.pitch_x / f.ft_x
+    mid = (f.left + f.right) / 2
+    for sid, a, b, y in stage_spans(f, img, cfg):
+        lines.append((a, b, y))
+        if other_stage(sid, stage):
+            spans.append((a, b))
+            notes.append(f"STAGE {sid} CONSTRUCTION from {(a - mid) / ppf:+.0f} to {(b - mid) / ppf:+.0f} ft is "
+                         f"another stage's work -- not counted on this STAGE {stage} sheet")
+    return spans, lines, notes
+
+
+def _bridge_note(f, img) -> str | None:
+    """A warning when the drawing marks a bridge in the section ("BEGIN
+    BRIDGE STA. 106+22.00"): the space under a deck is traced like fill, and
+    whether it belongs in the earthwork is the reviewer's call."""
+    for sp in img.spans:
+        if "BRIDGE" in sp.text.upper() and f.left <= sp.x <= f.right and f.y0 <= sp.y <= f.y1:
+            line = sorted((o for o in img.spans if abs(o.y - sp.y) < 0.6 * sp.size and abs(o.x - sp.x) < 25 * sp.size),
+                          key=lambda o: o.x)
+            text = " ".join(" ".join(o.text.split()) for o in line)
+            return (f"the drawing marks a bridge here ('{text}') -- the space under the deck is measured as fill; "
+                    f"check whether it belongs in the earthwork")
+    return None
+
+
+def _blank_design(surf: Surfaces, f, cfg: PipelineConfig, spans) -> None:
+    """No proposed line (so no cut or fill) across the given page-pixel x ranges."""
+    sx = _canon_size(f, cfg)[0]
+    for a, b in spans:
+        c0, c1 = max(0, int((a - f.left) * sx)), min(surf.width, int((b - f.left) * sx) + 1)
+        surf.design[c0:c1] = np.nan
+        if surf.subgrade is not None:
+            surf.subgrade[c0:c1] = np.nan
+
+
+def _measure_page(pdf_path: str, index: int, cfg: PipelineConfig, overlays: bool | str,
+                  name: str | None = None) -> list[SectionResult]:
     doc = fitz.open(pdf_path)
     try:
         img = ingest(doc, index, cfg)
         if img is None:
             return []
         frames, img = detect(img, cfg)
+        # staged-construction plan sets (the file names a stage): measure the sheet's own stage only
+        stage = sheet_stage(img, name) if frames and stage_from_name(name) else None
         page_cache: dict = {}
         out = []
         for i, f in enumerate(frames):
             scale = calibrate(f, img, cfg, page_cache)
-            surf, method = trace(f, img, cfg)
+            other, dims, stage_notes = _other_stage_spans(f, img, cfg, stage) if stage else ([], [], [])
+            surf, method = trace(f, img, cfg, other, dims)
+            _blank_design(surf, f, cfg, other)
             m = measure_section(surf, cfg)
+            m.warnings.extend(stage_notes)
+            bridge = _bridge_note(f, img) if m.zero_reason is None else None
+            if bridge:
+                m.warnings.append(bridge)
             png = encode_png(overlay(surf, f, img, cfg, surface=cfg.design_surface,
                                      shade=overlays != "lines")) if overlays else None
             out.append(SectionResult(
@@ -181,8 +232,12 @@ def process_plan_set(
     overlays: bool | str = True,       # True: shaded audit images; "lines": traced lines only
     progress: Callable[[int, int], None] | None = None,
     pages: list[int] | None = None,
+    name: str | None = None,
 ) -> PlanSetResult:
-    """`pages`: 1-based page numbers to process (default: every page)."""
+    """`pages`: 1-based page numbers to process (default: every page).
+    `name`: the plan set's original file name (default: the PDF's); a name
+    naming a stage ("... STAGE 3.pdf") turns on staged-sheet handling."""
+    name = name or os.path.basename(pdf_path)
     if cfg is None or isinstance(cfg, str):
         cfg = get_config(cfg or "auto")
     t0 = time.time()
@@ -195,7 +250,7 @@ def process_plan_set(
     done = 0
     if workers > 1 and len(todo) > 1:
         with ProcessPoolExecutor(max_workers=workers) as ex:
-            futs = {ex.submit(_measure_page, pdf_path, i, cfg, overlays): i for i in todo}
+            futs = {ex.submit(_measure_page, pdf_path, i, cfg, overlays, name): i for i in todo}
             for fut in as_completed(futs):
                 by_page[futs[fut] + 1] = fut.result()
                 done += 1
@@ -203,7 +258,7 @@ def process_plan_set(
                     progress(done, len(todo))
     else:
         for i in todo:
-            by_page[i + 1] = _measure_page(pdf_path, i, cfg, overlays)
+            by_page[i + 1] = _measure_page(pdf_path, i, cfg, overlays, name)
             done += 1
             if progress:
                 progress(done, len(todo))

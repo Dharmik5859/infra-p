@@ -12,7 +12,8 @@ def detect(img: PageImage, cfg: PipelineConfig) -> tuple[list[Frame], PageImage]
     classification). Sheets plotted sideways are turned upright first; the
     image the frames refer to is returned with them."""
     frames = label_frames(find_frames(img, cfg.ink_thresh), img, cfg.ink_thresh)
-    rotated_plot = img.kind == "raster" or sideways_labels(img.page)
+    # read like a scan when there is no text layer to tell which way is up
+    rotated_plot = img.kind == "raster" or not img.spans or sideways_labels(img.page)
     if rotated_plot and not any(f.station_label for f in frames):
         # nothing readable upright: the sections may be plotted sideways
         for k in (-1, 1):

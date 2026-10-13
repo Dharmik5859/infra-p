@@ -212,7 +212,21 @@
             "text",
             "pixelLengthX",
             "pixelLengthY"
-          ]
+          ],
+          "properties": {
+            "text": {
+              "type": "string"
+            },
+            "pixelLengthX": {
+              "type": "number"
+            },
+            "pixelLengthY": {
+              "type": "number"
+            },
+            "printRatio": {
+              "type": "number"
+            }
+          }
         },
         "note": {
           "type": "string"
@@ -220,6 +234,11 @@
         "notePage": {
           "type": "integer",
           "minimum": 1
+        },
+        "printRatio": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "print ratio applied to a note-only sheet (see printScale)"
         }
       },
       "additionalProperties": false

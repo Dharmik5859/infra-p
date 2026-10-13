@@ -229,7 +229,7 @@ def calibrate(frame: Frame, img: PageImage, cfg: PipelineConfig, page_cache: dic
         got = fit_elevation_step(_elevation_reads_text(frame, img))
         if got:
             (ft_y, n_y), src_y = got, "labels"
-    if img.kind == "raster" and shutil.which("tesseract"):
+    if (img.kind == "raster" or not img.spans) and shutil.which("tesseract"):
         if cached is not None:
             (ft_x, src_x, n_x), (ft_y, src_y, n_y) = cached
         else:

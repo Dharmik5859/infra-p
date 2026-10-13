@@ -61,6 +61,7 @@ INFER = None          # the "infer this label" option
 _INFER_COST = -1.5
 _EDIT_SCORE = -1.5
 _ALT_SCORE = 0.3
+_FULLER_BONUS = 0.4
 _MAX_INFER_STATES = 40      # distinct "last real station" histories kept through unreadable labels
 _REGULAR, _NEAR, _SKIP, _BREAK = 3.0, 1.5, -2.0, -6.0
 
@@ -76,6 +77,13 @@ def _options(r: StationRead) -> list[tuple[float | None, str | None, float]]:
         ft = parse_station(c)
         if ft is not None and ft not in opts:
             opts[ft] = (ft, c, _ALT_SCORE)
+    # Thin CAD strokes lose digits far more often than OCR invents them: of
+    # two readings one digit apart ("102+50" / "12+50") the fuller one gets
+    # a small edge, so it wins when the sequence fits either.
+    readings = {c for c in [r.label, *r.candidates] if c}
+    for ft, (_, label, score) in list(opts.items()):
+        if any(_drops_one_digit(label, other) for other in readings):
+            opts[ft] = (ft, label, score + _FULLER_BONUS)
     # OCR's typical slips on these fonts are single-character ones at the
     # front of the label or right before the plus sign: a dropped or
     # misread leading digit ("72+50" -> "12+50", "175+50" -> "75+50") or an
@@ -89,6 +97,12 @@ def _options(r: StationRead) -> list[tuple[float | None, str | None, float]]:
     return list(opts.values()) + [(INFER, None, _INFER_COST)]
 
 
+def _drops_one_digit(full: str, short: str) -> bool:
+    """Whether `short` is `full` with one digit missing."""
+    a, b = full.replace(".", ""), short.replace(".", "")
+    return len(a) == len(b) + 1 and any(a[:i] + a[i + 1:] == b for i in range(len(a)) if a[i].isdigit())
+
+
 def _single_edits(label: str | None) -> list[str]:
     if not label or "+" not in label:
         return []
@@ -100,7 +114,9 @@ def _single_edits(label: str | None) -> list[str]:
     if len(head) >= 2:
         heads.add(head[1:])                                    # spurious leading digit
     heads |= {d + head[1:] for d in "0123456789" if d != head[0] and (d != "0" or len(head) == 1)}
-    return [f"{h}+{tail}" for h in sorted(heads) if h]
+    heads |= {head[:i] + d + head[i:] for i in range(1, len(head) + 1) for d in "0123456789"}   # dropped digit
+    # a station never starts with 0 (except "0+50")
+    return [f"{h}+{tail}" for h in sorted(heads) if h and (h == "0" or not h.startswith("0"))]
 
 
 def _transition(a: float, b: float, expected: float, step: float) -> float:
