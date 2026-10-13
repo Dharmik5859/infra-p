@@ -31,7 +31,7 @@ from .tracing import (
     drop_rulers, ground_candidates, interp_spans, snap_bottom,
     refine_gaps, snap_top, split_chain, split_dash_solid, strip_grid, template_strokes,
     trim_buried_tail,
-    climb_from_wall,
+    climb_from_wall, trace_ground,
 )
 
 CANON_PPF = 14.4   # px per ft the tracing constants were tuned at (19-series native)
@@ -181,7 +181,26 @@ def _canon_size(frame: Frame, cfg: PipelineConfig) -> tuple[float, float, int, i
 
 # ------------------------------------------------------------------ raster
 
-def raster_surfaces(frame: Frame, img: PageImage, cfg: PipelineConfig) -> Surfaces:
+def _blank_columns(mask: np.ndarray, frame: Frame, sx: float, exclude, erase=None, sy: float = 1.0) -> np.ndarray:
+    """`mask` with the columns of the page-pixel x ranges in `exclude`
+    cleared, and the annotation lines (x_from, x_to, y) in `erase` removed."""
+    if not exclude and not erase:
+        return mask
+    out = mask.copy()
+    for a, b in exclude or []:
+        c0, c1 = max(0, int((a - frame.left) * sx)), min(mask.shape[1], int((b - frame.left) * sx) + 1)
+        out[:, c0:c1] = 0
+    for a, b, y in erase or []:
+        c0, c1 = max(0, int((a - frame.left) * sx) - 3), min(mask.shape[1], int((b - frame.left) * sx) + 4)
+        r = int((y - frame.y0) * sy)
+        out[max(0, r - 4):r + 5, c0:c1] = 0
+    return out
+
+
+def raster_surfaces(frame: Frame, img: PageImage, cfg: PipelineConfig, exclude=None, erase=None) -> Surfaces:
+    """`exclude`: page-pixel x ranges whose proposed lines are not this
+    sheet's to measure (another construction stage): the design is traced
+    without them."""
     x0, x1, y0, y1 = frame.left, frame.right + 1, frame.y0, frame.y1 + 1
     gray = img.gray[y0:y1, x0:x1]
     ink = (gray < cfg.ink_thresh).astype(np.uint8)
@@ -202,15 +221,40 @@ def raster_surfaces(frame: Frame, img: PageImage, cfg: PipelineConfig) -> Surfac
     dash, solid, _, _ = split_dash_solid(roi)
     solid = drop_rulers(solid, int(0.4 * W))
     solid = template_strokes(solid, LINK_PX, MIN_TEMPLATE_PX)
-    gc, gw = ground_candidates(dash, solid, HIDDEN_GROUND_WEIGHT)
-    ground_px = best_path(gc, win=TRACE_WINDOW, weights=gw)
+    solid = _drop_detached_in_margins(solid, (frame.top - y0) * sy, (frame.bottom - y0) * sy)
+    ground_px = trace_ground(dash, solid, HIDDEN_GROUND_WEIGHT, TRACE_WINDOW, CANON_PPF)
     grid_rows = [((a + b) / 2 - y0) * sy for a, b in frame.hlines]
 
     def trace(mask):
         d = snap_top(mask, best_path(candidates(mask)))
         return fill_along_gridlines(d, grid_rows, int(1.0 * CANON_PPF))
 
-    return _finish_with_retry(ground_px, trace, solid, roi, W, H, cfg, "raster", refine=True)
+    return _finish_with_retry(ground_px, trace, _blank_columns(solid, frame, sx, exclude, erase, sy), roi, W, H, cfg,
+                              "raster", refine=True)
+
+
+def _drop_detached_in_margins(mask: np.ndarray, top_row: float, bottom_row: float,
+                              rect_frac: float = 0.7) -> np.ndarray:
+    """The frame is padded past its top and bottom grid lines so a ditch drawn
+    into the label strip is still measured; on some sheets the padding reaches
+    a title block, whose scale bar and table rules are long solid strokes. A
+    stroke lying entirely in the padding and drawn mostly of horizontal and
+    vertical rules (at least `rect_frac` of its ink) is a box, not part of the
+    section: a ditch below the axis is drawn with sloped sides."""
+    m = mask.astype(np.uint8)
+    run = int(1.5 * CANON_PPF)
+    rect = cv2.morphologyEx(m, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (run, 1))) | \
+        cv2.morphologyEx(m, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (1, run)))
+    n, lab, st, _ = cv2.connectedComponentsWithStats(m, 8)
+    out = mask.copy()
+    for k in range(1, n):
+        y, h = st[k, cv2.CC_STAT_TOP], st[k, cv2.CC_STAT_HEIGHT]
+        if not (y > bottom_row + 2 or y + h < top_row - 2):
+            continue
+        comp = lab == k
+        if rect[comp].sum() >= rect_frac * comp.sum():
+            out[comp] = 0
+    return out
 
 
 def _erase_chain(mask: np.ndarray, chain: dict, half: int = 4) -> np.ndarray:
@@ -387,7 +431,7 @@ def _draw(segs, W, H) -> np.ndarray:
     return m
 
 
-def vector_surfaces(frame: Frame, img: PageImage, cfg: PipelineConfig) -> Surfaces | None:
+def vector_surfaces(frame: Frame, img: PageImage, cfg: PipelineConfig, exclude=None, erase=None) -> Surfaces | None:
     if img.page is None:
         return None
     dashed, solid, W, H = vector_strokes(frame, img, cfg)
@@ -398,4 +442,5 @@ def vector_surfaces(frame: Frame, img: PageImage, cfg: PipelineConfig) -> Surfac
     gc, gw = ground_candidates(dmask, smask, HIDDEN_GROUND_WEIGHT)
     ground_px = best_path(gc, win=TRACE_WINDOW, weights=gw)
     return _finish_with_retry(ground_px, lambda m: snap_top(m, best_path(candidates(m))),
-                              smask, dmask | smask, W, H, cfg, "vector", refine=False)
+                              _blank_columns(smask, frame, _canon_size(frame, cfg)[0], exclude, erase,
+                                             _canon_size(frame, cfg)[1]), dmask | smask, W, H, cfg, "vector", refine=False)
