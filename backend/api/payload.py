@@ -88,6 +88,7 @@ def serialize(job: Job, res: PlanSetResult) -> dict:
         # 0-100, with what lowered it; below the pass score it carries alerts
         "confidence": s.confidence,
         "road": road_of.get(i),
+        "street": s.street,              # as printed in the sheet's title block
         "warnings": s.warnings,
         "overlay": f"/api/jobs/{job.id}/sections/{i}.png" if s.overlay_png else None,
         "overlay_px_per_ft": s.overlay_px_per_ft,
