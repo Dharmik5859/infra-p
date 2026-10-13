@@ -226,7 +226,7 @@ def raster_surfaces(frame: Frame, img: PageImage, cfg: PipelineConfig, exclude=N
     grid_rows = [((a + b) / 2 - y0) * sy for a, b in frame.hlines]
 
     def trace(mask):
-        d = snap_top(mask, best_path(candidates(mask)))
+        d = trace_design(mask)
         return fill_along_gridlines(d, grid_rows, int(1.0 * CANON_PPF))
 
     return _finish_with_retry(ground_px, trace, _blank_columns(solid, frame, sx, exclude, erase, sy), roi, W, H, cfg,
@@ -267,6 +267,30 @@ def _erase_chain(mask: np.ndarray, chain: dict, half: int = 4) -> np.ndarray:
         band[max(0, int(y) - half):int(y) + half + 1, max(0, x - 1):x + 2] = 1
     band = cv2.dilate(band, np.ones((3, 3), np.uint8))
     return mask & (1 - band)
+
+
+def trace_design(mask: np.ndarray, rounds: int = 3) -> dict[int, float]:
+    """The design line: the best chain through the template strokes, then
+    any further template piece standing apart from it along the section (a
+    widening on the far side of untouched existing pavement), each traced
+    the same way. A chain only bridges gaps of a tracing window, so a second
+    piece 60 ft away would otherwise be left out whole."""
+    chain = snap_top(mask, best_path(candidates(mask)))
+    rest, last = mask.copy(), chain
+    for _ in range(rounds):
+        if not last:
+            break
+        rest[:, max(0, min(last) - LINK_PX):max(last) + LINK_PX + 1] = 0
+        cols = np.flatnonzero(rest.any(axis=0))
+        if cols.size == 0 or cols[-1] - cols[0] < MIN_TEMPLATE_PX:
+            break
+        last = snap_top(rest, best_path(candidates(rest)))
+        if not last or max(last) - min(last) < MIN_TEMPLATE_PX:
+            break
+        if len(last) < 0.6 * (max(last) - min(last) + 1):
+            break                       # hops between scattered marks (lettering), not a drawn line
+        chain = {**chain, **{x: y for x, y in last.items() if x not in chain}}
+    return dict(sorted(chain.items()))
 
 
 def _finish_with_retry(ground_px, trace, solid, roi, W, H, cfg, source, refine) -> Surfaces:
@@ -576,6 +600,6 @@ def vector_surfaces(frame: Frame, img: PageImage, cfg: PipelineConfig, exclude=N
     smask = _drop_detached_in_margins(smask, (frame.top - frame.y0) * sy, (frame.bottom - frame.y0) * sy)
     gc, gw = ground_candidates(dmask, smask, HIDDEN_GROUND_WEIGHT)
     ground_px = best_path(gc, win=TRACE_WINDOW, weights=gw)
-    return _finish_with_retry(ground_px, lambda m: snap_top(m, best_path(candidates(m))),
+    return _finish_with_retry(ground_px, trace_design,
                               _blank_columns(smask, frame, _canon_size(frame, cfg)[0], exclude, erase,
                                              _canon_size(frame, cfg)[1]), dmask | smask, W, H, cfg, "vector", refine=False)

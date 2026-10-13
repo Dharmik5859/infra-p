@@ -347,7 +347,8 @@ def trim_buried_tail(x: np.ndarray, gpx: np.ndarray, dpx: np.ndarray, ppf: float
     `roadway_depth_ft` is the template itself -- a deep cut that the frame
     cuts off before its back slope reaches the ground (SR 5, 18-45 ft); pipes
     crossing under the road on the labelled sheets lie 8-12 ft down and are
-    still trimmed. (A template ending at a wall's foot is first carried up
+    still trimmed. A run is one continuous stretch of design: a widening
+    drawn apart from the rest of the template is judged on its own. (A template ending at a wall's foot is first carried up
     the back slope by climb_from_wall, so it no longer ends below ground.)"""
     ov = ~np.isnan(gpx) & ~np.isnan(dpx)
     if ov.sum() < 10:
@@ -356,11 +357,12 @@ def trim_buried_tail(x: np.ndarray, gpx: np.ndarray, dpx: np.ndarray, ppf: float
     xx = x[c]
     d = (gpx[c] - dpx[c]) / ppf
     sign = np.sign(np.where(np.abs(d) < 0.10, 0, d))
+    gap_px = 3.0 * ppf                  # a run ends where the design does (separate template pieces)
     runs, i = [], 0
     while i < len(d):
         if sign[i] < 0:
-            j = i
-            while j < len(d) and sign[j] <= 0:
+            j = i + 1
+            while j < len(d) and sign[j] <= 0 and c[j] - c[j - 1] <= gap_px:
                 j += 1
             runs.append((i, j - 1, xx[j - 1] - xx[i], float(-d[i:j].min())))
             i = j
