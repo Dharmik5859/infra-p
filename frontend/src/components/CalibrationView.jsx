@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { createJob, getCalibration, getJob } from '../api';
+import { createJob, getCalibration, getCrossSections, getJob, getSchema } from '../api';
 import { IconCopy, IconDownload, IconFile, IconRuler, IconUpload } from './Icons';
 import JsonView, { pretty } from './JsonView';
 
@@ -20,7 +20,14 @@ curl -F "file=@plans.pdf" ${origin}/api/jobs
 curl ${origin}/api/jobs/3f2c...
 
 # 3. Fetch the calibration
-curl ${origin}/api/jobs/3f2c.../calibration -o calibration.json`,
+curl ${origin}/api/jobs/3f2c.../calibration -o calibration.json
+
+# 4. Every cross-section: left / right cut and fill, shapes, confidence, alerts
+curl ${origin}/api/jobs/3f2c.../cross-sections -o cross-sections.json
+
+# The JSON Schemas both responses are validated against
+curl ${origin}/api/schemas/calibration
+curl ${origin}/api/schemas/cross-sections`,
     python: `import time, requests
 
 BASE = "${origin}"
@@ -43,7 +50,15 @@ for s in cal["shapes"]:
     ox, oy = s["position2D"]["x"], s["position2D"]["y"]
     xs, ys = s["points"][0::2], s["points"][1::2]
     outline = [(ox + x, oy + y) for x, y in zip(xs, ys)]      # page pixels
-    print(s["stationId"], s["side"], s["crossSectionType"], s["areaSqFt"], "sq ft")`,
+    print(s["stationId"], s["side"], s["crossSectionType"], s["areaSqFt"], "sq ft")
+
+xs = requests.get(f"{BASE}/api/jobs/{job}/cross-sections").json()
+for x in xs["crossSections"]:
+    a = x["areas"]
+    print(x["stationId"], "left cut", a["left"]["cutSqFt"], "right fill", a["right"]["fillSqFt"],
+          "confidence", x["confidence"]["score"])
+for alert in xs["alerts"]:                                   # sections below 85 %
+    print("CHECK", alert["stationId"], alert["message"], alert["reasons"])`,
     javascript: `const BASE = "${origin}";
 
 const form = new FormData();
@@ -60,7 +75,10 @@ const cal = await (await fetch(\`\${BASE}/api/jobs/\${job_id}/calibration\`)).js
 
 // pixels -> feet on a page
 const page = Object.fromEntries(cal.calibrations.map((c) => [c.pageNumber, c]));
-const feet = (pageNo, px) => px * page[pageNo].scaleX;
+const feet = (pageNo, px) => px * page[pageNo].scaleX;      // or px / page[pageNo].pixelsPerFootX
+
+const xs = await (await fetch(\`\${BASE}/api/jobs/\${job_id}/cross-sections\`)).json();
+const lowConfidence = xs.crossSections.filter((x) => !x.confidence.passed);
 
 // draw the shapes over the page with Konva (page drawn at 100 %, 1 px = 1 pt)
 for (const s of cal.shapes.filter((s) => s.pageNumber === pageNo)) {
@@ -74,12 +92,18 @@ for (const s of cal.shapes.filter((s) => s.pageNumber === pageNo)) {
 
 const FIELDS = [
   ['calibrations[]', 'One per sheet: pixelLengthX/Y page pixels = realWorldLengthX/Y feet; scaleX/Y = feet per pixel.'],
+  ['pixelsPerFootX/Y', 'The same scale per axis as pixels per foot; verticalDiffers when the vertical is exaggerated.'],
+  ['gridScale', 'Feet per major grid square on each axis, read off the section\u2019s axis labels (offsets across, elevations up), with how it was read.'],
   ['source', 'grid (measured on the sheet), sheet_note (its printed scale) or document_note (the document’s scale, e.g. on the first page).'],
   ['noteCheck', 'Where a sheet has both, the printed scale as a check on the measured grid.'],
   ['shapes[]', 'Each cut / fill area: points are x, y offsets from position2D, its top-left on the page.'],
   ['side', 'left or right of the section’s centreline (offset 0).'],
   ['pixels', 'PDF points of the page as displayed: a PDF viewer at 100 % zoom (1" = 72 px).'],
+  ['crossSections[]', 'GET …/cross-sections: per section its station, street, stage, left / right / total cut and fill (sq ft), its shapes, confidence and alerts.'],
+  ['confidence', '0–100 with every deduction listed; 85 or more passes. Below 85 the section gets an alert, also gathered in alerts[].'],
 ];
+
+const SCALE_SRC = { labels: 'labels', label_widths: 'label widths', ocr: 'OCR', assumed: 'assumed' };
 
 /**
  * Calibration: upload a plan set, analyze it, and get the feet-to-pixel
@@ -107,8 +131,9 @@ export default function CalibrationView({ openJob }) {
   async function calibrate(jobId) {
     setPhase('calibrating');
     const cal = await getCalibration(jobId);
+    const xs = await getCrossSections(jobId).catch(() => null);
     if (!alive.current) return;
-    setData({ jobId, ...cal });
+    setData({ jobId, ...cal, xs });
     setPhase('done');
   }
 
@@ -155,10 +180,24 @@ export default function CalibrationView({ openJob }) {
     setPhase('idle');
   }
 
+  const [schema, setSchema] = useState(null);
+  useEffect(() => {
+    if (part === 'schema' && !schema) getSchema('cross-sections').then(setSchema).catch((e) => setError(e.message));
+  }, [part, schema]);
+
   const shown = useMemo(() => {
+    if (part === 'schema') return schema ? { value: schema } : null;
     if (!data) return null;
-    const { jobId, ...body } = data;    // eslint-disable-line no-unused-vars
+    const { jobId, xs, ...body } = data;    // eslint-disable-line no-unused-vars
     if (part === 'calibrations') return { value: body.calibrations };
+    if (part === 'sections' || part === 'alerts') {
+      if (!xs) return { value: { error: 'cross-sections unavailable' } };
+      if (part === 'alerts') return { value: { passScore: xs.passScore, summary: xs.summary, alerts: xs.alerts } };
+      const few = xs.crossSections.slice(0, 12);
+      const more = xs.crossSections.length - few.length;
+      return { value: { ...xs, crossSections: few, shapes: `${xs.shapes.length} shapes (also inside each cross-section)` },
+        note: more > 0 ? `${more} more cross-sections not shown here; Copy or Download includes all ${xs.crossSections.length}` : null };
+    }
     const shapes = body.shapes.slice(0, SHOW_SHAPES);
     const more = body.shapes.length - shapes.length;
     const note = more > 0 ? `${more} more shapes not shown here; Copy or Download includes all ${body.shapes.length}` : null;
@@ -167,11 +206,14 @@ export default function CalibrationView({ openJob }) {
   }, [data, part]);
 
   const fullText = useMemo(() => {
+    if (part === 'schema') return schema ? pretty(schema) : '';
     if (!data) return '';
-    const { jobId, ...body } = data;    // eslint-disable-line no-unused-vars
-    const value = part === 'calibrations' ? body.calibrations : part === 'shapes' ? body.shapes : body;
+    const { jobId, xs, ...body } = data;    // eslint-disable-line no-unused-vars
+    const value = part === 'calibrations' ? body.calibrations : part === 'shapes' ? body.shapes
+      : part === 'sections' ? xs : part === 'alerts' ? xs && { passScore: xs.passScore, summary: xs.summary, alerts: xs.alerts }
+      : body;
     return pretty(value);
-  }, [data, part]);
+  }, [data, part, schema]);
 
   function copy(text, what) {
     navigator.clipboard?.writeText(text).then(() => { setCopied(what); setTimeout(() => setCopied(null), 1500); });
@@ -181,7 +223,8 @@ export default function CalibrationView({ openJob }) {
     const blob = new Blob([fullText], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `${(data.document?.fileName || 'plans').replace(/\.pdf$/i, '')}-${part === 'full' ? 'calibration' : part}.json`;
+    const name = { full: 'calibration', sections: 'cross-sections', schema: 'cross-sections.schema' }[part] || part;
+    a.download = `${(data?.document?.fileName || 'plans').replace(/\.pdf$/i, '')}-${name}.json`;
     a.click();
     URL.revokeObjectURL(a.href);
   }
@@ -241,6 +284,13 @@ export default function CalibrationView({ openJob }) {
                 <div><b className="num">{data.document.crossSectionPages}</b><span>cross-section sheets</span></div>
                 <div><b className="num">{data.shapes.length}</b><span>cut / fill shapes</span></div>
               </div>
+              {data.xs && (
+                <div className="calib-stats conf-stats">
+                  <div><b className="num">{data.xs.summary.crossSections}</b><span>cross-sections</span></div>
+                  <div><b className="num fill-text">{data.xs.summary.passed}</b><span>pass {data.xs.passScore}% confidence</span></div>
+                  <div><b className={`num ${data.xs.summary.alerts ? 'cut-text' : ''}`}>{data.xs.summary.alerts}</b><span>alerts</span></div>
+                </div>
+              )}
               <div className="calib-scale">
                 <span className="muted">Document scale</span>
                 <b>{data.documentScale ? `${data.documentScale.text} (page ${data.documentScale.pageNumber})` : 'none printed'}</b>
@@ -250,13 +300,18 @@ export default function CalibrationView({ openJob }) {
               )}
               <div className="calib-table-wrap">
                 <table className="calib-table">
-                  <thead><tr><th>Sheet</th><th>Source</th><th className="num">px / 10 ft</th><th className="num">ft / px</th></tr></thead>
+                  <thead><tr><th>Sheet</th><th>Source</th><th className="num">px / ft (X)</th><th className="num">px / ft (Y)</th><th>Grid square</th><th className="num">ft / px</th></tr></thead>
                   <tbody>
                     {data.calibrations.map((c) => (
                       <tr key={c.id}>
                         <td className="num">{c.pageNumber}</td>
                         <td><span className={`tag ${c.source === 'grid' ? 'fill' : 'info'}`}>{SOURCE[c.source] || c.source}</span></td>
-                        <td className="num">{fmt(c.pixelLengthX)}{Math.abs(c.pixelLengthX - c.pixelLengthY) > 0.01 ? ` × ${fmt(c.pixelLengthY)}` : ''}</td>
+                        <td className="num">{fmt(c.pixelsPerFootX ?? c.pixelLengthX / 10, 3)}</td>
+                        <td className={`num ${c.verticalDiffers ? 'warn-text' : ''}`}>{fmt(c.pixelsPerFootY ?? c.pixelLengthY / 10, 3)}</td>
+                        <td title={c.gridScale ? `across: ${SCALE_SRC[c.gridScale.sourceX]}, up: ${SCALE_SRC[c.gridScale.sourceY]}` : ''}>
+                          {c.gridScale ? `${c.gridScale.ftPerSquareX} × ${c.gridScale.ftPerSquareY} ft` : '—'}
+                          {c.gridScale && <small className="muted"> {SCALE_SRC[c.gridScale.sourceX]}</small>}
+                        </td>
                         <td className="num">{fmt(c.scaleX, 4)}</td>
                       </tr>
                     ))}
@@ -271,21 +326,23 @@ export default function CalibrationView({ openJob }) {
           <section className="card json-card">
             <div className="json-head">
               <div>
-                <span className="eyebrow">Response{data ? ` · GET /api/jobs/${data.jobId}/calibration` : ''}</span>
-                <h3>Calibration JSON</h3>
+                <span className="eyebrow">{part === 'schema' ? 'GET /api/schemas/cross-sections' : `Response${data ? ` · GET /api/jobs/${data.jobId}/${part === 'sections' || part === 'alerts' ? 'cross-sections' : 'calibration'}` : ''}`}</span>
+                <h3>{part === 'sections' || part === 'alerts' ? 'Cross-section JSON' : part === 'schema' ? 'JSON Schema' : 'Calibration JSON'}</h3>
               </div>
               <span className="spacer" />
               <div className="segmented small" role="radiogroup" aria-label="Part of the response">
-                {[['calibrations', 'Calibrations'], ['shapes', 'Shapes'], ['full', 'Full response']].map(([k, label]) => (
-                  <button key={k} role="radio" aria-checked={part === k} className={part === k ? 'on' : ''} onClick={() => setPart(k)} disabled={!data}>{label}</button>
+                {[['calibrations', 'Calibrations'], ['shapes', 'Shapes'], ['full', 'Full'], ['sections', 'Cross-sections'],
+                  ['alerts', 'Alerts'], ['schema', 'Schema']].map(([k, label]) => (
+                  <button key={k} role="radio" aria-checked={part === k} className={part === k ? 'on' : ''} onClick={() => setPart(k)}
+                    disabled={!data && k !== 'schema'}>{label}</button>
                 ))}
               </div>
-              <button className="btn small" onClick={() => copy(fullText, 'json')} disabled={!data}>
+              <button className="btn small" onClick={() => copy(fullText, 'json')} disabled={!fullText}>
                 <IconCopy width={16} height={16} />{copied === 'json' ? 'Copied' : 'Copy'}</button>
-              <button className="btn small" onClick={download} disabled={!data}>
+              <button className="btn small" onClick={download} disabled={!fullText}>
                 <IconDownload width={16} height={16} />Download</button>
             </div>
-            {data && shown ? <JsonView value={shown.value} note={shown.note} /> : (
+            {shown ? <JsonView value={shown.value} note={shown.note} /> : (
               <div className="json-empty">
                 <IconRuler width={36} height={36} />
                 <b>{busy ? statusText : 'No response yet'}</b>

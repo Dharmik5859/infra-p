@@ -57,6 +57,10 @@ class Frame:
 
     pad_top: int = 0         # extra rows measured above / below the grid: a
     pad_bottom: int = 0      # drawing may spill past it (a ditch below the axis)
+    # real-world size of one major grid square, per axis (stages.calibrate reads
+    # them off the axis labels; 10 ft until it does)
+    ft_x: float = 10.0
+    ft_y: float = 10.0
 
     @property
     def y0(self) -> int:
@@ -533,27 +537,11 @@ def _axis_row(frame: Frame, ink: np.ndarray) -> tuple[int, int]:
     return best if ticks(best) >= 2 * len(frame.vlines) else (frame.bottom, frame.bottom)
 
 
-def find_centreline(frame: Frame, img: PageImage, ink_thresh: int = 200,
-                    grid_ft: float = 10.0) -> tuple[float, str] | None:
-    """Image x of the centreline (offset 0), read from the section's offset
-    axis labels: from the PDF text layer when there is one ("text"), otherwise
-    from the scan ("scan"): first by the labels' widths, failing that by OCR
-    of the labels. None when they cannot be read."""
-    if img.spans:
-        lo, hi = frame.bottom - 0.5 * frame.pitch_y, frame.bottom + 0.6 * frame.pitch_y
-        reads = []
-        for sp in img.spans:
-            t = sp.text.strip()
-            if _AXIS_NUM_RE.match(t) and lo <= sp.y <= hi \
-                    and frame.left - 0.3 * frame.pitch_x <= sp.x <= frame.right + 0.3 * frame.pitch_x:
-                k = _vline_index(frame, sp.x)
-                if k is not None:
-                    reads.append((k, int(t), True))
-        got = _vote_centre(frame, reads, grid_ft)
-        if got is not None:
-            return got, "text"
-    if not shutil.which("tesseract"):
-        return None
+def axis_label_words(frame: Frame, img: PageImage, ink_thresh: int = 200):
+    """The offset-axis labels of a scanned section, one word per grid line:
+    ([(line index, [x, y, w, h], component ids)], glyph image) -- boxes in the
+    returned image's coordinates. Tick marks, minus signs and grid lines are
+    left out."""
     H, W = img.gray.shape
     page_ink = (img.gray < ink_thresh).astype(np.uint8)
     a, b = _axis_row(frame, page_ink)
@@ -586,12 +574,38 @@ def find_centreline(frame: Frame, img: PageImage, ink_thresh: int = 200,
         gx0 = min(st[k, 0] for k in ks); gy0 = min(st[k, 1] for k in ks)
         gx1 = max(st[k, 0] + st[k, 2] for k in ks); gy1 = max(st[k, 1] + st[k, 3] for k in ks)
         words.append((line, [gx0, gy0, gx1 - gx0, gy1 - gy0], ks))
+    glyphs = np.where(np.isin(lab, [k for _, _, ks in words for k in ks]), 0, 255).astype(np.uint8)
+    return words, glyphs
+
+
+def find_centreline(frame: Frame, img: PageImage, ink_thresh: int = 200,
+                    grid_ft: float = 10.0) -> tuple[float, str] | None:
+    """Image x of the centreline (offset 0), read from the section's offset
+    axis labels: from the PDF text layer when there is one ("text"), otherwise
+    from the scan ("scan"): first by the labels' widths, failing that by OCR
+    of the labels. None when they cannot be read."""
+    if img.spans:
+        lo, hi = frame.bottom - 0.5 * frame.pitch_y, frame.bottom + 0.6 * frame.pitch_y
+        reads = []
+        for sp in img.spans:
+            t = sp.text.strip()
+            if _AXIS_NUM_RE.match(t) and lo <= sp.y <= hi \
+                    and frame.left - 0.3 * frame.pitch_x <= sp.x <= frame.right + 0.3 * frame.pitch_x:
+                k = _vline_index(frame, sp.x)
+                if k is not None:
+                    reads.append((k, int(t), True))
+        got = _vote_centre(frame, reads, grid_ft)
+        if got is not None:
+            return got, "text"
+    if not shutil.which("tesseract"):
+        return None
+    words, glyphs = axis_label_words(frame, img, ink_thresh)
+    p = frame.pitch_y
     by_width = _centre_from_widths(frame, {line: box[2] for line, box, _ in words}, grid_ft)
     if by_width is not None:
         return by_width, "scan"
     mid = len(frame.vlines) / 2
-    words.sort(key=lambda w: abs(w[0] - mid))            # labels near the middle are short and read best
-    glyphs = np.where(np.isin(lab, [k for _, _, ks in words for k in ks]), 0, 255).astype(np.uint8)
+    words = sorted(words, key=lambda w: abs(w[0] - mid))  # labels near the middle are short and read best
     reads: list[tuple[int, int, bool]] = []
     for line, box, _ in words[:16]:
         got = _ocr_number(glyphs, box, p)
@@ -604,18 +618,18 @@ def find_centreline(frame: Frame, img: PageImage, ink_thresh: int = 200,
     return (centre, "scan") if centre is not None else None
 
 
-def _centre_from_widths(frame: Frame, widths: dict[int, float], grid_ft: float) -> float | None:
-    """Offset 0 from the WIDTHS of the axis labels, no reading needed: "0" is
+def width_fits(frame: Frame, widths: dict[int, float], grid_ft: float) -> list[tuple[float, int]]:
+    """How well each candidate centre line explains the axis labels' widths
+    for a grid of `grid_ft` per square: [(misfit, line)], best first. "0" is
     one digit wide, 10-90 two, 100 and up three (a minus sign is too small to
-    be counted). Each candidate line for 0 predicts that pattern along the
-    axis; the one that fits the measured widths best wins, if clearly."""
+    be counted), so each candidate predicts a pattern of widths."""
     lines = sorted(k for k in widths if 0 < k < len(frame.vlines) - 1)   # end labels collide with elevations
     if len(lines) < 8:
-        return None
+        return []
     y = np.array([widths[k] for k in lines], float)
     fits = []
     for k0 in range(len(frame.vlines)):
-        digits = np.array([len(str(int(abs(k - k0) * grid_ft))) for k in lines], float)
+        digits = np.array([len(f"{abs(k - k0) * grid_ft:g}".replace(".", "")) for k in lines], float)
         if len(set(digits)) < 2:
             continue
         A = np.stack([digits, np.ones_like(digits)], 1)
@@ -624,9 +638,16 @@ def _centre_from_widths(frame: Frame, widths: dict[int, float], grid_ft: float) 
             continue
         rms = float(np.sqrt(np.mean((A @ coef - y) ** 2)))
         fits.append((rms / coef[0], k0))
+    return sorted(fits)
+
+
+def _centre_from_widths(frame: Frame, widths: dict[int, float], grid_ft: float) -> float | None:
+    """Offset 0 from the WIDTHS of the axis labels, no reading needed (see
+    width_fits): the candidate line that fits the measured widths best wins,
+    if clearly."""
+    fits = width_fits(frame, widths, grid_ft)
     if not fits:
         return None
-    fits.sort()
     best, k0 = fits[0]
     if best > 0.25 or (len(fits) > 1 and fits[1][0] < 1.6 * best):
         return None

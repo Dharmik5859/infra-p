@@ -6,6 +6,16 @@ import SectionPicture from './SectionPicture';
 import SheetView from './SheetView';
 import SideTable from './SideTable';
 import { CENTRE_NOTE } from '../sides';
+import { ConfidenceBadge, ConfidencePanel } from './Confidence';
+
+const SCALE_SOURCE = { labels: 'read off the axis labels', label_widths: 'from the axis labels', ocr: 'read off the scan',
+  assumed: 'assumed (labels not read)' };
+
+function scaleText(sc) {
+  if (!sc) return null;
+  const same = sc.ftPerSquareX === sc.ftPerSquareY;
+  return same ? `${sc.ftPerSquareX} ft grid` : `${sc.ftPerSquareX} ft × ${sc.ftPerSquareY} ft grid`;
+}
 
 export default function SectionViewer({ jobId, section: s, sections, roads, surface, position, count, onPrev, onNext,
   onSelect, onOpenEdit, onReset }) {
@@ -23,6 +33,13 @@ export default function SectionViewer({ jobId, section: s, sections, roads, surf
             <span className={`tag ${sourceTag}`}>{SOURCE_TEXT[s.label_source] || 'station not read'}</span>
             <span className="tag neutral">page {s.page}</span>
             <span className="tag info">{s.method === 'vector' ? 'CAD linework' : 'scan'}</span>
+            {s.scale && (
+              <span className={`tag ${s.scale.verticalDiffers ? 'warn' : 'neutral'}`}
+                title={`Horizontal: ${s.scale.ftPerSquareX} ft per square, ${SCALE_SOURCE[s.scale.sourceX] || s.scale.sourceX}\nVertical: ${s.scale.ftPerSquareY} ft per square, ${SCALE_SOURCE[s.scale.sourceY] || s.scale.sourceY}\n${s.scale.pixelsPerFootX.toFixed(2)} × ${s.scale.pixelsPerFootY.toFixed(2)} page px per ft`}>
+                {scaleText(s.scale)}
+              </span>
+            )}
+            <ConfidenceBadge confidence={s.confidence} />
           </div>
         </div>
         <span className="spacer" />
@@ -90,8 +107,9 @@ export default function SectionViewer({ jobId, section: s, sections, roads, surf
         <AllValuesTable sections={sections} roads={roads} selectedId={s.id} onSelect={onSelect} onClose={() => setTable(false)} />
       )}
 
-      {(s.zero || s.warnings.length > 0) && (
+      {(s.zero || s.warnings.length > 0 || (s.confidence && !s.confidence.passed)) && (
         <div className="viewer-foot">
+          {s.confidence && !s.confidence.passed && <ConfidencePanel confidence={s.confidence} />}
           {s.zero && (
             <div className="zero-note" role="note">
               <b>No earthwork here: {s.zero.short.toLowerCase()}.</b> {s.zero.text} If the drawing does show work at this

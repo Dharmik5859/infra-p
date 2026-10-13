@@ -2,14 +2,15 @@
 Whole-plan-set orchestration: PDF in, roads + volumes out.
 
     for every page (in parallel):
-        load page            pages.load_page        raster scan or vector render
-        find frames          frames.find_frames     one per cross-section
-        read stations        frames.label_frames    text layer, else OCR
-        trace surfaces       surfaces.*_surfaces    vector strokes, else pixels
-        measure              surfaces.measure       fill / cut ft^2
+        ingest               stages.ingest          raster scan or vector render
+        detect               stages.detect          frames + station labels
+        calibrate            stages.calibrate       ft per grid square, each axis; centreline
+        trace                stages.trace           vector strokes, else pixels
+        measure              stages.measure         fill / cut ft^2, strips, warnings
         render overlay       render.overlay         audit image
-    repair stations          stations.repair        across the whole document
+    decode stations          stages.decode_stations across the whole document
     group into roads         roads.group_into_roads
+    confidence               confidence.score_sections  0-100 per section, alerts below 85
     volumes                  volume.average_end_area_volume
 
 Pages with no labelled cross-section frame (cover, notes, plan and profile
@@ -26,14 +27,15 @@ from typing import Callable
 import numpy as np
 import pymupdf as fitz
 
+from .confidence import score_sections
 from .config import PipelineConfig, get_config
-from .frames import find_centreline, find_frames, label_frames
-from .pages import could_hold_sections, load_page, sideways_labels
 from .render import encode_png, overlay, overlay_scale, profile
 from .roads import Road, StationEntry, group_into_roads
-from .stations import StationRead, repair
 from .sides import measured_sides
-from .surfaces import CANON_PPF, Surfaces, area_strips, _canon_size, measure, raster_surfaces, vector_surfaces
+from .stages import calibrate, decode_stations, detect, ingest, measure_section, trace
+from .stages.calibrate import centre_ft
+from .stages.measure import ZERO_FT2, ZERO_REASONS, zero_reason as _zero_reason  # noqa: F401 (re-exported)
+from .surfaces import CANON_PPF, Surfaces, _canon_size
 from .volume import RoadVolumeResult, average_end_area_volume
 
 
@@ -65,6 +67,8 @@ class SectionResult:
     centre_source: str | None = None   # "text" / "scan" (read off the offset axis), "neighbour", "assumed"
     strips: dict | None = None         # surface -> (fill, cut) ft² per 1 ft strip from the left edge
     sides: dict | None = None          # surface -> {"left"|"right": {"fill_ft2", "cut_ft2"}}, as traced
+    scale: dict | None = None          # stages.FrameScale.as_dict(): ft per grid square each axis, and source
+    confidence: dict | None = None     # confidence.score(): {"score", "passed", "deductions", "alerts"}
 
     @property
     def net_ft2(self) -> float:
@@ -82,26 +86,6 @@ class PlanSetResult:
     warnings: list[str]
     timing: dict
     design_surface: str = "subgrade"
-
-
-# Why a section measures (almost) no cut or fill -- usually the drawing,
-# not a failure: shown to the user instead of a bare 0 / 0.
-ZERO_REASONS = {
-    "structure": "Bridge or structure: the proposed line spans over the ground, so there is no earthwork here.",
-    "no_design": "No proposed surface is drawn on this section (existing ground only: outside the "
-                 "construction limits, a match line, or a section that only shows utilities).",
-    "matches_existing": "The proposed surface follows existing ground (resurfacing / match existing), "
-                        "so there is no cut or fill.",
-}
-ZERO_FT2 = 0.5
-
-
-def _zero_reason(surf: Surfaces, area) -> str | None:
-    if area.fill_ft2 + area.cut_ft2 >= ZERO_FT2:
-        return None
-    if not surf.overlap.any():
-        return "structure" if surf.structures else "no_design"
-    return "matches_existing"
 
 
 GEOMETRY_STEP = 4      # canonical columns between stored points (~0.3 ft)
@@ -142,59 +126,31 @@ def _geometry(surf: Surfaces, f, img, cfg: PipelineConfig) -> dict | None:
 def _measure_page(pdf_path: str, index: int, cfg: PipelineConfig, overlays: bool | str) -> list[SectionResult]:
     doc = fitz.open(pdf_path)
     try:
-        if not could_hold_sections(doc, index):
+        img = ingest(doc, index, cfg)
+        if img is None:
             return []
-        img = load_page(doc, index, cfg.vector_dpi)
-        frames = label_frames(find_frames(img, cfg.ink_thresh), img, cfg.ink_thresh)
-        rotated_plot = img.kind == "raster" or sideways_labels(img.page)
-        if rotated_plot and not any(f.station_label for f in frames):
-            # nothing readable upright: the sections may be plotted sideways
-            for k in (-1, 1):
-                turned = img.rotated(k)
-                alt = label_frames(find_frames(turned, cfg.ink_thresh), turned, cfg.ink_thresh)
-                if sum(f.station_label is not None for f in alt) > sum(f.station_label is not None for f in frames):
-                    frames, img = alt, turned
+        frames, img = detect(img, cfg)
+        page_cache: dict = {}
         out = []
         for i, f in enumerate(frames):
-            warnings: list[str] = []
-            use_vector = img.kind == "vector" and not cfg.force_raster
-            surf = vector_surfaces(f, img, cfg) if use_vector else None
-            method = "vector"
-            if surf is None:
-                surf, method = raster_surfaces(f, img, cfg), "raster"
-            area = measure(surf, cfg.design_surface)
-            alt = measure(surf, "finished" if cfg.design_surface == "subgrade" else "subgrade")
-            if max(surf.max_gap_ground_ft, surf.max_gap_design_ft) > cfg.gap_warn_ft:
-                warnings.append(
-                    f"a surface was bridged across a {max(surf.max_gap_ground_ft, surf.max_gap_design_ft):.0f} ft "
-                    f"gap with no ink -- area over that span is a straight-line estimate")
-            for t in surf.trimmed:
-                warnings.append(
-                    f"ignored a {t['run_ft']:.0f} ft run {t['depth_ft']:.1f} ft below ground on the "
-                    f"{t['side']} -- looks like a buried pipe, not graded surface")
-            for st in surf.structures:
-                warnings.append(
-                    f"design line from {st['x_from']:+.0f} to {st['x_to']:+.0f} ft hangs above the ground "
-                    f"at both ends (bridge deck or structure) -- not counted as fill")
-            centre = find_centreline(f, img, cfg.ink_thresh, cfg.grid_ft)
-            strips = {sf: tuple([round(float(v), 3) for v in a] for a in area_strips(surf, sf))
-                      for sf in ("subgrade", "finished")}
+            scale = calibrate(f, img, cfg, page_cache)
+            surf, method = trace(f, img, cfg)
+            m = measure_section(surf, cfg)
             png = encode_png(overlay(surf, f, img, cfg, surface=cfg.design_surface,
                                      shade=overlays != "lines")) if overlays else None
             out.append(SectionResult(
                 page=img.number, index=i, station_label=f.station_label, station_ft=f.station_ft,
                 label_source=f.label_source, label_confidence=f.label_confidence,
                 label_candidates=tuple(f.label_candidates),
-                fill_ft2=round(area.fill_ft2, 2), cut_ft2=round(area.cut_ft2, 2), method=method,
-                alt_fill_ft2=round(alt.fill_ft2, 2), alt_cut_ft2=round(alt.cut_ft2, 2),
+                fill_ft2=round(m.area.fill_ft2, 2), cut_ft2=round(m.area.cut_ft2, 2), method=method,
+                alt_fill_ft2=round(m.alt.fill_ft2, 2), alt_cut_ft2=round(m.alt.cut_ft2, 2),
                 bbox=(f.top, f.bottom, f.left, f.right), page_kind=img.kind,
-                px_per_ft=(f.pitch_x / cfg.grid_ft, f.pitch_y / cfg.grid_ft), rotation=img.rot,
-                warnings=warnings, overlay_png=png,
+                px_per_ft=(scale.px_per_ft_x, scale.px_per_ft_y), rotation=img.rot,
+                warnings=m.warnings, overlay_png=png,
                 overlay_px_per_ft=round(CANON_PPF * overlay_scale(surf), 4) if png else None,
                 profile=profile(surf) if png else None, geometry=_geometry(surf, f, img, cfg),
-                zero_reason=_zero_reason(surf, area),
-                centre_ft=round((centre[0] - f.left) / (f.pitch_x / cfg.grid_ft), 2) if centre else None,
-                centre_source=centre[1] if centre else None, strips=strips,
+                zero_reason=m.zero_reason, centre_ft=centre_ft(f, scale), centre_source=scale.centre_source,
+                strips=m.strips, scale=scale.as_dict(),
             ))
         return out
     finally:
@@ -254,26 +210,14 @@ def process_plan_set(
     t_pages = time.time() - t0
 
     sections = _document_order(by_page)
-    reads = repair([StationRead(s.station_label, s.station_ft, s.label_confidence, s.label_source,
-                                candidates=s.label_candidates) for s in sections])
-    warnings = []
-    for s, r in zip(sections, reads):
-        if r.source == "inferred":
-            s.station_label, s.station_ft, s.label_source = r.label, r.station_ft, "inferred"
-            s.warnings.append(r.note)
-        elif r.label != s.station_label:      # an alternative OCR reading was chosen
-            s.station_label, s.station_ft, s.label_confidence = r.label, r.station_ft, r.confidence
-    unlabelled = [s for s in sections if s.station_ft is None]
-    if unlabelled:
-        warnings.append(
-            f"{len(unlabelled)} cross-section(s) had no readable station and could not be placed "
-            f"along a road: " + ", ".join(f"page {s.page}" for s in unlabelled[:10]))
+    warnings = decode_stations(sections)
 
     _place_centrelines(sections)
 
     entries = [StationEntry(s.station_label, s.station_ft, s.page, s)
                for s in sections if s.station_ft is not None]
     roads = group_into_roads(entries)
+    score_sections(sections, roads)
     volumes = [average_end_area_volume([e.ref for e in r.entries], road_label=r.label) for r in roads]
     alt_volumes = [average_end_area_volume([_AltArea(e.ref) for e in r.entries], road_label=r.label)
                    for r in roads]

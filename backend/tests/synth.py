@@ -75,6 +75,20 @@ def cut_section(station: str, ground_elev: float, depth: float) -> SectionSpec:
     return SectionSpec(station, g, d)
 
 
+def walled_cut(station: str, ground_elev: float, depth: float, wall_at: float = -30.0) -> SectionSpec:
+    """A deep cut retained by a wall on the left: the back slope comes down
+    2:1 to a bench at the wall's top, the wall face drops to the roadway, and
+    the right side climbs out 2:1 -- the template's deep end is the wall foot."""
+    g = [(-140, ground_elev), (-40, ground_elev + 1.0), (40, ground_elev - 2.0), (140, ground_elev - 3.0)]
+    base = ground_elev - depth
+    bench = ground_elev - depth / 2
+    top_l = wall_at - 2 * (ground_elev + 0.8 - bench)
+    right = 24 + 2 * depth
+    d = [(top_l, ground_elev + 0.8 + (top_l + 40) * 0), (wall_at, bench), (wall_at + 0.01, base),
+         (24, base + 0.5), (right, ground_elev - 2.0 - (right - 40) * 0.01)]
+    return SectionSpec(station, g, d)
+
+
 def rolling_section(station: str, elev: float, amp: float = 2.0, phase: float = 0.0) -> SectionSpec:
     """Rolling ground that crosses a flat template several times, so one
     section has several separate cut zones and fill zones."""
@@ -94,21 +108,32 @@ def zones(spec: SectionSpec) -> tuple[int, int]:
     return runs.count(1.0), runs.count(-1.0)
 
 
+@dataclass
+class Grid:
+    """How a sheet is drawn: ft per major grid square on each axis and
+    points per ft on each axis (vertical exaggeration when they differ)."""
+    ft_x: float = GRID_FT
+    ft_y: float = GRID_FT
+    pt_x: float = PT_PER_FT
+    pt_y: float = PT_PER_FT
+
+
 def _draw_section(page: fitz.Page, spec: SectionSpec, y_axis: float, x_c: float,
-                  elev0: float, n_squares: int) -> None:
-    sx = lambda off: x_c + off * PT_PER_FT
-    sy = lambda el: y_axis - (el - elev0) * PT_PER_FT
-    top = y_axis - n_squares * GRID_FT * PT_PER_FT
+                  elev0: float, n_squares: int, grid: Grid = Grid()) -> None:
+    sx = lambda off: x_c + off * grid.pt_x
+    sy = lambda el: y_axis - (el - elev0) * grid.pt_y
+    top = y_axis - n_squares * grid.ft_y * grid.pt_y
     left, right = sx(-140), sx(140)
     shape = page.new_shape()
-    for off in np.arange(-140, 141, GRID_FT):                      # vertical grid
+    for off in np.arange(-140, 141, grid.ft_x):                    # vertical grid
         shape.draw_line((sx(off), top), (sx(off), y_axis))
     for k in range(n_squares + 1):                                 # horizontal grid
-        y = y_axis - k * GRID_FT * PT_PER_FT
+        y = y_axis - k * grid.ft_y * grid.pt_y
         shape.draw_line((left, y), (right, y))
     shape.finish(width=0.48, color=(0, 0, 0), closePath=False)
-    for off in np.arange(-140, 140, 1.0):                         # axis ticks
-        if off % GRID_FT:
+    tick = 1.0 if grid.ft_x <= 10 else 2.0
+    for off in np.arange(-140, 140, tick):                        # axis ticks
+        if off % grid.ft_x:
             shape.draw_line((sx(off), y_axis), (sx(off), y_axis - 1.6))
     shape.finish(width=0.24, color=(0, 0, 0), closePath=False)
     shape.draw_polyline([(sx(o), sy(e)) for o, e in spec.ground])  # existing ground: dashed
@@ -116,25 +141,28 @@ def _draw_section(page: fitz.Page, spec: SectionSpec, y_axis: float, x_c: float,
     shape.draw_polyline([(sx(o), sy(e)) for o, e in spec.design])  # proposed design: solid
     shape.finish(width=0.6, color=(0, 0, 0), closePath=False)
     shape.commit()
-    for off in range(-140, 141, 10):
-        page.insert_text((sx(off) - 6, y_axis + 9), str(off), fontsize=6)
+    for off in np.arange(-140, 141, grid.ft_x):
+        page.insert_text((sx(off) - 6, y_axis + 9), str(int(off)), fontsize=6)
     for k in range(n_squares + 1):
-        page.insert_text((right + 4, y_axis - k * GRID_FT * PT_PER_FT + 2), str(int(elev0 + k * GRID_FT)), fontsize=6)
-    page.insert_text((sx(118), y_axis - 0.8 * GRID_FT * PT_PER_FT), spec.station, fontsize=11)
+        page.insert_text((right + 4, y_axis - k * grid.ft_y * grid.pt_y + 2), f"{elev0 + k * grid.ft_y:g}", fontsize=6)
+    page.insert_text((sx(118), y_axis - 0.8 * grid.ft_y * grid.pt_y), spec.station, fontsize=11)
 
 
-def make_pdf(path: str, pages: list[list[SectionSpec]], scanned: bool = False, dpi: int = 254) -> None:
+def make_pdf(path: str, pages: list[list[SectionSpec]], scanned: bool = False, dpi: int = 254,
+             grid: Grid = Grid(), squares: int | None = None) -> None:
     """Stack the sections of each inner list on one 17x11 in sheet, highest
     station at the top (the usual convention)."""
     doc = fitz.open()
     for specs in pages:
         page = doc.new_page(width=1224, height=792)
-        n_squares = 4
+        n_squares = max(4, int(round(4 * GRID_FT / grid.ft_y)) if grid.ft_y < GRID_FT else 4)
+        n_squares = squares or min(n_squares, int(140 // (grid.ft_y * grid.pt_y)))
         y = 120.0
         for spec in specs:
-            y_axis = y + n_squares * GRID_FT * PT_PER_FT
-            elev0 = 10 * np.floor(min(e for _, e in spec.ground + spec.design) / 10) - 10
-            _draw_section(page, spec, y_axis, 612, elev0, n_squares)
+            y_axis = y + n_squares * grid.ft_y * grid.pt_y
+            lo = min(e for _, e in spec.ground + spec.design)
+            elev0 = grid.ft_y * np.floor(lo / grid.ft_y) - grid.ft_y
+            _draw_section(page, spec, y_axis, 612, elev0, n_squares, grid)
             y = y_axis + 40
     if scanned:
         out = fitz.open()

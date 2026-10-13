@@ -1,0 +1,2099 @@
+{
+ "surface": "subgrade",
+ "referenceAreaUnit": "yd2",
+ "summary": {
+  "referenceStations": 42,
+  "matched": 37,
+  "missing": [
+   "312+50",
+   "313+80",
+   "5+50",
+   "6+00",
+   "307+17"
+  ],
+  "extraSections": [
+   "319+15",
+   "319+65",
+   "320+15",
+   "320+65"
+  ],
+  "areaCutFt2": {
+   "ours": 108993.23,
+   "reference": 110295.45,
+   "diff": -1302.22,
+   "pct": -1.2
+  },
+  "areaFillFt2": {
+   "ours": 23693.96,
+   "reference": 34047.36,
+   "diff": -10353.4,
+   "pct": -30.4
+  },
+  "volumeCutCy": {
+   "ours": 200468.9,
+   "reference": 204632.58,
+   "diff": -4163.68,
+   "pct": -2.0
+  },
+  "volumeFillCy": {
+   "ours": 42023.69,
+   "reference": 62687.01,
+   "diff": -20663.32,
+   "pct": -33.0
+  },
+  "areaWeightedErrorPct": 9.2,
+  "sectionsWithin10Pct": 23,
+  "sectionsWithin25Pct": 26
+ },
+ "groups": [
+  {
+   "street": "SR 5",
+   "stage": "Driveways",
+   "stations": 2,
+   "matched": 0,
+   "volumes": {
+    "cut": {
+     "ours": 0.0,
+     "reference": 314.52,
+     "diff": -314.52,
+     "pct": -100.0,
+     "referenceRecomputed": 0.0
+    },
+    "left_cut": {
+     "ours": 0.0,
+     "reference": 314.52,
+     "diff": -314.52,
+     "pct": -100.0
+    },
+    "right_cut": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "fill": {
+     "ours": 0.0,
+     "reference": 1885.99,
+     "diff": -1885.99,
+     "pct": -100.0,
+     "referenceRecomputed": 0.0
+    },
+    "left_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "right_fill": {
+     "ours": 0.0,
+     "reference": 1885.99,
+     "diff": -1885.99,
+     "pct": -100.0
+    }
+   }
+  },
+  {
+   "street": "SCHOOL ST",
+   "stage": "Mainline",
+   "stations": 2,
+   "matched": 0,
+   "volumes": {
+    "cut": {
+     "ours": 0.0,
+     "reference": 1437.04,
+     "diff": -1437.04,
+     "pct": -100.0,
+     "referenceRecomputed": 0.0
+    },
+    "left_cut": {
+     "ours": 0.0,
+     "reference": 1268.48,
+     "diff": -1268.48,
+     "pct": -100.0
+    },
+    "right_cut": {
+     "ours": 0.0,
+     "reference": 168.56,
+     "diff": -168.56,
+     "pct": -100.0
+    },
+    "fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null,
+     "referenceRecomputed": 0.0
+    },
+    "left_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "right_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    }
+   }
+  },
+  {
+   "street": "SR 5",
+   "stage": "Mainline",
+   "stations": 38,
+   "matched": 37,
+   "volumes": {
+    "cut": {
+     "ours": 200468.9,
+     "reference": 202881.02,
+     "diff": -2412.12,
+     "pct": -1.2,
+     "referenceRecomputed": 202855.47
+    },
+    "left_cut": {
+     "ours": 75666.84,
+     "reference": 79213.11,
+     "diff": -3546.27,
+     "pct": -4.5
+    },
+    "right_cut": {
+     "ours": 124802.06,
+     "reference": 123667.9,
+     "diff": 1134.16,
+     "pct": 0.9
+    },
+    "fill": {
+     "ours": 42023.69,
+     "reference": 60801.02,
+     "diff": -18777.33,
+     "pct": -30.9,
+     "referenceRecomputed": 60800.88
+    },
+    "left_fill": {
+     "ours": 26903.62,
+     "reference": 39549.9,
+     "diff": -12646.28,
+     "pct": -32.0
+    },
+    "right_fill": {
+     "ours": 15120.09,
+     "reference": 21251.11,
+     "diff": -6131.02,
+     "pct": -28.9
+    }
+   }
+  }
+ ],
+ "rows": [
+  {
+   "street": "SR 5",
+   "stage": "Driveways",
+   "station": "312+50",
+   "stationFt": 31250.0,
+   "sectionId": null,
+   "status": "missing",
+   "reference": {
+    "left": {
+     "cut_ft2": 353.88,
+     "fill_ft2": 0.0,
+     "cut_cy": 314.52,
+     "fill_cy": 0.0
+    },
+    "right": {
+     "cut_ft2": 0.0,
+     "fill_ft2": 0.0,
+     "cut_cy": 0.0,
+     "fill_cy": 0.0
+    }
+   }
+  },
+  {
+   "street": "SR 5",
+   "stage": "Driveways",
+   "station": "313+80",
+   "stationFt": 31380.0,
+   "sectionId": null,
+   "status": "missing",
+   "reference": {
+    "left": {
+     "cut_ft2": 0.0,
+     "fill_ft2": 0.0,
+     "cut_cy": 0.0,
+     "fill_cy": 0.0
+    },
+    "right": {
+     "cut_ft2": 0.0,
+     "fill_ft2": 2121.75,
+     "cut_cy": 0.0,
+     "fill_cy": 1885.99
+    }
+   }
+  },
+  {
+   "street": "SCHOOL ST",
+   "stage": "Mainline",
+   "station": "5+50",
+   "stationFt": 550.0,
+   "sectionId": null,
+   "status": "missing",
+   "reference": {
+    "left": {
+     "cut_ft2": 1364.94,
+     "fill_ft2": 0.0,
+     "cut_cy": 0.0,
+     "fill_cy": 0.0
+    },
+    "right": {
+     "cut_ft2": 169.2,
+     "fill_ft2": 0.0,
+     "cut_cy": 0.0,
+     "fill_cy": 0.0
+    }
+   }
+  },
+  {
+   "street": "SCHOOL ST",
+   "stage": "Mainline",
+   "station": "6+00",
+   "stationFt": 600.0,
+   "sectionId": null,
+   "status": "missing",
+   "reference": {
+    "left": {
+     "cut_ft2": 5.04,
+     "fill_ft2": 0.0,
+     "cut_cy": 1268.48,
+     "fill_cy": 0.0
+    },
+    "right": {
+     "cut_ft2": 12.87,
+     "fill_ft2": 0.0,
+     "cut_cy": 168.56,
+     "fill_cy": 0.0
+    }
+   }
+  },
+  {
+   "street": "SR 5",
+   "stage": "Mainline",
+   "station": "301+40",
+   "stationFt": 30140.0,
+   "sectionId": 0,
+   "status": "matched",
+   "page": 1,
+   "confidence": 87,
+   "areas": {
+    "left_cut": {
+     "ours": 22.63,
+     "reference": 23.76,
+     "diff": -1.13,
+     "pct": -4.8
+    },
+    "left_fill": {
+     "ours": 51.95,
+     "reference": 52.92,
+     "diff": -0.97,
+     "pct": -1.8
+    },
+    "right_cut": {
+     "ours": 0.16,
+     "reference": 6.39,
+     "diff": -6.23,
+     "pct": -97.5
+    },
+    "right_fill": {
+     "ours": 81.63,
+     "reference": 84.87,
+     "diff": -3.24,
+     "pct": -3.8
+    },
+    "total_cut": {
+     "ours": 22.79,
+     "reference": 30.15,
+     "diff": -7.36,
+     "pct": -24.4
+    },
+    "total_fill": {
+     "ours": 133.58,
+     "reference": 137.79,
+     "diff": -4.21,
+     "pct": -3.1
+    }
+   }
+  },
+  {
+   "street": "SR 5",
+   "stage": "Mainline",
+   "station": "301+80",
+   "stationFt": 30180.0,
+   "sectionId": 1,
+   "status": "matched",
+   "page": 1,
+   "confidence": 87,
+   "areas": {
+    "left_cut": {
+     "ours": 543.52,
+     "reference": 542.16,
+     "diff": 1.36,
+     "pct": 0.3
+    },
+    "left_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "right_cut": {
+     "ours": 283.62,
+     "reference": 284.13,
+     "diff": -0.51,
+     "pct": -0.2
+    },
+    "right_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "total_cut": {
+     "ours": 827.13,
+     "reference": 826.29,
+     "diff": 0.84,
+     "pct": 0.1
+    },
+    "total_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    }
+   }
+  },
+  {
+   "street": "SR 5",
+   "stage": "Mainline",
+   "station": "302+00",
+   "stationFt": 30200.0,
+   "sectionId": 2,
+   "status": "matched",
+   "page": 2,
+   "confidence": 92,
+   "areas": {
+    "left_cut": {
+     "ours": 774.63,
+     "reference": 791.91,
+     "diff": -17.28,
+     "pct": -2.2
+    },
+    "left_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "right_cut": {
+     "ours": 538.51,
+     "reference": 539.37,
+     "diff": -0.86,
+     "pct": -0.2
+    },
+    "right_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "total_cut": {
+     "ours": 1313.14,
+     "reference": 1331.28,
+     "diff": -18.14,
+     "pct": -1.4
+    },
+    "total_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    }
+   }
+  },
+  {
+   "street": "SR 5",
+   "stage": "Mainline",
+   "station": "302+50",
+   "stationFt": 30250.0,
+   "sectionId": 3,
+   "status": "matched",
+   "page": 2,
+   "confidence": 92,
+   "areas": {
+    "left_cut": {
+     "ours": 1478.11,
+     "reference": 1481.13,
+     "diff": -3.02,
+     "pct": -0.2
+    },
+    "left_fill": {
+     "ours": 0.0,
+     "reference": 6.57,
+     "diff": -6.57,
+     "pct": -100.0
+    },
+    "right_cut": {
+     "ours": 1382.81,
+     "reference": 1392.75,
+     "diff": -9.94,
+     "pct": -0.7
+    },
+    "right_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "total_cut": {
+     "ours": 2860.91,
+     "reference": 2873.88,
+     "diff": -12.97,
+     "pct": -0.5
+    },
+    "total_fill": {
+     "ours": 0.0,
+     "reference": 6.57,
+     "diff": -6.57,
+     "pct": -100.0
+    }
+   }
+  },
+  {
+   "street": "SR 5",
+   "stage": "Mainline",
+   "station": "303+00",
+   "stationFt": 30300.0,
+   "sectionId": 4,
+   "status": "matched",
+   "page": 3,
+   "confidence": 87,
+   "areas": {
+    "left_cut": {
+     "ours": 1789.45,
+     "reference": 1791.54,
+     "diff": -2.09,
+     "pct": -0.1
+    },
+    "left_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "right_cut": {
+     "ours": 2194.65,
+     "reference": 2181.69,
+     "diff": 12.96,
+     "pct": 0.6
+    },
+    "right_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "total_cut": {
+     "ours": 3984.1,
+     "reference": 3973.23,
+     "diff": 10.87,
+     "pct": 0.3
+    },
+    "total_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    }
+   }
+  },
+  {
+   "street": "SR 5",
+   "stage": "Mainline",
+   "station": "303+50",
+   "stationFt": 30350.0,
+   "sectionId": 5,
+   "status": "matched",
+   "page": 3,
+   "confidence": 92,
+   "areas": {
+    "left_cut": {
+     "ours": 1898.82,
+     "reference": 1884.78,
+     "diff": 14.04,
+     "pct": 0.7
+    },
+    "left_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "right_cut": {
+     "ours": 3111.87,
+     "reference": 3094.47,
+     "diff": 17.4,
+     "pct": 0.6
+    },
+    "right_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "total_cut": {
+     "ours": 5010.68,
+     "reference": 4979.25,
+     "diff": 31.43,
+     "pct": 0.6
+    },
+    "total_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    }
+   }
+  },
+  {
+   "street": "SR 5",
+   "stage": "Mainline",
+   "station": "304+00",
+   "stationFt": 30400.0,
+   "sectionId": 6,
+   "status": "matched",
+   "page": 4,
+   "confidence": 95,
+   "areas": {
+    "left_cut": {
+     "ours": 1203.37,
+     "reference": 1765.44,
+     "diff": -562.07,
+     "pct": -31.8
+    },
+    "left_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "right_cut": {
+     "ours": 4060.06,
+     "reference": 4092.03,
+     "diff": -31.97,
+     "pct": -0.8
+    },
+    "right_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "total_cut": {
+     "ours": 5263.43,
+     "reference": 5857.47,
+     "diff": -594.04,
+     "pct": -10.1
+    },
+    "total_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    }
+   }
+  },
+  {
+   "street": "SR 5",
+   "stage": "Mainline",
+   "station": "304+50",
+   "stationFt": 30450.0,
+   "sectionId": 7,
+   "status": "matched",
+   "page": 4,
+   "confidence": 85,
+   "areas": {
+    "left_cut": {
+     "ours": 1787.54,
+     "reference": 1800.36,
+     "diff": -12.82,
+     "pct": -0.7
+    },
+    "left_fill": {
+     "ours": 0.02,
+     "reference": 0.0,
+     "diff": 0.02,
+     "pct": null
+    },
+    "right_cut": {
+     "ours": 4377.7,
+     "reference": 4418.01,
+     "diff": -40.31,
+     "pct": -0.9
+    },
+    "right_fill": {
+     "ours": 0.01,
+     "reference": 0.0,
+     "diff": 0.01,
+     "pct": null
+    },
+    "total_cut": {
+     "ours": 6165.24,
+     "reference": 6218.37,
+     "diff": -53.13,
+     "pct": -0.9
+    },
+    "total_fill": {
+     "ours": 0.02,
+     "reference": 0.0,
+     "diff": 0.02,
+     "pct": null
+    }
+   }
+  },
+  {
+   "street": "SR 5",
+   "stage": "Mainline",
+   "station": "305+00",
+   "stationFt": 30500.0,
+   "sectionId": 8,
+   "status": "matched",
+   "page": 5,
+   "confidence": 65,
+   "areas": {
+    "left_cut": {
+     "ours": 1744.24,
+     "reference": 1756.35,
+     "diff": -12.11,
+     "pct": -0.7
+    },
+    "left_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "right_cut": {
+     "ours": 4712.03,
+     "reference": 4732.11,
+     "diff": -20.08,
+     "pct": -0.4
+    },
+    "right_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "total_cut": {
+     "ours": 6456.28,
+     "reference": 6488.46,
+     "diff": -32.18,
+     "pct": -0.5
+    },
+    "total_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    }
+   }
+  },
+  {
+   "street": "SR 5",
+   "stage": "Mainline",
+   "station": "305+50",
+   "stationFt": 30550.0,
+   "sectionId": 9,
+   "status": "matched",
+   "page": 5,
+   "confidence": 85,
+   "areas": {
+    "left_cut": {
+     "ours": 1735.32,
+     "reference": 1739.34,
+     "diff": -4.02,
+     "pct": -0.2
+    },
+    "left_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "right_cut": {
+     "ours": 4650.44,
+     "reference": 4664.25,
+     "diff": -13.81,
+     "pct": -0.3
+    },
+    "right_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "total_cut": {
+     "ours": 6385.76,
+     "reference": 6403.59,
+     "diff": -17.83,
+     "pct": -0.3
+    },
+    "total_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    }
+   }
+  },
+  {
+   "street": "SR 5",
+   "stage": "Mainline",
+   "station": "306+00",
+   "stationFt": 30600.0,
+   "sectionId": 10,
+   "status": "matched",
+   "page": 6,
+   "confidence": 92,
+   "areas": {
+    "left_cut": {
+     "ours": 1685.26,
+     "reference": 1691.37,
+     "diff": -6.11,
+     "pct": -0.4
+    },
+    "left_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "right_cut": {
+     "ours": 4450.13,
+     "reference": 4474.98,
+     "diff": -24.85,
+     "pct": -0.6
+    },
+    "right_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "total_cut": {
+     "ours": 6135.39,
+     "reference": 6166.35,
+     "diff": -30.96,
+     "pct": -0.5
+    },
+    "total_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    }
+   }
+  },
+  {
+   "street": "SR 5",
+   "stage": "Mainline",
+   "station": "306+50",
+   "stationFt": 30650.0,
+   "sectionId": 11,
+   "status": "matched",
+   "page": 6,
+   "confidence": 92,
+   "areas": {
+    "left_cut": {
+     "ours": 1092.85,
+     "reference": 1608.93,
+     "diff": -516.08,
+     "pct": -32.1
+    },
+    "left_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "right_cut": {
+     "ours": 4220.3,
+     "reference": 4250.52,
+     "diff": -30.22,
+     "pct": -0.7
+    },
+    "right_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "total_cut": {
+     "ours": 5313.16,
+     "reference": 5859.45,
+     "diff": -546.29,
+     "pct": -9.3
+    },
+    "total_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    }
+   }
+  },
+  {
+   "street": "SR 5",
+   "stage": "Mainline",
+   "station": "307+00",
+   "stationFt": 30700.0,
+   "sectionId": 12,
+   "status": "matched",
+   "page": 7,
+   "confidence": 80,
+   "areas": {
+    "left_cut": {
+     "ours": 2531.63,
+     "reference": 2550.87,
+     "diff": -19.24,
+     "pct": -0.8
+    },
+    "left_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "right_cut": {
+     "ours": 4040.18,
+     "reference": 4056.93,
+     "diff": -16.75,
+     "pct": -0.4
+    },
+    "right_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "total_cut": {
+     "ours": 6571.8,
+     "reference": 6607.8,
+     "diff": -36.0,
+     "pct": -0.5
+    },
+    "total_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    }
+   }
+  },
+  {
+   "street": "SR 5",
+   "stage": "Mainline",
+   "station": "307+17",
+   "stationFt": 30717.0,
+   "sectionId": null,
+   "status": "missing",
+   "reference": {
+    "left": {
+     "cut_ft2": 2831.58,
+     "fill_ft2": 0.0,
+     "cut_cy": 1694.47,
+     "fill_cy": 0.0
+    },
+    "right": {
+     "cut_ft2": 4066.2,
+     "fill_ft2": 0.0,
+     "cut_cy": 2557.28,
+     "fill_cy": 0.0
+    }
+   }
+  },
+  {
+   "street": "SR 5",
+   "stage": "Mainline",
+   "station": "307+50",
+   "stationFt": 30750.0,
+   "sectionId": 13,
+   "status": "matched",
+   "page": 7,
+   "confidence": 72,
+   "areas": {
+    "left_cut": {
+     "ours": 2823.66,
+     "reference": 3735.9,
+     "diff": -912.24,
+     "pct": -24.4
+    },
+    "left_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "right_cut": {
+     "ours": 4052.02,
+     "reference": 3643.11,
+     "diff": 408.91,
+     "pct": 11.2
+    },
+    "right_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "total_cut": {
+     "ours": 6875.68,
+     "reference": 7379.01,
+     "diff": -503.33,
+     "pct": -6.8
+    },
+    "total_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    }
+   }
+  },
+  {
+   "street": "SR 5",
+   "stage": "Mainline",
+   "station": "308+00",
+   "stationFt": 30800.0,
+   "sectionId": 15,
+   "status": "matched",
+   "page": 8,
+   "confidence": 92,
+   "areas": {
+    "left_cut": {
+     "ours": 3430.95,
+     "reference": 3383.73,
+     "diff": 47.22,
+     "pct": 1.4
+    },
+    "left_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "right_cut": {
+     "ours": 3536.0,
+     "reference": 3492.81,
+     "diff": 43.19,
+     "pct": 1.2
+    },
+    "right_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "total_cut": {
+     "ours": 6966.95,
+     "reference": 6876.54,
+     "diff": 90.41,
+     "pct": 1.3
+    },
+    "total_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    }
+   }
+  },
+  {
+   "street": "SR 5",
+   "stage": "Mainline",
+   "station": "308+50",
+   "stationFt": 30850.0,
+   "sectionId": 16,
+   "status": "matched",
+   "page": 9,
+   "confidence": 92,
+   "areas": {
+    "left_cut": {
+     "ours": 3385.99,
+     "reference": 3357.18,
+     "diff": 28.81,
+     "pct": 0.9
+    },
+    "left_fill": {
+     "ours": 0.01,
+     "reference": 0.0,
+     "diff": 0.01,
+     "pct": null
+    },
+    "right_cut": {
+     "ours": 3470.57,
+     "reference": 3447.72,
+     "diff": 22.85,
+     "pct": 0.7
+    },
+    "right_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "total_cut": {
+     "ours": 6856.55,
+     "reference": 6804.9,
+     "diff": 51.65,
+     "pct": 0.8
+    },
+    "total_fill": {
+     "ours": 0.01,
+     "reference": 0.0,
+     "diff": 0.01,
+     "pct": null
+    }
+   }
+  },
+  {
+   "street": "SR 5",
+   "stage": "Mainline",
+   "station": "309+00",
+   "stationFt": 30900.0,
+   "sectionId": 17,
+   "status": "matched",
+   "page": 9,
+   "confidence": 92,
+   "areas": {
+    "left_cut": {
+     "ours": 3335.37,
+     "reference": 3306.96,
+     "diff": 28.41,
+     "pct": 0.9
+    },
+    "left_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "right_cut": {
+     "ours": 2870.39,
+     "reference": 2850.75,
+     "diff": 19.64,
+     "pct": 0.7
+    },
+    "right_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "total_cut": {
+     "ours": 6205.76,
+     "reference": 6157.71,
+     "diff": 48.05,
+     "pct": 0.8
+    },
+    "total_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    }
+   }
+  },
+  {
+   "street": "SR 5",
+   "stage": "Mainline",
+   "station": "309+50",
+   "stationFt": 30950.0,
+   "sectionId": 18,
+   "status": "matched",
+   "page": 9,
+   "confidence": 92,
+   "areas": {
+    "left_cut": {
+     "ours": 3170.92,
+     "reference": 3148.29,
+     "diff": 22.63,
+     "pct": 0.7
+    },
+    "left_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "right_cut": {
+     "ours": 2758.71,
+     "reference": 2746.8,
+     "diff": 11.91,
+     "pct": 0.4
+    },
+    "right_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "total_cut": {
+     "ours": 5929.63,
+     "reference": 5895.09,
+     "diff": 34.54,
+     "pct": 0.6
+    },
+    "total_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    }
+   }
+  },
+  {
+   "street": "SR 5",
+   "stage": "Mainline",
+   "station": "310+00",
+   "stationFt": 31000.0,
+   "sectionId": 19,
+   "status": "matched",
+   "page": 10,
+   "confidence": 92,
+   "areas": {
+    "left_cut": {
+     "ours": 2534.31,
+     "reference": 2529.36,
+     "diff": 4.95,
+     "pct": 0.2
+    },
+    "left_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "right_cut": {
+     "ours": 2637.88,
+     "reference": 2630.16,
+     "diff": 7.72,
+     "pct": 0.3
+    },
+    "right_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "total_cut": {
+     "ours": 5172.19,
+     "reference": 5159.52,
+     "diff": 12.67,
+     "pct": 0.2
+    },
+    "total_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    }
+   }
+  },
+  {
+   "street": "SR 5",
+   "stage": "Mainline",
+   "station": "310+50",
+   "stationFt": 31050.0,
+   "sectionId": 20,
+   "status": "matched",
+   "page": 10,
+   "confidence": 82,
+   "areas": {
+    "left_cut": {
+     "ours": 1491.09,
+     "reference": 1501.65,
+     "diff": -10.56,
+     "pct": -0.7
+    },
+    "left_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "right_cut": {
+     "ours": 2502.64,
+     "reference": 2509.65,
+     "diff": -7.01,
+     "pct": -0.3
+    },
+    "right_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "total_cut": {
+     "ours": 3993.72,
+     "reference": 4011.3,
+     "diff": -17.58,
+     "pct": -0.4
+    },
+    "total_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    }
+   }
+  },
+  {
+   "street": "SR 5",
+   "stage": "Mainline",
+   "station": "311+00",
+   "stationFt": 31100.0,
+   "sectionId": 21,
+   "status": "matched",
+   "page": 10,
+   "confidence": 62,
+   "areas": {
+    "left_cut": {
+     "ours": 1074.76,
+     "reference": 1070.19,
+     "diff": 4.57,
+     "pct": 0.4
+    },
+    "left_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "right_cut": {
+     "ours": 2103.88,
+     "reference": 2128.14,
+     "diff": -24.26,
+     "pct": -1.1
+    },
+    "right_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "total_cut": {
+     "ours": 3178.64,
+     "reference": 3198.33,
+     "diff": -19.69,
+     "pct": -0.6
+    },
+    "total_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    }
+   }
+  },
+  {
+   "street": "SR 5",
+   "stage": "Mainline",
+   "station": "311+50",
+   "stationFt": 31150.0,
+   "sectionId": 22,
+   "status": "matched",
+   "page": 11,
+   "confidence": 92,
+   "areas": {
+    "left_cut": {
+     "ours": 871.65,
+     "reference": 868.68,
+     "diff": 2.97,
+     "pct": 0.3
+    },
+    "left_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "right_cut": {
+     "ours": 2382.23,
+     "reference": 2305.44,
+     "diff": 76.79,
+     "pct": 3.3
+    },
+    "right_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "total_cut": {
+     "ours": 3253.89,
+     "reference": 3174.12,
+     "diff": 79.77,
+     "pct": 2.5
+    },
+    "total_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    }
+   }
+  },
+  {
+   "street": "SR 5",
+   "stage": "Mainline",
+   "station": "312+00",
+   "stationFt": 31200.0,
+   "sectionId": 23,
+   "status": "matched",
+   "page": 11,
+   "confidence": 92,
+   "areas": {
+    "left_cut": {
+     "ours": 650.51,
+     "reference": 646.2,
+     "diff": 4.31,
+     "pct": 0.7
+    },
+    "left_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "right_cut": {
+     "ours": 1946.58,
+     "reference": 1832.85,
+     "diff": 113.73,
+     "pct": 6.2
+    },
+    "right_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "total_cut": {
+     "ours": 2597.09,
+     "reference": 2479.05,
+     "diff": 118.04,
+     "pct": 4.8
+    },
+    "total_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    }
+   }
+  },
+  {
+   "street": "SR 5",
+   "stage": "Mainline",
+   "station": "312+50",
+   "stationFt": 31250.0,
+   "sectionId": 24,
+   "status": "matched",
+   "page": 11,
+   "confidence": 72,
+   "areas": {
+    "left_cut": {
+     "ours": 167.68,
+     "reference": 162.72,
+     "diff": 4.96,
+     "pct": 3.0
+    },
+    "left_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "right_cut": {
+     "ours": 1128.3,
+     "reference": 968.58,
+     "diff": 159.72,
+     "pct": 16.5
+    },
+    "right_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "total_cut": {
+     "ours": 1295.98,
+     "reference": 1131.3,
+     "diff": 164.68,
+     "pct": 14.6
+    },
+    "total_fill": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    }
+   }
+  },
+  {
+   "street": "SR 5",
+   "stage": "Mainline",
+   "station": "313+00",
+   "stationFt": 31300.0,
+   "sectionId": 25,
+   "status": "matched",
+   "page": 12,
+   "confidence": 72,
+   "areas": {
+    "left_cut": {
+     "ours": 0.49,
+     "reference": 9.63,
+     "diff": -9.14,
+     "pct": -94.9
+    },
+    "left_fill": {
+     "ours": 83.45,
+     "reference": 86.94,
+     "diff": -3.49,
+     "pct": -4.0
+    },
+    "right_cut": {
+     "ours": 93.51,
+     "reference": 85.59,
+     "diff": 7.92,
+     "pct": 9.3
+    },
+    "right_fill": {
+     "ours": 222.89,
+     "reference": 211.14,
+     "diff": 11.75,
+     "pct": 5.6
+    },
+    "total_cut": {
+     "ours": 93.99,
+     "reference": 95.22,
+     "diff": -1.23,
+     "pct": -1.3
+    },
+    "total_fill": {
+     "ours": 306.34,
+     "reference": 298.08,
+     "diff": 8.26,
+     "pct": 2.8
+    }
+   }
+  },
+  {
+   "street": "SR 5",
+   "stage": "Mainline",
+   "station": "313+50",
+   "stationFt": 31350.0,
+   "sectionId": 26,
+   "status": "matched",
+   "page": 12,
+   "confidence": 82,
+   "areas": {
+    "left_cut": {
+     "ours": 20.76,
+     "reference": 15.84,
+     "diff": 4.92,
+     "pct": 31.1
+    },
+    "left_fill": {
+     "ours": 0.09,
+     "reference": 881.19,
+     "diff": -881.1,
+     "pct": -100.0
+    },
+    "right_cut": {
+     "ours": 20.6,
+     "reference": 0.0,
+     "diff": 20.6,
+     "pct": null
+    },
+    "right_fill": {
+     "ours": 202.72,
+     "reference": 1394.82,
+     "diff": -1192.1,
+     "pct": -85.5
+    },
+    "total_cut": {
+     "ours": 41.36,
+     "reference": 15.84,
+     "diff": 25.52,
+     "pct": 161.1
+    },
+    "total_fill": {
+     "ours": 202.81,
+     "reference": 2276.01,
+     "diff": -2073.2,
+     "pct": -91.1
+    }
+   }
+  },
+  {
+   "street": "SR 5",
+   "stage": "Mainline",
+   "station": "314+00",
+   "stationFt": 31400.0,
+   "sectionId": 27,
+   "status": "matched",
+   "page": 13,
+   "confidence": 62,
+   "areas": {
+    "left_cut": {
+     "ours": 24.25,
+     "reference": 21.42,
+     "diff": 2.83,
+     "pct": 13.2
+    },
+    "left_fill": {
+     "ours": 9.55,
+     "reference": 2451.24,
+     "diff": -2441.69,
+     "pct": -99.6
+    },
+    "right_cut": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "right_fill": {
+     "ours": 144.83,
+     "reference": 0.0,
+     "diff": 144.83,
+     "pct": null
+    },
+    "total_cut": {
+     "ours": 24.25,
+     "reference": 21.42,
+     "diff": 2.83,
+     "pct": 13.2
+    },
+    "total_fill": {
+     "ours": 154.38,
+     "reference": 2451.24,
+     "diff": -2296.86,
+     "pct": -93.7
+    }
+   }
+  },
+  {
+   "street": "SR 5",
+   "stage": "Mainline",
+   "station": "314+50",
+   "stationFt": 31450.0,
+   "sectionId": 28,
+   "status": "matched",
+   "page": 13,
+   "confidence": 92,
+   "areas": {
+    "left_cut": {
+     "ours": 45.43,
+     "reference": 22.32,
+     "diff": 23.11,
+     "pct": 103.5
+    },
+    "left_fill": {
+     "ours": 0.33,
+     "reference": 3542.31,
+     "diff": -3541.98,
+     "pct": -100.0
+    },
+    "right_cut": {
+     "ours": 38.37,
+     "reference": 16.56,
+     "diff": 21.81,
+     "pct": 131.7
+    },
+    "right_fill": {
+     "ours": 0.13,
+     "reference": 2149.29,
+     "diff": -2149.16,
+     "pct": -100.0
+    },
+    "total_cut": {
+     "ours": 83.81,
+     "reference": 38.88,
+     "diff": 44.93,
+     "pct": 115.6
+    },
+    "total_fill": {
+     "ours": 0.46,
+     "reference": 5691.6,
+     "diff": -5691.14,
+     "pct": -100.0
+    }
+   }
+  },
+  {
+   "street": "SR 5",
+   "stage": "Mainline",
+   "station": "315+00",
+   "stationFt": 31500.0,
+   "sectionId": 29,
+   "status": "matched",
+   "page": 14,
+   "confidence": 72,
+   "areas": {
+    "left_cut": {
+     "ours": 0.0,
+     "reference": 11.88,
+     "diff": -11.88,
+     "pct": -100.0
+    },
+    "left_fill": {
+     "ours": 3496.24,
+     "reference": 3508.92,
+     "diff": -12.68,
+     "pct": -0.4
+    },
+    "right_cut": {
+     "ours": 37.3,
+     "reference": 37.89,
+     "diff": -0.59,
+     "pct": -1.6
+    },
+    "right_fill": {
+     "ours": 1510.95,
+     "reference": 1521.18,
+     "diff": -10.23,
+     "pct": -0.7
+    },
+    "total_cut": {
+     "ours": 37.3,
+     "reference": 49.77,
+     "diff": -12.47,
+     "pct": -25.1
+    },
+    "total_fill": {
+     "ours": 5007.19,
+     "reference": 5030.1,
+     "diff": -22.91,
+     "pct": -0.5
+    }
+   }
+  },
+  {
+   "street": "SR 5",
+   "stage": "Mainline",
+   "station": "315+50",
+   "stationFt": 31550.0,
+   "sectionId": 30,
+   "status": "matched",
+   "page": 15,
+   "confidence": 82,
+   "areas": {
+    "left_cut": {
+     "ours": 2.93,
+     "reference": 20.97,
+     "diff": -18.04,
+     "pct": -86.0
+    },
+    "left_fill": {
+     "ours": 4015.18,
+     "reference": 3950.1,
+     "diff": 65.08,
+     "pct": 1.6
+    },
+    "right_cut": {
+     "ours": 48.71,
+     "reference": 50.94,
+     "diff": -2.23,
+     "pct": -4.4
+    },
+    "right_fill": {
+     "ours": 1436.12,
+     "reference": 1431.36,
+     "diff": 4.76,
+     "pct": 0.3
+    },
+    "total_cut": {
+     "ours": 51.64,
+     "reference": 71.91,
+     "diff": -20.27,
+     "pct": -28.2
+    },
+    "total_fill": {
+     "ours": 5451.3,
+     "reference": 5381.46,
+     "diff": 69.84,
+     "pct": 1.3
+    }
+   }
+  },
+  {
+   "street": "SR 5",
+   "stage": "Mainline",
+   "station": "316+00",
+   "stationFt": 31600.0,
+   "sectionId": 31,
+   "status": "matched",
+   "page": 15,
+   "confidence": 82,
+   "areas": {
+    "left_cut": {
+     "ours": 1.64,
+     "reference": 6.3,
+     "diff": -4.66,
+     "pct": -74.0
+    },
+    "left_fill": {
+     "ours": 2555.95,
+     "reference": 2552.4,
+     "diff": 3.55,
+     "pct": 0.1
+    },
+    "right_cut": {
+     "ours": 0.19,
+     "reference": 3.15,
+     "diff": -2.96,
+     "pct": -94.0
+    },
+    "right_fill": {
+     "ours": 2162.1,
+     "reference": 2160.27,
+     "diff": 1.83,
+     "pct": 0.1
+    },
+    "total_cut": {
+     "ours": 1.83,
+     "reference": 9.45,
+     "diff": -7.62,
+     "pct": -80.6
+    },
+    "total_fill": {
+     "ours": 4718.04,
+     "reference": 4712.67,
+     "diff": 5.37,
+     "pct": 0.1
+    }
+   }
+  },
+  {
+   "street": "SR 5",
+   "stage": "Mainline",
+   "station": "316+50",
+   "stationFt": 31650.0,
+   "sectionId": 32,
+   "status": "matched",
+   "page": 16,
+   "confidence": 95,
+   "areas": {
+    "left_cut": {
+     "ours": 0.09,
+     "reference": 10.44,
+     "diff": -10.35,
+     "pct": -99.1
+    },
+    "left_fill": {
+     "ours": 1371.85,
+     "reference": 1377.63,
+     "diff": -5.78,
+     "pct": -0.4
+    },
+    "right_cut": {
+     "ours": 0.08,
+     "reference": 19.35,
+     "diff": -19.27,
+     "pct": -99.6
+    },
+    "right_fill": {
+     "ours": 1136.08,
+     "reference": 1142.64,
+     "diff": -6.56,
+     "pct": -0.6
+    },
+    "total_cut": {
+     "ours": 0.18,
+     "reference": 29.79,
+     "diff": -29.61,
+     "pct": -99.4
+    },
+    "total_fill": {
+     "ours": 2507.93,
+     "reference": 2520.27,
+     "diff": -12.34,
+     "pct": -0.5
+    }
+   }
+  },
+  {
+   "street": "SR 5",
+   "stage": "Mainline",
+   "station": "317+00",
+   "stationFt": 31700.0,
+   "sectionId": 33,
+   "status": "matched",
+   "page": 16,
+   "confidence": 65,
+   "areas": {
+    "left_cut": {
+     "ours": 0.12,
+     "reference": 9.0,
+     "diff": -8.88,
+     "pct": -98.7
+    },
+    "left_fill": {
+     "ours": 720.35,
+     "reference": 730.26,
+     "diff": -9.91,
+     "pct": -1.4
+    },
+    "right_cut": {
+     "ours": 5.32,
+     "reference": 0.0,
+     "diff": 5.32,
+     "pct": null
+    },
+    "right_fill": {
+     "ours": 449.32,
+     "reference": 452.34,
+     "diff": -3.02,
+     "pct": -0.7
+    },
+    "total_cut": {
+     "ours": 5.44,
+     "reference": 9.0,
+     "diff": -3.56,
+     "pct": -39.6
+    },
+    "total_fill": {
+     "ours": 1169.67,
+     "reference": 1182.6,
+     "diff": -12.93,
+     "pct": -1.1
+    }
+   }
+  },
+  {
+   "street": "SR 5",
+   "stage": "Mainline",
+   "station": "317+50",
+   "stationFt": 31750.0,
+   "sectionId": 34,
+   "status": "matched",
+   "page": 17,
+   "confidence": 85,
+   "areas": {
+    "left_cut": {
+     "ours": 3.28,
+     "reference": 16.92,
+     "diff": -13.64,
+     "pct": -80.6
+    },
+    "left_fill": {
+     "ours": 510.94,
+     "reference": 509.58,
+     "diff": 1.36,
+     "pct": 0.3
+    },
+    "right_cut": {
+     "ours": 11.23,
+     "reference": 15.75,
+     "diff": -4.52,
+     "pct": -28.7
+    },
+    "right_fill": {
+     "ours": 240.42,
+     "reference": 240.75,
+     "diff": -0.33,
+     "pct": -0.1
+    },
+    "total_cut": {
+     "ours": 14.52,
+     "reference": 32.67,
+     "diff": -18.15,
+     "pct": -55.6
+    },
+    "total_fill": {
+     "ours": 751.36,
+     "reference": 750.33,
+     "diff": 1.03,
+     "pct": 0.1
+    }
+   }
+  },
+  {
+   "street": "SR 5",
+   "stage": "Mainline",
+   "station": "318+00",
+   "stationFt": 31800.0,
+   "sectionId": 35,
+   "status": "matched",
+   "page": 17,
+   "confidence": 85,
+   "areas": {
+    "left_cut": {
+     "ours": 0.0,
+     "reference": 20.61,
+     "diff": -20.61,
+     "pct": -100.0
+    },
+    "left_fill": {
+     "ours": 1234.98,
+     "reference": 1230.3,
+     "diff": 4.68,
+     "pct": 0.4
+    },
+    "right_cut": {
+     "ours": 0.94,
+     "reference": 11.97,
+     "diff": -11.03,
+     "pct": -92.1
+    },
+    "right_fill": {
+     "ours": 250.86,
+     "reference": 251.1,
+     "diff": -0.24,
+     "pct": -0.1
+    },
+    "total_cut": {
+     "ours": 0.94,
+     "reference": 32.58,
+     "diff": -31.64,
+     "pct": -97.1
+    },
+    "total_fill": {
+     "ours": 1485.85,
+     "reference": 1481.4,
+     "diff": 4.45,
+     "pct": 0.3
+    }
+   }
+  },
+  {
+   "street": "SR 5",
+   "stage": "Mainline",
+   "station": "318+50",
+   "stationFt": 31850.0,
+   "sectionId": 36,
+   "status": "matched",
+   "page": 18,
+   "confidence": 82,
+   "areas": {
+    "left_cut": {
+     "ours": 0.0,
+     "reference": 0.0,
+     "diff": 0.0,
+     "pct": null
+    },
+    "left_fill": {
+     "ours": 685.4,
+     "reference": 685.53,
+     "diff": -0.13,
+     "pct": -0.0
+    },
+    "right_cut": {
+     "ours": 0.42,
+     "reference": 0.0,
+     "diff": 0.42,
+     "pct": null
+    },
+    "right_fill": {
+     "ours": 541.1,
+     "reference": 666.36,
+     "diff": -125.26,
+     "pct": -18.8
+    },
+    "total_cut": {
+     "ours": 0.42,
+     "reference": 0.0,
+     "diff": 0.42,
+     "pct": null
+    },
+    "total_fill": {
+     "ours": 1226.5,
+     "reference": 1351.89,
+     "diff": -125.39,
+     "pct": -9.3
+    }
+   }
+  },
+  {
+   "street": "SR 5",
+   "stage": "Mainline",
+   "station": "318+65",
+   "stationFt": 31865.0,
+   "sectionId": 37,
+   "status": "matched",
+   "page": 18,
+   "confidence": 92,
+   "areas": {
+    "left_cut": {
+     "ours": 1.47,
+     "reference": 6.48,
+     "diff": -5.01,
+     "pct": -77.3
+    },
+    "left_fill": {
+     "ours": 418.16,
+     "reference": 417.87,
+     "diff": 0.29,
+     "pct": 0.1
+    },
+    "right_cut": {
+     "ours": 0.19,
+     "reference": 0.0,
+     "diff": 0.19,
+     "pct": null
+    },
+    "right_fill": {
+     "ours": 160.36,
+     "reference": 357.48,
+     "diff": -197.12,
+     "pct": -55.1
+    },
+    "total_cut": {
+     "ours": 1.66,
+     "reference": 6.48,
+     "diff": -4.82,
+     "pct": -74.4
+    },
+    "total_fill": {
+     "ours": 578.52,
+     "reference": 775.35,
+     "diff": -196.83,
+     "pct": -25.4
+    }
+   }
+  }
+ ],
+ "title": "SR 5 connector",
+ "planSet": "SR 5 CONNCETOR -EARTHWORK.pdf",
+ "referenceFile": "Crossections_1791799434754.xlsx",
+ "generated": "2026-10-13",
+ "pipelineSeconds": 143.6,
+ "sections": 42,
+ "lowConfidence": 19,
+ "ourRoads": [
+  {
+   "label": "Road 1",
+   "from": "301+40",
+   "to": "320+65",
+   "fill_cy": 42559.4,
+   "cut_cy": 210612.9
+  }
+ ],
+ "notes": [
+  "SR 5 Mainline cut agrees within 1.2 % (200,469 vs 202,881 CY). Station by station the cut areas are mostly within 1-2 % of the provided ones, left and right of the centreline alike.",
+  "Before this comparison the deep cuts from 302+50 to 306+50 and 311+00 to 312+00 measured almost nothing: the template there ends at the foot of a retaining wall, 45 ft below ground, and was taken for a buried pipe. The pipeline now follows the back slope up from the wall top to the ground, and no longer takes a cut more than 15 ft deep passing under the middle of the road for a pipe. That fix took the cut volume from -54 % to -2 %.",
+  "Fill is short at 313+50, 314+00 and 314+50 (about 200 ft\u00b2 measured against 2,276-5,692 ft\u00b2 provided): the existing ground under that tall embankment is a faint dashed line far below it, and the scan's ground trace follows the embankment instead. This accounts for most of the -31 % difference in Mainline fill; 313+50 and 314+00 are flagged below 85 % confidence, 314+50 is not.",
+  "304+00 and 306+50 measure about 10 % less cut than provided: the thin back-slope line above the wall is broken on the scan there, so the left wedge above the wall is not added.",
+  "The Driveways rows (312+50, 313+80) are separate driveway takeoffs with no section sheet of their own in this plan set, and SCHOOL ST (5+50, 6+00) is on the last two sheets: its only station label read by OCR (5+50) was overruled by the SR 5 station sequence, so those four sections were placed as 319+15 to 320+65 on SR 5 and flagged as inferred."
+ ]
+}

@@ -12,6 +12,12 @@ HTTP API for the earthwork pipeline.
     GET  /api/jobs/{id}/sections/{n}/profile.json   its traced lines, in image pixels
     GET  /api/jobs/{id}/pages/{n}.png        a whole sheet of the original PDF, as an image
     GET  /api/jobs/{id}/calibration          feet-to-pixel calibration per sheet + cut / fill shapes
+    GET  /api/jobs/{id}/cross-sections       every section in the received cross-section format:
+                                             left / right areas, shapes, confidence and alerts
+    POST /api/jobs/{id}/compare              compare with provided results (xlsx / csv upload)
+    GET  /api/comparisons                    stored comparisons with provided results (e.g. SR 5)
+    GET  /api/comparisons/{name}             one of them
+    GET  /api/schemas/{name}                 the JSON Schemas responses are validated against
     GET  /api/jobs/{id}/pages/{n}.json       the sections on that sheet, in its coordinates
     GET  /api/jobs/{id}/volumes.csv          volume table (respects ?exclude=road ids)
     GET  /api/jobs/{id}/sections.csv         per-section areas
@@ -48,6 +54,8 @@ from fastapi.staticfiles import StaticFiles
 
 from gdot_earthwork import __version__
 from gdot_earthwork import calibration as calib
+from gdot_earthwork import cross_sections as xsec
+from gdot_earthwork.compare import compare as compare_reference, read_reference
 from gdot_earthwork.export import annotated_pdf
 from gdot_earthwork.plan_set import ZERO_REASONS, PlanSetResult, process_plan_set
 from gdot_earthwork.sides import current_sides, polygon_sides, removal_sides, road_side_volumes
@@ -161,6 +169,10 @@ def serialize(job: Job, res: PlanSetResult) -> dict:
         },
         "method": s.method,
         "page_kind": s.page_kind,
+        # ft per grid square on each axis, as read off the axis labels (stages.calibrate)
+        "scale": s.scale,
+        # 0-100, with what lowered it; below the pass score it carries alerts
+        "confidence": s.confidence,
         "road": road_of.get(i),
         "warnings": s.warnings,
         "overlay": f"/api/jobs/{job.id}/sections/{i}.png" if s.overlay_png else None,
@@ -180,6 +192,7 @@ def serialize(job: Job, res: PlanSetResult) -> dict:
             "design_surface": res.design_surface,
             "surfaces": [res.design_surface, alt_surface],
             "no_earthwork": sum(s.zero_reason is not None for s in res.sections),
+            "low_confidence": sum(1 for s in res.sections if s.confidence and not s.confidence["passed"]),
         },
         "zero_reasons": ZERO_REASONS,
         "roads": roads,
@@ -452,13 +465,7 @@ def page_sections(job_id: str, n: int):
                         headers={"Cache-Control": "private, max-age=86400"})
 
 
-@app.get("/api/jobs/{job_id}/calibration")
-def calibration(job_id: str):
-    """Feet-to-pixel calibration for every sheet of the plan set, and the cut /
-    fill areas found on each as page-space shapes (see gdot_earthwork.calibration
-    for the format). Built once per job: scale notes on scanned sheets are read
-    by OCR, which takes a few seconds."""
-    job = _job(job_id)
+def _calibration(job: Job) -> dict:
     if job.status != "done" or job.result is None:
         raise HTTPException(409, "Job is not finished.")
     if job.calibration is None:
@@ -468,6 +475,88 @@ def calibration(job_id: str):
         labels = {s["id"]: roads.get(s["road"]) for s in job.payload["sections"]}
         job.calibration = calib.build(job.result, job.pdf_path, job.filename, labels)
     return job.calibration
+
+
+@app.get("/api/jobs/{job_id}/calibration")
+def calibration(job_id: str):
+    """Feet-to-pixel calibration for every sheet of the plan set, and the cut /
+    fill areas found on each as page-space shapes (see gdot_earthwork.calibration
+    for the format). Built once per job: scale notes on scanned sheets are read
+    by OCR, which takes a few seconds."""
+    return _calibration(_job(job_id))
+
+
+@app.get("/api/jobs/{job_id}/cross-sections")
+def cross_sections(job_id: str, surface: str | None = None):
+    """Every cross-section in the received cross-section format (see
+    gdot_earthwork.cross_sections): station, street, stage, left / right cut
+    and fill (hand edits applied), its shapes on the page, its confidence
+    score and alerts below the pass score."""
+    job = _job(job_id)
+    cal = _calibration(job)
+    sf = _surface(job, surface)
+    measured = lambda sec, s: sec["sides_measured"][s] if sec.get("sides_measured") else None
+    return xsec.build(job.payload, cal, sf, section_sides, measured)
+
+
+COMPARISONS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "comparisons")
+SCHEMAS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "schemas")
+MAX_REFERENCE_MB = 20
+
+
+@app.post("/api/jobs/{job_id}/compare")
+async def compare_job(job_id: str, file: UploadFile = File(...), surface: str | None = None):
+    """Compare the job's sections (hand edits included) with results provided
+    for the same plan set: an xlsx / csv with Street | Stage | Station |
+    Delta | Left / Right cut and fill areas and volumes (see
+    gdot_earthwork.compare)."""
+    job = _job(job_id)
+    if job.payload is None:
+        raise HTTPException(409, "Job is not finished.")
+    data = await file.read(MAX_REFERENCE_MB * 2 ** 20 + 1)
+    if len(data) > MAX_REFERENCE_MB * 2 ** 20:
+        raise HTTPException(413, f"Results files are limited to {MAX_REFERENCE_MB} MB.")
+    try:
+        reference = read_reference(data, file.filename or "")
+    except Exception as e:
+        raise HTTPException(400, f"Could not read the results file: {e}") from None
+    sf = _surface(job, surface)
+    report = compare_reference(job.payload["sections"], reference, sf, section_sides)
+    report.update(title=f"{job.filename} vs {file.filename}", planSet=job.filename, referenceFile=file.filename)
+    return report
+
+
+def _comparison_files() -> list[str]:
+    if not os.path.isdir(COMPARISONS_DIR):
+        return []
+    return sorted(f[:-5] for f in os.listdir(COMPARISONS_DIR) if f.endswith(".json"))
+
+
+@app.get("/api/comparisons")
+def comparisons():
+    out = []
+    for name in _comparison_files():
+        with open(os.path.join(COMPARISONS_DIR, name + ".json")) as f:
+            r = json.load(f)
+        out.append({"name": name, "title": r.get("title"), "planSet": r.get("planSet"),
+                    "referenceFile": r.get("referenceFile"), "generated": r.get("generated"), "summary": r["summary"]})
+    return out
+
+
+@app.get("/api/comparisons/{name}")
+def comparison(name: str):
+    if name not in _comparison_files():
+        raise HTTPException(404, "No such comparison.")
+    return FileResponse(os.path.join(COMPARISONS_DIR, name + ".json"), media_type="application/json")
+
+
+@app.get("/api/schemas/{name}")
+def schema(name: str):
+    files = {f[:-len(".schema.json")] for f in os.listdir(SCHEMAS_DIR) if f.endswith(".schema.json")}
+    name = name.removesuffix(".schema.json").removesuffix(".json")
+    if name not in files:
+        raise HTTPException(404, f"Schemas: {sorted(files)}")
+    return FileResponse(os.path.join(SCHEMAS_DIR, name + ".schema.json"), media_type="application/schema+json")
 
 
 MAX_AREA_FT2 = 1e6
@@ -687,7 +776,7 @@ def sections_csv(job_id: str):
              f"Fill to {b} (sq ft)", f"Cut to {b} (sq ft)",
              f"Left fill to {b} (sq ft)", f"Left cut to {b} (sq ft)",
              f"Right fill to {b} (sq ft)", f"Right cut to {b} (sq ft)",
-             "Centreline", "Edited by hand", "Method", "Warnings"]]
+             "Centreline", "Edited by hand", "Method", "Confidence (%)", "Alerts", "Warnings"]]
     for s in job.payload["sections"]:
         edited = [sf for sf in (a, b) if str(s["id"]) in edits[sf]]
         note = "; ".join(f"{sf} (measured fill {s['measured'][sf]['fill_ft2']}, cut {s['measured'][sf]['cut_ft2']})"
@@ -699,7 +788,9 @@ def sections_csv(job_id: str):
             return out
         rows.append([s["page"], s["station"] or "", s["label_source"] or "", roads.get(s["road"], ""),
                      *cells(a), *cells(b), CENTRE_TEXT.get(s["centreline"]["source"], ""),
-                     note, s["method"], " | ".join(s["warnings"])])
+                     note, s["method"], (s.get("confidence") or {}).get("score", ""),
+                     " | ".join(r for a in (s.get("confidence") or {}).get("alerts", []) for r in [a["message"]]),
+                     " | ".join(s["warnings"])])
     return _csv(rows, f"{os.path.splitext(job.filename)[0]}-sections.csv")
 
 
