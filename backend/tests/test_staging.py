@@ -52,3 +52,22 @@ def test_stage_names():
     assert stage_from_name("MAINLINE.pdf") is None
     assert other_stage("2", "3") and not other_stage("1", "1A") and not other_stage("1A", "1A")
     assert not other_stage(None, "3")
+
+
+def test_other_stages_drawn_in_grey_are_left_out():
+    """A staged sheet draws its own stage's work black and the other stages'
+    grey: where a section has both, only the black template is measured.
+    One pen only (or too little of either) changes nothing."""
+    from gdot_earthwork.surfaces import CANON_PPF, own_pen
+    W, H = int(200 * CANON_PPF), 300
+    solid = np.zeros((H, W), np.uint8)
+    gray = np.full((H, W), 255, np.uint8)
+    own, other = slice(int(10 * CANON_PPF), int(60 * CANON_PPF)), slice(int(90 * CANON_PPF), int(150 * CANON_PPF))
+    for cols, shade in ((own, 0), (other, 95)):
+        solid[150:153, cols] = 1
+        gray[150:153, cols] = shade
+    kept, left_out = own_pen(solid, gray, W, H)
+    assert kept[:, own].any() and not kept[:, other].any() and abs(left_out - 60) < 1
+    gray[150:153, other] = 0                                 # all black: one pen
+    kept, left_out = own_pen(solid, gray, W, H)
+    assert (kept == solid).all() and left_out == 0
