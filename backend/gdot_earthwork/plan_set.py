@@ -183,10 +183,13 @@ def _measure_page(pdf_path: str, index: int, cfg: PipelineConfig, overlays: bool
         for i, f in enumerate(frames):
             scale = calibrate(f, img, cfg, page_cache)
             other, dims, stage_notes = _other_stage_spans(f, img, cfg, stage) if stage else ([], [], [])
-            surf, method = trace(f, img, cfg, other, dims)
+            surf, method = trace(f, img, cfg, other, dims, stage_pen=bool(stage))
             _blank_design(surf, f, cfg, other)
             m = measure_section(surf, cfg)
             m.warnings.extend(stage_notes)
+            if surf.other_pen_ft >= 10:
+                m.warnings.append(f"{surf.other_pen_ft:.0f} ft of template drawn in another stage's grey pen "
+                                  f"-- not counted on this STAGE {stage} sheet")
             bridge = _bridge_note(f, img) if m.zero_reason is None else None
             if bridge:
                 m.warnings.append(bridge)

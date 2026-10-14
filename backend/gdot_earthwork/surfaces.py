@@ -65,6 +65,7 @@ class Surfaces:
     trimmed: list[dict] = field(default_factory=list)
     structures: list[dict] = field(default_factory=list)   # design spans dropped as bridges
     subgrade: np.ndarray | None = None     # bottom of the pavement structure (= design elsewhere)
+    other_pen_ft: float = 0.0              # template drawn in another stage's (grey) pen, left out
 
     def surface(self, which: str) -> np.ndarray:
         if which == "subgrade" and self.subgrade is not None:
@@ -197,10 +198,37 @@ def _blank_columns(mask: np.ndarray, frame: Frame, sx: float, exclude, erase=Non
     return out
 
 
-def raster_surfaces(frame: Frame, img: PageImage, cfg: PipelineConfig, exclude=None, erase=None) -> Surfaces:
+def own_pen(solid: np.ndarray, gray: np.ndarray, W: int, H: int, black: int = 25,
+            grey: tuple[int, int] = (60, 200)) -> tuple[np.ndarray, float]:
+    """A staged sheet draws its own stage's work in black and the other
+    stages' (and the traffic phases') in a grey pen. Where a section's
+    template has both, keep the black strokes only. `solid`: canonical
+    template mask; `gray`: the frame's page pixels. Returns (mask, ft of
+    grey template left out where no black one is drawn) -- the mask
+    unchanged when the section is drawn in one pen."""
+    k = max(3, int(np.ceil(max(gray.shape[1] / W, gray.shape[0] / H))) + 2)
+    dark = cv2.resize(cv2.erode(gray, np.ones((k, k), np.uint8)), (W, H), interpolation=cv2.INTER_NEAREST)
+    on = solid > 0
+    # a stroke's shade: the mean over the ink around each pixel, so the odd
+    # dark speck in a grey line (or a light edge of a black one) doesn't decide
+    n = cv2.blur(on.astype(np.float32), (9, 9))
+    shade = np.where(on, cv2.blur(np.where(on, dark, 0).astype(np.float32), (9, 9)) / np.maximum(n, 1e-6), 255)
+    is_black = on & (shade < black)
+    is_grey = on & (shade >= black) & (shade < grey[1])
+    black_cols, grey_cols = is_black.any(axis=0), is_grey.any(axis=0)
+    if black_cols.sum() < MIN_TEMPLATE_PX or grey_cols.sum() < MIN_TEMPLATE_PX:
+        return solid, 0.0
+    out = solid.copy()
+    out[is_grey] = 0
+    return out, float((grey_cols & ~black_cols).sum()) / CANON_PPF
+
+
+def raster_surfaces(frame: Frame, img: PageImage, cfg: PipelineConfig, exclude=None, erase=None,
+                    stage_pen: bool = False) -> Surfaces:
     """`exclude`: page-pixel x ranges whose proposed lines are not this
     sheet's to measure (another construction stage): the design is traced
-    without them."""
+    without them. `stage_pen`: a staged plan set -- template drawn in the
+    grey pen of other stages is left out (own_pen)."""
     x0, x1, y0, y1 = frame.left, frame.right + 1, frame.y0, frame.y1 + 1
     gray = img.gray[y0:y1, x0:x1]
     ink = (gray < cfg.ink_thresh).astype(np.uint8)
@@ -229,8 +257,11 @@ def raster_surfaces(frame: Frame, img: PageImage, cfg: PipelineConfig, exclude=N
         d = trace_design(mask, ground_px)
         return fill_along_gridlines(d, grid_rows, int(1.0 * CANON_PPF))
 
-    return _finish_with_retry(ground_px, trace, _blank_columns(solid, frame, sx, exclude, erase, sy), roi, W, H, cfg,
-                              "raster", refine=True)
+    design_mask, other_ft = own_pen(solid, gray, W, H) if stage_pen else (solid, 0.0)
+    surf = _finish_with_retry(ground_px, trace, _blank_columns(design_mask, frame, sx, exclude, erase, sy), roi, W, H,
+                              cfg, "raster", refine=True)
+    surf.other_pen_ft = other_ft
+    return surf
 
 
 def _drop_detached_in_margins(mask: np.ndarray, top_row: float, bottom_row: float,

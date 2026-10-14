@@ -86,7 +86,21 @@ def _words(img: PageImage, x0: int, y0: int, x1: int, y1: int, scale: float = 0.
                 out.append((m.group(0), int(left + m.start() * cw), int(sp.y - sp.size / 2),
                             int(len(m.group(0)) * cw), int(sp.size)))
         return out
-    return [(t, x + x0, y + y0, w, h) for t, x, y, w, h in _ocr_words(img.gray[y0:y1, x0:x1], scale)]
+    crop = img.gray[y0:y1, x0:x1]
+    # read twice: as scanned, and with long lines whited out (a dimension line
+    # running through a label garbles it); stage_spans merges what both found
+    return [(t, x + x0, y + y0, w, h) for g in (crop, _without_rules(crop)) for t, x, y, w, h in _ocr_words(g, scale)]
+
+
+def _without_rules(gray: np.ndarray, run: int = 60) -> np.ndarray:
+    """The image with long straight lines (dimension lines, grid, extension
+    lines) whited out, so a label a line runs through can still be read."""
+    ink = (gray < 200).astype(np.uint8)
+    lines = cv2.morphologyEx(ink, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (run, 1))) | \
+        cv2.morphologyEx(ink, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (1, run)))
+    out = gray.copy()
+    out[cv2.dilate(lines, np.ones((3, 3), np.uint8)) > 0] = 255
+    return out
 
 
 def _stages_in(words) -> list[tuple[str, tuple[int, int, int, int]]]:
@@ -131,7 +145,11 @@ def stage_spans(frame: Frame, img: PageImage, cfg: PipelineConfig) -> list[tuple
     (y: the dimension line's row, so it can be kept out of the tracing)."""
     x0, x1 = frame.left, frame.right
     y0, y1 = frame.y0, frame.y1
-    labels = _stages_in(_words(img, x0, y0, x1, y1))
+    labels = []
+    for sid, box in _stages_in(_words(img, x0, y0, x1, y1)):      # each label once, though read twice
+        if not any(o[0] == sid and box[0] < o[1][2] and o[1][0] < box[2] and box[1] < o[1][3] and o[1][1] < box[3]
+                   for o in labels):
+            labels.append((sid, box))
     if not labels:
         return []
     # dimension lines are drawn thin: look for them at a lighter threshold than the linework
@@ -157,8 +175,14 @@ def stage_spans(frame: Frame, img: PageImage, cfg: PipelineConfig) -> list[tuple
                 a, b = int(seg[0]), int(seg[-1])
                 near = a - 1.5 * ft <= bx1 and b + 1.5 * ft >= bx0         # touches the label's columns
                 close = r >= by0 - 1.2 * frame.pitch_y and r <= by1 + 2 * h
-                if near and close and b - a >= 3 * ft and (best is None or b - a > best[1] - best[0]):
-                    best = (a, b, r)
+                if not (near and close and b - a >= 3 * ft):
+                    continue
+                # the label's own line is the one right under (or over) it; another
+                # dimension nearby (a lane width) may be longer, but sits further off
+                gap = 0 if by0 <= r <= by1 else min(abs(r - by0), abs(r - by1))
+                key = (round(gap / h), -(b - a))
+                if best is None or key < best[3]:
+                    best = (a, b, r, key)
         if best:
             out.append((sid, x0 + best[0], x0 + best[1], y0 + best[2]))
     return out
