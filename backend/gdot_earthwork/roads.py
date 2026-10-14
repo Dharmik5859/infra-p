@@ -35,12 +35,6 @@ class Road:
     flags: list[str] = field(default_factory=list)
     repeat_of: str | None = None
 
-    @property
-    def station_range(self) -> tuple[float | None, float | None]:
-        if not self.entries:
-            return (None, None)
-        return (self.entries[0].station_ft, self.entries[-1].station_ft)
-
 
 def _step(road: Road) -> float | None:
     diffs = sorted(b.station_ft - a.station_ft

@@ -73,7 +73,8 @@ def run_job(job: Job, path: str) -> None:
         try:
             # section images carry the lines only; the app shades fill/cut from
             # the profile so the picture follows the areas the user types
-            res = process_plan_set(path, progress=progress, overlays="lines", name=job.filename)
+            res = process_plan_set(path, progress=progress, overlays="lines", name=job.filename,
+                                   workers=settings.WORKERS or None)
             job.result = res
             job.payload = serialize(job, res)
             job.pdf_path = path
@@ -134,7 +135,7 @@ class UploadWriter:
         self.path = os.path.join(self.dir, "upload.pdf")
         self.size = 0
         self.head = b""                 # the first bytes, to tell a PDF early
-        self._fh = open(self.path, "wb")
+        self._fh = open(self.path, "wb")  # noqa: SIM115 -- closed by __exit__ (used as a context manager)
 
     def write(self, data: bytes) -> None:
         self.size += len(data)

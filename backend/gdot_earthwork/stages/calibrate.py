@@ -31,8 +31,19 @@ import cv2
 import numpy as np
 
 from ..config import PipelineConfig
-from ..frames import (_AXIS_NUM_RE, Frame, _clean_for_ocr, _glyph_only, _ocr_number, _tesseract, _vline_index,
-                      _word_boxes, axis_label_words, find_centreline, width_fits)
+from ..frames import (
+    _AXIS_NUM_RE,
+    Frame,
+    _clean_for_ocr,
+    _glyph_only,
+    _ocr_number,
+    _tesseract,
+    _vline_index,
+    _word_boxes,
+    axis_label_words,
+    find_centreline,
+    width_fits,
+)
 from ..pages import PageImage
 
 PLAUSIBLE_FT = (1.0, 2.0, 2.5, 4.0, 5.0, 10.0, 20.0, 25.0, 40.0, 50.0, 100.0)

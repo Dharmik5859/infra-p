@@ -32,13 +32,13 @@ from dataclasses import replace
 from pathlib import Path
 
 import cv2
-import pymupdf as fitz
 import numpy as np
+import pymupdf as fitz
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from gdot_earthwork.config import get_config                     # noqa: E402
-from gdot_earthwork.plan_set import process_plan_set             # noqa: E402
+from gdot_earthwork.config import get_config  # noqa: E402
+from gdot_earthwork.plan_set import process_plan_set  # noqa: E402
 
 MIN_AREA = 10.0    # ft^2: below this, relative error is noise -- report absolute
 

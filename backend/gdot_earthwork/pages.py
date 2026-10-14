@@ -22,8 +22,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-import pymupdf as fitz
 import numpy as np
+import pymupdf as fitz
 
 STATION_RE = re.compile(r"^(\d{1,4})\+(\d{2}(?:\.\d+)?)$")
 MAX_RENDER_PX = 7200     # longest side of a rendered vector page
@@ -71,7 +71,7 @@ class PageImage:
             x, y = y, H - 1 - x
         return page_point(self.placement, x, y)
 
-    def rotated(self, k: int) -> "PageImage":
+    def rotated(self, k: int) -> PageImage:
         """This page turned a quarter turn (k=1 counter-clockwise, k=-1
         clockwise). Some consultants plot cross-sections sideways on the sheet;
         turned upright they read like any other sheet."""
@@ -179,10 +179,8 @@ def could_hold_sections(doc: fitz.Document, index: int) -> bool:
 def sideways_labels(page: fitz.Page) -> bool:
     """True when the page's station labels are printed sideways (sections
     plotted rotated on the sheet) -- a word box taller than it is wide."""
-    for x0, y0, x1, y1, w, *_ in page.get_text("words"):
-        if STATION_RE.match(w.strip()) and (y1 - y0) > (x1 - x0):
-            return True
-    return False
+    return any(STATION_RE.match(w.strip()) and (y1 - y0) > (x1 - x0)
+               for x0, y0, x1, y1, w, *_ in page.get_text("words"))
 
 
 def load_page(doc: fitz.Document, index: int, vector_dpi: int = 300) -> PageImage:

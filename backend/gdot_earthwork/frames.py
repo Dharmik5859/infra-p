@@ -163,8 +163,8 @@ def find_frames(img: PageImage, ink_thresh: int = 200, tol: float = 0.12) -> lis
     for chain in chains:
         hl = [lines[i] for i in chain]
         top, bottom = hl[0][0], hl[-1][1]
-        x0 = int(np.median([l[2] for l in hl]))
-        x1 = int(np.median([l[3] for l in hl]))
+        x0 = int(np.median([ln[2] for ln in hl]))
+        x1 = int(np.median([ln[3] for ln in hl]))
         band = ink[top:bottom + 1, x0:x1 + 1]
         full = np.where(band.sum(0) >= 0.9 * band.shape[0])[0]
         vl = _regular_lattice([(a + x0, b + x0) for a, b in _runs(full, tol=1)], tol)
@@ -575,8 +575,8 @@ def axis_label_words(frame: Frame, img: PageImage, ink_thresh: int = 200):
             groups.setdefault(line, []).append(k)
     words = []
     for line, ks in groups.items():
-        gx0 = min(st[k, 0] for k in ks); gy0 = min(st[k, 1] for k in ks)
-        gx1 = max(st[k, 0] + st[k, 2] for k in ks); gy1 = max(st[k, 1] + st[k, 3] for k in ks)
+        gx0, gy0 = min(st[k, 0] for k in ks), min(st[k, 1] for k in ks)
+        gx1, gy1 = max(st[k, 0] + st[k, 2] for k in ks), max(st[k, 1] + st[k, 3] for k in ks)
         words.append((line, [gx0, gy0, gx1 - gx0, gy1 - gy0], ks))
     glyphs = np.where(np.isin(lab, [k for _, _, ks in words for k in ks]), 0, 255).astype(np.uint8)
     return words, glyphs

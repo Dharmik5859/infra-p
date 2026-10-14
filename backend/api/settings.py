@@ -22,6 +22,9 @@ JOB_TTL_SECONDS = int(os.environ.get("JOB_TTL_SECONDS", 6 * 3600))
 # each job already runs its pages in parallel on all cores; more jobs at once
 # would only slow every one of them down, so further uploads wait their turn
 MAX_CONCURRENT_JOBS = int(os.environ.get("MAX_CONCURRENT_JOBS", 1))
+# processes a job reads its pages with; 0 = min(4, CPUs). Each holds a rendered
+# page (~200 MB on big scans), so on a small instance set it to 1 or 2
+WORKERS = int(os.environ.get("WORKERS", 0))
 # Scanned plan sets are big (the dataset's largest is ~120 MB); the cap only
 # guards the disk. Uploads arrive in chunks (see /api/uploads), so proxies with
 # their own request-size limits in front of the app don't get in the way.

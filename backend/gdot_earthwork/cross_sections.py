@@ -30,7 +30,7 @@ response against it.
 """
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
 
 def _side_areas(sides: dict | None, total: dict) -> dict:

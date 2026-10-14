@@ -93,7 +93,7 @@ def average_end_area_volume(
         fill_cy = fill_ft3 / 27.0
         cut_cy = cut_ft3 / 27.0
         warning = None
-        if typical and L > gap_warn_multiplier * typical:
+        if typical and gap_warn_multiplier * typical < L:
             warning = (
                 f"interval {L:.0f} ft is more than {gap_warn_multiplier:g}x this "
                 f"road's typical {typical:.0f} ft step -- volume over this span "

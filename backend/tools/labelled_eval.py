@@ -31,9 +31,11 @@ OUT = sys.argv[1] if __name__ == "__main__" else None
 
 
 def one(path):
-    import numpy as np, pymupdf as fitz
+    import numpy as np
+    import pymupdf as fitz
+
     from gdot_earthwork.plan_set import process_plan_set
-    from tools.evaluate import _markup_layer, label_pixels, markup_areas, _row
+    from tools.evaluate import _markup_layer, _row, label_pixels, markup_areas
     name = Path(path).name
     doc = fitz.open(path)
     # labelled area on each page, whole page (before the pipeline sees anything)
