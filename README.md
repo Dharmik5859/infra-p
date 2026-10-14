@@ -34,6 +34,26 @@ npm run dev                            # open http://localhost:5173
 Or with Docker: `docker build -t earthwork . && docker run -p 8000:8000 earthwork`,
 then open http://localhost:8000.
 
+## Deploy on Railway
+
+The repo deploys as one service (app + API in one container) from `Dockerfile`;
+`railway.json` sets the health check (`/api/health`) and restart policy.
+
+1. Railway → **New Project** → **Deploy from GitHub repo** → pick this repo.
+2. **Settings → Networking → Generate Domain**. That's it: open the domain.
+
+Optional variables (**Variables** tab):
+
+| Variable | Default | |
+|---|---|---|
+| `API_KEYS` | unset (open) | comma-separated keys required as `X-API-Key` on `/api/v1` |
+| `WORKERS` | min(4, CPUs) | processes per job; use 1–2 on instances with under 4 GB RAM |
+| `MAX_UPLOAD_MB` | 2048 | largest PDF accepted |
+| `JOB_TTL_SECONDS` | 21600 | how long results stay available |
+
+Jobs are kept in memory and temp files, so a redeploy clears them; plan sets
+are simply uploaded again.
+
 ## Use it
 
 * **New takeoff**: upload the PDF. **Results** then shows every section (traced
@@ -63,4 +83,5 @@ curl -F "file=@plans.pdf" "http://localhost:8000/api/v1/cross-sections?wait=300"
 
 ```bash
 cd backend && python -m pytest -q
+ruff check .                           # lint (pip install ruff)
 ```

@@ -27,11 +27,26 @@ from .config import PipelineConfig
 from .frames import Frame
 from .pages import PageImage
 from .tracing import (
-    best_path, candidates, denoise, densify, despike, drop_structures, fill_along_gridlines,
-    drop_rulers, ground_candidates, interp_spans, snap_bottom,
-    refine_gaps, snap_top, split_chain, split_dash_solid, strip_grid, template_strokes,
+    best_path,
+    candidates,
+    climb_from_wall,
+    denoise,
+    densify,
+    despike,
+    drop_rulers,
+    drop_structures,
+    fill_along_gridlines,
+    ground_candidates,
+    interp_spans,
+    refine_gaps,
+    snap_bottom,
+    snap_top,
+    split_chain,
+    split_dash_solid,
+    strip_grid,
+    template_strokes,
+    trace_ground,
     trim_buried_tail,
-    climb_from_wall, trace_ground,
 )
 
 CANON_PPF = 14.4   # px per ft the tracing constants were tuned at (19-series native)
@@ -76,19 +91,11 @@ class Surfaces:
     def overlap(self) -> np.ndarray:
         return ~np.isnan(self.ground) & ~np.isnan(self.design)
 
-    def x_ft(self, col) -> np.ndarray:
-        """Horizontal offset of a column from the frame centre, in ft."""
-        return (np.asarray(col, float) - self.width / 2) / CANON_PPF
-
 
 @dataclass
 class Area:
     fill_ft2: float
     cut_ft2: float
-
-    @property
-    def net_ft2(self) -> float:
-        return self.fill_ft2 - self.cut_ft2
 
 
 def measure(s: Surfaces, surface: str = "subgrade") -> Area:

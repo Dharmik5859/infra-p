@@ -81,7 +81,7 @@ def sections_csv(job_id: str):
         note = "; ".join(f"{sf} (measured fill {s['measured'][sf]['fill_ft2']}, cut {s['measured'][sf]['cut_ft2']})"
                          for sf in edited)
 
-        def cells(sf):
+        def cells(sf, s=s):
             out, sd = [s["areas"][sf]["fill_ft2"], s["areas"][sf]["cut_ft2"]], section_sides(s, sf)
             for side in ("left", "right"):
                 out += [sd[side]["fill_ft2"], sd[side]["cut_ft2"]] if sd else ["", ""]

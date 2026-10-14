@@ -50,13 +50,22 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from gdot_earthwork import __version__
+from api import (
+    public,
+    routes_comparisons,
+    routes_exports,
+    routes_jobs,
+    routes_results,
+    routes_sheets,
+    routes_status,
+    settings,
+)
 
-from api import (public, routes_comparisons, routes_exports, routes_jobs, routes_results, routes_sheets,
-                 routes_status, settings)
 # imported from main by tests and tools
 from api.jobs import JOBS, Job
-from api.payload import recompute_volumes as _recompute_volumes, section_sides, serialize
+from api.payload import recompute_volumes as _recompute_volumes
+from api.payload import section_sides, serialize
+from gdot_earthwork import __version__
 
 __all__ = ["app", "JOBS", "Job", "_recompute_volumes", "section_sides", "serialize"]
 

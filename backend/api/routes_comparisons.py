@@ -9,7 +9,8 @@ import os
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
-from gdot_earthwork.compare import compare as compare_reference, read_reference
+from gdot_earthwork.compare import compare as compare_reference
+from gdot_earthwork.compare import read_reference
 
 from . import jobs, schemas, settings
 from .payload import section_sides, surface_of

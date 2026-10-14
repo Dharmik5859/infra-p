@@ -63,9 +63,11 @@ def test_elevation_step_fit():
 def test_half_size_print_is_detected_from_grid_and_note(tmp_path):
     """Sheets drawn at 1" = 20' (PT_PER_FT 3.6) whose note says 1" = 10': the
     set was printed at half size. The grid wins, and the ratio is reported."""
-    from fastapi.testclient import TestClient
-    import main
     import time
+
+    from fastapi.testclient import TestClient
+
+    import main
     pdf = tmp_path / "plans.pdf"
     make_pdf(str(pdf), [[embankment("11+50", 651.3, 5.0)], [embankment("12+00", 651.0, 4.0)]],
              title='SCALE: 1" = 10\'')

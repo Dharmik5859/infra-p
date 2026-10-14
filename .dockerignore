@@ -1,5 +1,9 @@
+.git
+.claude
 **/node_modules
 **/dist
 **/__pycache__
+**/.pytest_cache
 **/*.pdf
-.git
+backend/tests
+backend/requirements-dev.txt

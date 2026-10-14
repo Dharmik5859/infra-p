@@ -73,7 +73,7 @@ def read_reference(data: bytes, filename: str = "") -> dict:
         label = str(r[2]).strip() if r[2] is not None else ""
         street = str(r[0]).strip() if r[0] not in (None, "") else street
         stage = str(r[1]).strip() if r[1] not in (None, "") else stage
-        side = lambda o: {"cut_ft2": round(_num(r[o]) * k, 2), "fill_ft2": round(_num(r[o + 1]) * k, 2),
+        side = lambda o, r=r: {"cut_ft2": round(_num(r[o]) * k, 2), "fill_ft2": round(_num(r[o + 1]) * k, 2),
                           "cut_cy": _num(r[o + 2]), "fill_cy": _num(r[o + 3])}
         if label.lower().startswith("subtotal"):
             subtotals.append({"street": street, "stage": stage, "left": side(4), "right": side(8),

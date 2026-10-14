@@ -289,7 +289,8 @@ def test_whole_sheet_and_its_sections(tmp_path):
 
 
 def test_volumes_split_left_and_right(tmp_path):
-    import csv as _csv, io as _io
+    import csv as _csv
+    import io as _io
     client = TestClient(main.app)
     job_id, result = _finished_job(tmp_path, client)
     rows = list(_csv.reader(_io.StringIO(client.get(f"/api/jobs/{job_id}/volumes.csv").text)))
@@ -297,7 +298,7 @@ def test_volumes_split_left_and_right(tmp_path):
     col = {name: head.index(name) for name in head}
     for r in rows[2:]:
         if r[1] == "TOTAL":
-            f = float(r[col["Fill (cy)"]]); c = float(r[col["Cut (cy)"]])
+            f, c = float(r[col["Fill (cy)"]]), float(r[col["Cut (cy)"]])
             lf, rf = float(r[col["Left fill (cy)"]]), float(r[col["Right fill (cy)"]])
             lc, rc = float(r[col["Left cut (cy)"]]), float(r[col["Right cut (cy)"]])
             assert abs(lf + rf - f) <= 0.2 and abs(lc + rc - c) <= 0.2      # the two sides make the road total

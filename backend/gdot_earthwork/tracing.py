@@ -374,7 +374,7 @@ def trim_buried_tail(x: np.ndarray, gpx: np.ndarray, dpx: np.ndarray, ppf: float
     out = dpx.copy()
     killed = []
     for a, b, L, dep in runs:
-        if L < run_ft or dep < depth_ft or (xx[a] < 0 < xx[b] and dep > roadway_depth_ft):
+        if run_ft > L or dep < depth_ft or (xx[a] < 0 < xx[b] and dep > roadway_depth_ft):
             continue
         if xx[-1] - xx[b] <= 2.0 and -d[-1] > end_ft:
             if subgrade is not None and _ends_as_pavement(c, d, b, -1, dpx, subgrade, ppf):
@@ -458,7 +458,7 @@ def climb_from_wall(D: np.ndarray, G: np.ndarray, mask: np.ndarray, ppf: float,
                 continue                               # never got back to the ground
             if abs(pts[-1][0] - e) < 2 * ppf or (seed - pts[-1][1]) < 2 * ppf:
                 continue                               # too short to be a slope
-            xs = np.array([p[0] for p in pts]); ys = np.array([p[1] for p in pts])
+            xs, ys = np.array([p[0] for p in pts]), np.array([p[1] for p in pts])
             order = np.argsort(xs)
             span = np.arange(min(xs.min(), e + step), max(xs.max(), e + step) + 1)
             span = span[(span >= 0) & (span < W)]

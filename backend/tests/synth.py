@@ -11,8 +11,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-import pymupdf as fitz
 import numpy as np
+import pymupdf as fitz
 
 PT_PER_FT = 3.6          # drawing scale: 1 in = 20 ft  ->  72 pt / 20 ft
 GRID_FT = 10.0

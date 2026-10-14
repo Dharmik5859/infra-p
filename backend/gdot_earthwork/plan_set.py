@@ -20,9 +20,9 @@ from __future__ import annotations
 
 import os
 import time
+from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass, field
-from typing import Callable
 
 import numpy as np
 import pymupdf as fitz
@@ -32,11 +32,11 @@ from .config import PipelineConfig, get_config
 from .render import encode_png, overlay, overlay_scale, profile
 from .roads import Road, StationEntry, group_into_roads
 from .sides import measured_sides
-from .staging import other_stage, sheet_stage, stage_from_name, stage_spans
-from .street import name_roads, sheet_street, street_from_name
 from .stages import calibrate, decode_stations, detect, ingest, measure_section, trace
 from .stages.calibrate import centre_ft
-from .stages.measure import ZERO_FT2, ZERO_REASONS, zero_reason as _zero_reason  # noqa: F401 (re-exported)
+from .stages.measure import ZERO_FT2, ZERO_REASONS  # noqa: F401 (re-exported)
+from .staging import other_stage, sheet_stage, stage_from_name, stage_spans
+from .street import name_roads, sheet_street, street_from_name
 from .surfaces import CANON_PPF, Surfaces, _canon_size
 from .volume import RoadVolumeResult, average_end_area_volume
 
@@ -72,10 +72,6 @@ class SectionResult:
     scale: dict | None = None          # stages.FrameScale.as_dict(): ft per grid square each axis, and source
     street: str | None = None          # the street in the sheet's title block (street.sheet_street)
     confidence: dict | None = None     # confidence.score(): {"score", "passed", "deductions", "alerts"}
-
-    @property
-    def net_ft2(self) -> float:
-        return self.fill_ft2 - self.cut_ft2
 
 
 @dataclass

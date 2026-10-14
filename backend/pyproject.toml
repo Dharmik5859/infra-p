@@ -1,0 +1,19 @@
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "I", "UP", "SIM"]
+ignore = [
+    "B008",   # FastAPI declares parameters with File()/Query()/Body() defaults
+    "B905",   # zip() over parallel lists of equal length by construction
+    "E501",   # long lines are wrapped where it reads better, not to a count
+    "E731",   # small lambdas named for readability
+    "SIM108", # if/else kept where a conditional expression would hide the cases
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tools/*" = ["SIM115"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

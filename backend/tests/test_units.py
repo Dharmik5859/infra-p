@@ -6,8 +6,8 @@ import pytest
 
 from gdot_earthwork.pages import parse_station
 from gdot_earthwork.roads import StationEntry, group_into_roads
-from gdot_earthwork.tracing import drop_layer_lines
 from gdot_earthwork.stations import StationRead, format_station, repair
+from gdot_earthwork.tracing import drop_layer_lines
 from gdot_earthwork.volume import average_end_area_volume
 
 

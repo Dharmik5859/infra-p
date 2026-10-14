@@ -1,9 +1,9 @@
 """Drawing styles met on real plan sets that the tracer must not be fooled by."""
 import numpy as np
 
+from gdot_earthwork.pages import TextSpan
 from gdot_earthwork.plan_set import process_plan_set
 from gdot_earthwork.stations import StationRead, repair
-from gdot_earthwork.pages import TextSpan
 from gdot_earthwork.surfaces import CANON_PPF, _dash_chains, _half_box, _is_landed_leader, _is_underline
 from gdot_earthwork.tracing import template_strokes
 
